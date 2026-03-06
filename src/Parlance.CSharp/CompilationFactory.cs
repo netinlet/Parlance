@@ -18,7 +18,7 @@ internal static class CompilationFactory
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
     }
 
-    private static ImmutableArray<MetadataReference> LoadReferences()
+    internal static ImmutableArray<MetadataReference> LoadReferences()
     {
         var refAssemblies = TryLoadRefPackAssemblies();
         if (refAssemblies.Length > 0)
