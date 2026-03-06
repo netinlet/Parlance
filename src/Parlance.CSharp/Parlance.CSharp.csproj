@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Parlance.CSharp.Tests" />
+    <InternalsVisibleTo Include="Parlance.Cli" />
   </ItemGroup>
 
 </Project>
