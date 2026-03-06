@@ -31,7 +31,8 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
     {
         options ??= new AnalysisOptions();
 
-        var tree = CSharpSyntaxTree.ParseText(sourceCode, cancellationToken: ct);
+        var parseOptions = new CSharpParseOptions(ResolveLanguageVersion(options.LanguageVersion));
+        var tree = CSharpSyntaxTree.ParseText(sourceCode, parseOptions, cancellationToken: ct);
         var compilation = CompilationFactory.Create(tree);
 
         var analyzersToRun = options.SuppressRules.Length > 0
@@ -58,5 +59,18 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
             enriched = enriched.Take(options.MaxDiagnostics.Value).ToList();
 
         return new AnalysisResult(enriched, summary);
+    }
+
+    private static LanguageVersion ResolveLanguageVersion(string? version)
+    {
+        if (version is null)
+            return LanguageVersion.Latest;
+
+        // Try friendly short names first (Enum.TryParse would misinterpret
+        // "12" as raw numeric value 12, not CSharp12 which is 1200)
+        if (LanguageVersionFacts.TryParse(version, out var parsed))
+            return parsed;
+
+        return LanguageVersion.Latest;
     }
 }

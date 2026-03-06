@@ -131,4 +131,108 @@ public sealed class CSharpAnalysisEngineTests
     {
         Assert.Equal("csharp", _engine.Language);
     }
+
+    [Fact]
+    public async Task LanguageVersion_CSharp10_SuppressesCSharp12Rules()
+    {
+        // PARL0001 requires C# 12. With language version set to 10, it should not fire.
+        var source = """
+            class C
+            {
+                private readonly string _name;
+                private readonly int _age;
+
+                public C(string name, int age)
+                {
+                    _name = name;
+                    _age = age;
+                }
+            }
+            """;
+
+        var options = new AnalysisOptions(SuppressRules: [], LanguageVersion: "10");
+        var result = await _engine.AnalyzeSourceAsync(source, options);
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.RuleId == "PARL0001");
+    }
+
+    [Fact]
+    public async Task LanguageVersion_CSharp12_EnablesCSharp12Rules()
+    {
+        // PARL0001 requires C# 12. With language version set to 12, it should fire.
+        var source = """
+            class C
+            {
+                private readonly string _name;
+                private readonly int _age;
+
+                public C(string name, int age)
+                {
+                    _name = name;
+                    _age = age;
+                }
+            }
+            """;
+
+        var options = new AnalysisOptions(SuppressRules: [], LanguageVersion: "12");
+        var result = await _engine.AnalyzeSourceAsync(source, options);
+
+        Assert.Contains(result.Diagnostics, d => d.RuleId == "PARL0001");
+    }
+
+    [Fact]
+    public async Task LanguageVersion_Default_UsesLatest()
+    {
+        // When no language version is specified, should use Latest and fire C# 12+ rules
+        var source = """
+            class C
+            {
+                private readonly string _name;
+                private readonly int _age;
+
+                public C(string name, int age)
+                {
+                    _name = name;
+                    _age = age;
+                }
+            }
+            """;
+
+        var result = await _engine.AnalyzeSourceAsync(source);
+
+        Assert.Contains(result.Diagnostics, d => d.RuleId == "PARL0001");
+    }
+
+    [Fact]
+    public async Task LanguageVersion_CSharp6_SuppressesAllModernizationRules()
+    {
+        // With C# 6, none of the PARL modernization rules should fire
+        var source = """
+            using System.Collections.Generic;
+            class C
+            {
+                private readonly string _name;
+
+                public C(string name)
+                {
+                    _name = name;
+                }
+
+                void M(object obj)
+                {
+                    if (obj is string)
+                    {
+                        var s = (string)obj;
+                    }
+                }
+            }
+            """;
+
+        var options = new AnalysisOptions(SuppressRules: [], LanguageVersion: "6");
+        var result = await _engine.AnalyzeSourceAsync(source, options);
+
+        // PARL0001 (C# 12), PARL0004 (C# 7) — neither should fire at C# 6
+        Assert.DoesNotContain(result.Diagnostics, d => d.RuleId == "PARL0001");
+        Assert.DoesNotContain(result.Diagnostics, d => d.RuleId == "PARL0004");
+    }
 }

@@ -23,7 +23,7 @@ internal static class DiagnosticEnricher
             ["PARL0003"] = new(
                 "Modernization",
                 "The 'required' modifier (C# 11+) enforces that callers set a property during initialization. This is clearer than constructor-only initialization for simple DTOs and reduces constructor boilerplate.",
-                "Remove the constructor parameter and add the 'required' modifier to the property."),
+                "Consider adding the 'required' modifier to the properties and removing the constructor. Note: this changes construction semantics — callers must switch to object initializer syntax."),
             ["PARL0004"] = new(
                 "PatternMatching",
                 "Pattern matching with 'is' (C# 7+) combines type checking and variable declaration in one expression. It is more concise than separate 'is' check followed by a cast, avoids the double type-check, and is the idiomatic modern C# approach.",
