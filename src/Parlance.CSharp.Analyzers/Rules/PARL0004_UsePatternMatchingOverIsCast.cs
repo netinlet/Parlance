@@ -27,7 +27,17 @@ public sealed class PARL0004_UsePatternMatchingOverIsCast : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeIfStatement, SyntaxKind.IfStatement);
+
+        context.RegisterCompilationStartAction(compilationContext =>
+        {
+            var parseOptions = compilationContext.Compilation.SyntaxTrees
+                .FirstOrDefault()?.Options as CSharpParseOptions;
+
+            if (parseOptions?.LanguageVersion < LanguageVersion.CSharp7)
+                return;
+
+            compilationContext.RegisterSyntaxNodeAction(AnalyzeIfStatement, SyntaxKind.IfStatement);
+        });
     }
 
     private static void AnalyzeIfStatement(SyntaxNodeAnalysisContext context)

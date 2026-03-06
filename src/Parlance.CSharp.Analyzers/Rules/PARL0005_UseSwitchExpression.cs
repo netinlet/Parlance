@@ -27,7 +27,17 @@ public sealed class PARL0005_UseSwitchExpression : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeSwitchStatement, SyntaxKind.SwitchStatement);
+
+        context.RegisterCompilationStartAction(compilationContext =>
+        {
+            var parseOptions = compilationContext.Compilation.SyntaxTrees
+                .FirstOrDefault()?.Options as CSharpParseOptions;
+
+            if (parseOptions?.LanguageVersion < LanguageVersion.CSharp8)
+                return;
+
+            compilationContext.RegisterSyntaxNodeAction(AnalyzeSwitchStatement, SyntaxKind.SwitchStatement);
+        });
     }
 
     private static void AnalyzeSwitchStatement(SyntaxNodeAnalysisContext context)

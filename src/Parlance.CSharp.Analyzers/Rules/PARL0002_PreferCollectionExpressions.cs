@@ -27,9 +27,19 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeObjectCreation, SyntaxKind.ObjectCreationExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeArrayCreation, SyntaxKind.ArrayCreationExpression);
-        context.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+
+        context.RegisterCompilationStartAction(compilationContext =>
+        {
+            var parseOptions = compilationContext.Compilation.SyntaxTrees
+                .FirstOrDefault()?.Options as CSharpParseOptions;
+
+            if (parseOptions?.LanguageVersion < LanguageVersion.CSharp12)
+                return;
+
+            compilationContext.RegisterSyntaxNodeAction(AnalyzeObjectCreation, SyntaxKind.ObjectCreationExpression);
+            compilationContext.RegisterSyntaxNodeAction(AnalyzeArrayCreation, SyntaxKind.ArrayCreationExpression);
+            compilationContext.RegisterSyntaxNodeAction(AnalyzeInvocation, SyntaxKind.InvocationExpression);
+        });
     }
 
     private static void AnalyzeObjectCreation(SyntaxNodeAnalysisContext context)
@@ -37,6 +47,10 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
         var creation = (ObjectCreationExpressionSyntax)context.Node;
 
         if (creation.Initializer is null)
+            return;
+
+        // Collection expressions have no natural type — can't use with var
+        if (IsInVarDeclaration(creation))
             return;
 
         var typeInfo = context.SemanticModel.GetTypeInfo(creation, context.CancellationToken);
@@ -59,6 +73,10 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
         if (creation.Initializer is null)
             return;
 
+        // Collection expressions have no natural type — can't use with var
+        if (IsInVarDeclaration(creation))
+            return;
+
         context.ReportDiagnostic(Diagnostic.Create(
             Rule,
             creation.GetLocation(),
@@ -77,11 +95,35 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
             method.ContainingType.SpecialType == SpecialType.System_Array &&
             method.IsGenericMethod)
         {
+            // Collection expressions have no natural type — can't use with var
+            if (IsInVarDeclaration(invocation))
+                return;
+
             context.ReportDiagnostic(Diagnostic.Create(
                 Rule,
                 invocation.GetLocation(),
                 "Array.Empty<T>()"));
         }
+    }
+
+    /// <summary>
+    /// Checks whether the expression is the initializer of a <c>var</c> variable declaration.
+    /// Collection expressions have no natural type, so <c>var x = [...]</c> is illegal.
+    /// </summary>
+    private static bool IsInVarDeclaration(ExpressionSyntax expression)
+    {
+        if (expression.Parent is EqualsValueClauseSyntax
+            {
+                Parent: VariableDeclaratorSyntax
+                {
+                    Parent: VariableDeclarationSyntax declaration
+                }
+            })
+        {
+            return declaration.Type.IsVar;
+        }
+
+        return false;
     }
 
     private static bool ImplementsIEnumerable(INamedTypeSymbol type)

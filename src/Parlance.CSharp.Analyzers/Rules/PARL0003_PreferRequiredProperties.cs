@@ -27,7 +27,18 @@ public sealed class PARL0003_PreferRequiredProperties : DiagnosticAnalyzer
     {
         context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.None);
         context.EnableConcurrentExecution();
-        context.RegisterSyntaxNodeAction(AnalyzeTypeDeclaration, SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration);
+
+        context.RegisterCompilationStartAction(compilationContext =>
+        {
+            var parseOptions = compilationContext.Compilation.SyntaxTrees
+                .FirstOrDefault()?.Options as CSharpParseOptions;
+
+            if (parseOptions?.LanguageVersion < LanguageVersion.CSharp11)
+                return;
+
+            compilationContext.RegisterSyntaxNodeAction(
+                AnalyzeTypeDeclaration, SyntaxKind.ClassDeclaration, SyntaxKind.StructDeclaration);
+        });
     }
 
     private static void AnalyzeTypeDeclaration(SyntaxNodeAnalysisContext context)
@@ -48,9 +59,13 @@ public sealed class PARL0003_PreferRequiredProperties : DiagnosticAnalyzer
         if (ctor.Body.Statements.Count != ctor.ParameterList.Parameters.Count)
             return;
 
+        var containingType = context.SemanticModel.GetDeclaredSymbol(typeDecl);
+        if (containingType is null)
+            return;
+
         foreach (var statement in ctor.Body.Statements)
         {
-            if (!IsAssignmentToPublicSettableProperty(statement, context.SemanticModel))
+            if (!IsAssignmentToOwnPublicSettableProperty(statement, context.SemanticModel, containingType))
                 return;
         }
 
@@ -60,9 +75,10 @@ public sealed class PARL0003_PreferRequiredProperties : DiagnosticAnalyzer
             typeDecl.Identifier.Text));
     }
 
-    private static bool IsAssignmentToPublicSettableProperty(
+    private static bool IsAssignmentToOwnPublicSettableProperty(
         StatementSyntax statement,
-        SemanticModel model)
+        SemanticModel model,
+        INamedTypeSymbol containingType)
     {
         if (statement is not ExpressionStatementSyntax
             {
@@ -84,6 +100,14 @@ public sealed class PARL0003_PreferRequiredProperties : DiagnosticAnalyzer
 
         var lhsSymbol = model.GetSymbolInfo(assignment.Left).Symbol;
         if (lhsSymbol is not IPropertySymbol property)
+            return false;
+
+        // Must belong to the containing type (not a foreign object)
+        if (!SymbolEqualityComparer.Default.Equals(property.ContainingType, containingType))
+            return false;
+
+        // Must not be static
+        if (property.IsStatic)
             return false;
 
         if (property.DeclaredAccessibility != Accessibility.Public)
