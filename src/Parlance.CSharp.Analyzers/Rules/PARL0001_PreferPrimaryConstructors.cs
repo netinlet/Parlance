@@ -1,10 +1,11 @@
+using System.Linq;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 
-namespace Parlance.CSharp.Rules;
+namespace Parlance.CSharp.Analyzers.Rules;
 
 [DiagnosticAnalyzer(LanguageNames.CSharp)]
 public sealed class PARL0001_PreferPrimaryConstructors : DiagnosticAnalyzer

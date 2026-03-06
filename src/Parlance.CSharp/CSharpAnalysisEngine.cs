@@ -2,7 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Parlance.Abstractions;
-using Parlance.CSharp.Rules;
+using Parlance.CSharp.Analyzers.Rules;
 
 using AnalysisResult = Parlance.Abstractions.AnalysisResult;
 
@@ -36,9 +36,7 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
             : Analyzers;
 
         var compilationWithAnalyzers = compilation.WithAnalyzers(
-            analyzersToRun.ToImmutableArray(),
-            options: null,
-            cancellationToken: ct);
+            analyzersToRun.ToImmutableArray());
 
         var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 

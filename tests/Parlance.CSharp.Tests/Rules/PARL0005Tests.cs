@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis.Testing;
 using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
-    Parlance.CSharp.Rules.PARL0005_UseSwitchExpression,
+    Parlance.CSharp.Analyzers.Rules.PARL0005_UseSwitchExpression,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 
 namespace Parlance.CSharp.Tests.Rules;

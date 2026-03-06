@@ -1,6 +1,6 @@
 using Microsoft.CodeAnalysis.Testing;
 using Verify = Microsoft.CodeAnalysis.CSharp.Testing.CSharpAnalyzerVerifier<
-    Parlance.CSharp.Rules.PARL0001_PreferPrimaryConstructors,
+    Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors,
     Microsoft.CodeAnalysis.Testing.DefaultVerifier>;
 
 namespace Parlance.CSharp.Tests.Rules;
