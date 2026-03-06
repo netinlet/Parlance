@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Runtime.InteropServices;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
@@ -18,6 +19,67 @@ internal static class CompilationFactory
     }
 
     private static ImmutableArray<MetadataReference> LoadReferences()
+    {
+        var refAssemblies = TryLoadRefPackAssemblies();
+        if (refAssemblies.Length > 0)
+            return refAssemblies;
+
+        return LoadRuntimeAssemblies();
+    }
+
+    /// <summary>
+    /// Attempt to locate the .NET reference assemblies from the installed SDK target pack.
+    /// Reference assemblies are the correct surface for analysis — they contain only public API
+    /// surface without implementation details like System.Private.CoreLib.
+    /// </summary>
+    private static ImmutableArray<MetadataReference> TryLoadRefPackAssemblies()
+    {
+        var runtimeDir = RuntimeEnvironment.GetRuntimeDirectory();
+        if (string.IsNullOrEmpty(runtimeDir))
+            return [];
+
+        // Runtime dir is e.g. /usr/share/dotnet/shared/Microsoft.NETCore.App/10.0.0/
+        // Ref packs are at    /usr/share/dotnet/packs/Microsoft.NETCore.App.Ref/10.0.0/ref/net10.0/
+        var dotnetRoot = Path.GetFullPath(Path.Combine(runtimeDir, "..", "..", ".."));
+        var packsRoot = Path.Combine(dotnetRoot, "packs", "Microsoft.NETCore.App.Ref");
+
+        if (!Directory.Exists(packsRoot))
+            return [];
+
+        // Find the highest versioned ref pack
+        var latestPack = Directory.GetDirectories(packsRoot)
+            .Select(d => new DirectoryInfo(d))
+            .OrderByDescending(d => d.Name, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        if (latestPack is null)
+            return [];
+
+        // Look for the ref subdirectory matching the TFM (e.g. ref/net10.0/)
+        var refDir = Directory.GetDirectories(Path.Combine(latestPack.FullName, "ref"))
+            .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
+
+        if (refDir is null || !Directory.Exists(refDir))
+            return [];
+
+        var dlls = Directory.GetFiles(refDir, "*.dll");
+        if (dlls.Length == 0)
+            return [];
+
+        var builder = ImmutableArray.CreateBuilder<MetadataReference>(dlls.Length);
+        foreach (var dll in dlls)
+            builder.Add(MetadataReference.CreateFromFile(dll));
+
+        return builder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// Fallback: load from the host runtime's trusted platform assemblies.
+    /// This uses implementation assemblies rather than reference assemblies,
+    /// which is less ideal but functional for analysis purposes.
+    /// </summary>
+    private static ImmutableArray<MetadataReference> LoadRuntimeAssemblies()
     {
         var trustedAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
         if (string.IsNullOrEmpty(trustedAssemblies))
