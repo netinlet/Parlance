@@ -19,28 +19,30 @@ internal static class CompilationFactory
 
     private static ImmutableArray<MetadataReference> LoadReferences()
     {
-        var assemblyDir = Path.GetDirectoryName(typeof(object).Assembly.Location)!;
+        var trustedAssemblies = AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string;
+        if (string.IsNullOrEmpty(trustedAssemblies))
+            return [];
 
-        var referenceNames = new[]
+        var needed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "System.Runtime.dll",
-            "System.Collections.dll",
-            "System.Collections.Immutable.dll",
-            "System.Linq.dll",
-            "System.Console.dll",
-            "System.Threading.dll",
-            "System.Threading.Tasks.dll",
-            "System.ComponentModel.dll",
-            "System.ObjectModel.dll",
-            "System.Private.CoreLib.dll",
-            "netstandard.dll",
+            "System.Runtime",
+            "System.Collections",
+            "System.Collections.Immutable",
+            "System.Linq",
+            "System.Console",
+            "System.Threading",
+            "System.Threading.Tasks",
+            "System.ComponentModel",
+            "System.ObjectModel",
+            "System.Private.CoreLib",
+            "netstandard",
         };
 
         var builder = ImmutableArray.CreateBuilder<MetadataReference>();
-        foreach (var name in referenceNames)
+        foreach (var path in trustedAssemblies.Split(Path.PathSeparator))
         {
-            var path = Path.Combine(assemblyDir, name);
-            if (File.Exists(path))
+            var assemblyName = Path.GetFileNameWithoutExtension(path);
+            if (needed.Contains(assemblyName))
                 builder.Add(MetadataReference.CreateFromFile(path));
         }
 

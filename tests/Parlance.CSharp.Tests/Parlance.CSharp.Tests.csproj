@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Parlance.CSharp\Parlance.CSharp.csproj" />
+    <ProjectReference Include="..\..\src\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Parlance.Abstractions\Parlance.Abstractions.csproj" />
+    <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
