@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parlance.CSharp.Tests", "te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parlance.CSharp.Analyzers", "src\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj", "{248FCC37-5B7D-4837-8A14-AEB3A67A69F3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Parlance.Cli", "src\Parlance.Cli\Parlance.Cli.csproj", "{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{248FCC37-5B7D-4837-8A14-AEB3A67A69F3}.Release|x64.Build.0 = Release|Any CPU
 		{248FCC37-5B7D-4837-8A14-AEB3A67A69F3}.Release|x86.ActiveCfg = Release|Any CPU
 		{248FCC37-5B7D-4837-8A14-AEB3A67A69F3}.Release|x86.Build.0 = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|x64.Build.0 = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Debug|x86.Build.0 = Debug|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|x64.ActiveCfg = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|x64.Build.0 = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|x86.ActiveCfg = Release|Any CPU
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{A582ED69-DEAD-42C3-A07F-B62D161430DC} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{7AEFE398-A46B-4B61-AB14-661C1E078B26} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{248FCC37-5B7D-4837-8A14-AEB3A67A69F3} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{3F1C5D2C-A027-4362-B6A2-D1F014EC23EB} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
