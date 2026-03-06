@@ -32,6 +32,18 @@ internal static class DiagnosticEnricher
                 "PatternMatching",
                 "Switch expressions (C# 8+) are more concise than switch statements when every branch returns a value. They enforce exhaustiveness and make the data-flow intent clearer.",
                 "Convert the switch statement to a switch expression."),
+            ["PARL9001"] = new(
+                "Modernization",
+                "Using declarations (C# 8+) remove the need for braces and reduce indentation. The variable is disposed at the end of the enclosing scope, which is equivalent when the using is the last meaningful statement.",
+                "Remove the parentheses and braces: change 'using (var x = y) { }' to 'using var x = y;'."),
+            ["PARL9002"] = new(
+                "Modernization",
+                "Target-typed new (C# 9+) lets you omit the type name in a new expression when the type is apparent from the declaration. This reduces redundancy without losing clarity.",
+                "Replace 'new TypeName(...)' with 'new(...)'."),
+            ["PARL9003"] = new(
+                "Modernization",
+                "The default literal (C# 7.1+) lets the compiler infer the type from context, eliminating the redundant type argument in default(T) when the target type is already apparent.",
+                "Replace 'default(T)' with 'default'."),
         }.ToFrozenDictionary();
 
     public static IReadOnlyList<ParlanceDiagnostic> Enrich(

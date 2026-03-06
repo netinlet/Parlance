@@ -19,6 +19,9 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
         new PARL0003_PreferRequiredProperties(),
         new PARL0004_UsePatternMatchingOverIsCast(),
         new PARL0005_UseSwitchExpression(),
+        new PARL9001_UseSimpleUsingDeclaration(),
+        new PARL9002_UseImplicitObjectCreation(),
+        new PARL9003_UseDefaultLiteral(),
     ];
 
     public async Task<AnalysisResult> AnalyzeSourceAsync(

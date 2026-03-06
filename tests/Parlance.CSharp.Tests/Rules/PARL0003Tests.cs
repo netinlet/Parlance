@@ -93,4 +93,24 @@ public sealed class PARL0003Tests
 
         await Verify.VerifyAnalyzerAsync(source);
     }
+
+    [Fact]
+    public async Task NoFlag_AssignsToStaticProperty()
+    {
+        // Bug fix: assigning to a static property should not be flagged —
+        // it's not an instance member of the containing type
+        var source = """
+            class C
+            {
+                public static string GlobalName { get; set; }
+
+                public C(string name)
+                {
+                    GlobalName = name;
+                }
+            }
+            """;
+
+        await Verify.VerifyAnalyzerAsync(source);
+    }
 }

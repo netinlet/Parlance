@@ -61,7 +61,7 @@ public sealed class CSharpAnalysisEngineTests
             {
                 void M(object obj)
                 {
-                    var list = new List<int> { 1, 2, 3 };
+                    List<int> list = new List<int> { 1, 2, 3 };
                     if (obj is string)
                     {
                         var s = (string)obj;
