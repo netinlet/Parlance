@@ -1,0 +1,78 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dotnet:
+    name: .NET Build and Test
+    runs-on: ubuntu-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 1
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      TEST_RESULTS_DIR: ${{ github.workspace }}/.ci/test-results
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj', '**/*.props', '**/*.targets', 'global.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Restore dependencies
+        run: dotnet restore Parlance.sln
+
+      - name: Verify code formatting
+        run: dotnet format Parlance.sln --verify-no-changes --verbosity diagnostic
+
+      - name: Build solution
+        run: dotnet build Parlance.sln --configuration Release --no-restore
+
+      - name: Prepare test results directory
+        run: |
+          rm -rf "$TEST_RESULTS_DIR"
+          mkdir -p "$TEST_RESULTS_DIR"
+
+      - name: Run tests
+        run: >
+          dotnet test Parlance.sln
+          --configuration Release
+          --no-build
+          --collect:"XPlat Code Coverage"
+          --results-directory "$TEST_RESULTS_DIR"
+
+      - name: Generate coverage report
+        if: success()
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator "-reports:${TEST_RESULTS_DIR}/**/coverage.cobertura.xml" "-targetdir:${TEST_RESULTS_DIR}/CoverageReport" -reporttypes:'Cobertura;HtmlSummary;MarkdownSummaryGithub'
+          cat "${TEST_RESULTS_DIR}/CoverageReport/SummaryGithub.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-results
+          path: ${{ env.TEST_RESULTS_DIR }}
+          if-no-files-found: ignore
