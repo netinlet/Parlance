@@ -132,6 +132,8 @@ Each rule is a `sealed class` inheriting `DiagnosticAnalyzer`. PARL0001-0003 are
 
 Note: PARL0001 overlaps with IDE0290. Deduplication deferred to when upstream analyzers are integrated.
 
+Note: PARL0001 and PARL0003 can fire on the same type when a constructor assigns to public settable properties (both "prefer primary constructor" and "prefer required properties" apply). These are contradictory recommendations. Future work should add a guard so only the more specific rule (PARL0003) fires in this case.
+
 ## Testing
 
 - **Framework:** xUnit + `Microsoft.CodeAnalysis.CSharp.Testing.XUnit`

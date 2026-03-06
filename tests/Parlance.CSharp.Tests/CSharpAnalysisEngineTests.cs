@@ -122,6 +122,8 @@ public sealed class CSharpAnalysisEngineTests
         var result = await _engine.AnalyzeSourceAsync(source, options);
 
         Assert.True(result.Diagnostics.Count <= 2);
+        // Score reflects all diagnostics, not just the capped set
+        Assert.True(result.Summary.TotalDiagnostics >= result.Diagnostics.Count);
     }
 
     [Fact]

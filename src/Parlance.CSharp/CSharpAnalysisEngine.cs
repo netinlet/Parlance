@@ -49,11 +49,12 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
 
         var enriched = DiagnosticEnricher.Enrich(filtered);
 
-        // Apply MaxDiagnostics cap
+        // Score reflects all diagnostics so the score represents true code quality
+        var summary = IdiomaticScoreCalculator.Calculate(enriched);
+
+        // Cap the diagnostics list for presentation after scoring
         if (options.MaxDiagnostics.HasValue && enriched.Count > options.MaxDiagnostics.Value)
             enriched = enriched.Take(options.MaxDiagnostics.Value).ToList();
-
-        var summary = IdiomaticScoreCalculator.Calculate(enriched);
 
         return new AnalysisResult(enriched, summary);
     }
