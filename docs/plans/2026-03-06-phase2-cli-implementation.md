@@ -41,8 +41,9 @@ Create `src/Parlance.Cli/Parlance.Cli.csproj`:
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.CommandLine" Version="2.0.0-beta5.25306.1" />
+    <PackageReference Include="System.CommandLine" Version="2.0.3" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
+    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.3" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,8 +55,6 @@ Create `src/Parlance.Cli/Parlance.Cli.csproj`:
 </Project>
 ```
 
-Note: Check NuGet for the latest `System.CommandLine` version before using the one above. It has been in prerelease for a long time. Use whatever is current.
-
 **Step 3: Create minimal Program.cs**
 
 Create `src/Parlance.Cli/Program.cs`:
@@ -64,7 +63,7 @@ Create `src/Parlance.Cli/Program.cs`:
 using System.CommandLine;
 
 var rootCommand = new RootCommand("Parlance — C# code quality analysis and auto-fix tool");
-return await rootCommand.InvokeAsync(args);
+return await rootCommand.Parse(args).InvokeAsync();
 ```
 
 **Step 4: Add to solution**
@@ -292,7 +291,7 @@ internal static class PathResolver
 }
 ```
 
-Note: Check whether `Microsoft.Extensions.FileSystemGlobbing` is needed as a package reference or is already available. If needed, add it to `Parlance.Cli.csproj`. Alternatively, for `**/*.cs` style deep globs, you may need to split the glob more carefully — the directory portion vs the pattern portion. Test the glob behavior and adjust.
+`Microsoft.Extensions.FileSystemGlobbing` (version 10.0.3) is already in `Parlance.Cli.csproj` from Task 1.
 
 **Step 5: Run tests to verify they pass**
 
@@ -1400,29 +1399,36 @@ internal static class AnalyzeCommand
 {
     public static Command Create()
     {
-        var pathsArg = new Argument<string[]>("paths", "Files, directories, or glob patterns to analyze")
-        {
-            Arity = ArgumentArity.OneOrMore,
-        };
+        var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.OneOrMore };
+        pathsArg.Description = "Files, directories, or glob patterns to analyze";
 
-        var formatOption = new Option<string>(["--format", "-f"], () => "text", "Output format: text, json");
-        var failBelowOption = new Option<int?>("--fail-below", "Exit with code 1 if score is below threshold (0-100)");
-        var suppressOption = new Option<string[]>("--suppress", () => [], "Rule IDs to suppress");
-        var maxDiagOption = new Option<int?>("--max-diagnostics", "Maximum number of diagnostics to report");
-        var langVersionOption = new Option<string?>("--language-version", "C# language version (default: Latest)");
+        var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
+        formatOption.DefaultValueFactory = _ => "text";
 
-        var command = new Command("analyze", "Analyze C# source files for idiomatic patterns")
-        {
-            pathsArg,
-            formatOption,
-            failBelowOption,
-            suppressOption,
-            maxDiagOption,
-            langVersionOption,
-        };
+        var failBelowOption = new Option<int?>("--fail-below") { Description = "Exit with code 1 if score is below threshold (0-100)" };
+        var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
+        suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
 
-        command.SetHandler(async (paths, format, failBelow, suppress, maxDiag, langVersion) =>
+        var maxDiagOption = new Option<int?>("--max-diagnostics") { Description = "Maximum number of diagnostics to report" };
+        var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
+
+        var command = new Command("analyze", "Analyze C# source files for idiomatic patterns");
+        command.Add(pathsArg);
+        command.Add(formatOption);
+        command.Add(failBelowOption);
+        command.Add(suppressOption);
+        command.Add(maxDiagOption);
+        command.Add(langVersionOption);
+
+        command.SetAction(async (parseResult, ct) =>
         {
+            var paths = parseResult.GetValue(pathsArg)!;
+            var format = parseResult.GetValue(formatOption)!;
+            var failBelow = parseResult.GetValue(failBelowOption);
+            var suppress = parseResult.GetValue(suppressOption)!;
+            var maxDiag = parseResult.GetValue(maxDiagOption);
+            var langVersion = parseResult.GetValue(langVersionOption);
+
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
             {
@@ -1432,7 +1438,7 @@ internal static class AnalyzeCommand
             }
 
             var result = await WorkspaceAnalyzer.AnalyzeAsync(
-                files, suppress, maxDiag, langVersion);
+                files, suppress, maxDiag, langVersion, ct);
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {
@@ -1446,7 +1452,7 @@ internal static class AnalyzeCommand
             {
                 Environment.ExitCode = 1;
             }
-        }, pathsArg, formatOption, failBelowOption, suppressOption, maxDiagOption, langVersionOption);
+        });
 
         return command;
     }
@@ -1462,8 +1468,8 @@ using System.CommandLine;
 using Parlance.Cli.Commands;
 
 var rootCommand = new RootCommand("Parlance — C# code quality analysis and auto-fix tool");
-rootCommand.AddCommand(AnalyzeCommand.Create());
-return await rootCommand.InvokeAsync(args);
+rootCommand.Add(AnalyzeCommand.Create());
+return await rootCommand.Parse(args).InvokeAsync();
 ```
 
 **Step 3: Build and smoke test**
@@ -1805,27 +1811,32 @@ internal static class FixCommand
 {
     public static Command Create()
     {
-        var pathsArg = new Argument<string[]>("paths", "Files, directories, or glob patterns to fix")
-        {
-            Arity = ArgumentArity.OneOrMore,
-        };
+        var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.OneOrMore };
+        pathsArg.Description = "Files, directories, or glob patterns to fix";
 
-        var applyOption = new Option<bool>("--apply", "Apply fixes to files (default is dry-run)");
-        var formatOption = new Option<string>(["--format", "-f"], () => "text", "Output format: text, json");
-        var suppressOption = new Option<string[]>("--suppress", () => [], "Rule IDs to suppress");
-        var langVersionOption = new Option<string?>("--language-version", "C# language version (default: Latest)");
+        var applyOption = new Option<bool>("--apply") { Description = "Apply fixes to files (default is dry-run)" };
+        var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
+        formatOption.DefaultValueFactory = _ => "text";
 
-        var command = new Command("fix", "Apply auto-fixes to C# source files")
-        {
-            pathsArg,
-            applyOption,
-            formatOption,
-            suppressOption,
-            langVersionOption,
-        };
+        var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
+        suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
 
-        command.SetHandler(async (paths, apply, format, suppress, langVersion) =>
+        var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
+
+        var command = new Command("fix", "Apply auto-fixes to C# source files");
+        command.Add(pathsArg);
+        command.Add(applyOption);
+        command.Add(formatOption);
+        command.Add(suppressOption);
+        command.Add(langVersionOption);
+
+        command.SetAction(async (parseResult, ct) =>
         {
+            var paths = parseResult.GetValue(pathsArg)!;
+            var apply = parseResult.GetValue(applyOption);
+            var suppress = parseResult.GetValue(suppressOption)!;
+            var langVersion = parseResult.GetValue(langVersionOption);
+
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
             {
@@ -1834,7 +1845,7 @@ internal static class FixCommand
                 return;
             }
 
-            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion);
+            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion, ct);
 
             if (result.FixedFiles.Count == 0)
             {
@@ -1847,7 +1858,6 @@ internal static class FixCommand
                 Console.WriteLine($"--- {file.FilePath}");
                 if (!apply)
                 {
-                    // Simple diff: show the new content preview
                     Console.WriteLine($"+++ {file.FilePath} (fixed)");
                     Console.WriteLine(file.NewContent);
                 }
@@ -1862,7 +1872,7 @@ internal static class FixCommand
             {
                 Console.WriteLine($"{result.FixedFiles.Count} file(s) would be modified. Use --apply to write changes.");
             }
-        }, pathsArg, applyOption, formatOption, suppressOption, langVersionOption);
+        });
 
         return command;
     }
@@ -1874,7 +1884,7 @@ internal static class FixCommand
 Modify `src/Parlance.Cli/Program.cs` to add:
 
 ```csharp
-rootCommand.AddCommand(FixCommand.Create());
+rootCommand.Add(FixCommand.Create());
 ```
 
 **Step 7: Build and smoke test**
@@ -1940,21 +1950,25 @@ internal static class RulesCommand
 
     public static Command Create()
     {
-        var categoryOption = new Option<string?>("--category", "Filter by category");
-        var severityOption = new Option<string?>("--severity", "Filter by severity (Error, Warning, Suggestion)");
-        var fixableOption = new Option<bool>("--fixable", "Show only rules with auto-fixes");
-        var formatOption = new Option<string>(["--format", "-f"], () => "text", "Output format: text, json");
+        var categoryOption = new Option<string?>("--category") { Description = "Filter by category" };
+        var severityOption = new Option<string?>("--severity") { Description = "Filter by severity (Error, Warning, Suggestion)" };
+        var fixableOption = new Option<bool>("--fixable") { Description = "Show only rules with auto-fixes" };
+        var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
+        formatOption.DefaultValueFactory = _ => "text";
 
-        var command = new Command("rules", "List available analysis rules")
-        {
-            categoryOption,
-            severityOption,
-            fixableOption,
-            formatOption,
-        };
+        var command = new Command("rules", "List available analysis rules");
+        command.Add(categoryOption);
+        command.Add(severityOption);
+        command.Add(fixableOption);
+        command.Add(formatOption);
 
-        command.SetHandler((category, severity, fixable, format) =>
+        command.SetAction((parseResult, _) =>
         {
+            var category = parseResult.GetValue(categoryOption);
+            var severity = parseResult.GetValue(severityOption);
+            var fixable = parseResult.GetValue(fixableOption);
+            var format = parseResult.GetValue(formatOption)!;
+
             var rules = GetRules();
 
             if (category is not null)
@@ -1984,7 +1998,9 @@ internal static class RulesCommand
                 Console.WriteLine();
                 Console.WriteLine($"{rules.Count} rule(s)");
             }
-        }, categoryOption, severityOption, fixableOption, formatOption);
+
+            return Task.CompletedTask;
+        });
 
         return command;
     }
@@ -2024,7 +2040,7 @@ internal static class RulesCommand
 Modify `src/Parlance.Cli/Program.cs` to add:
 
 ```csharp
-rootCommand.AddCommand(RulesCommand.Create());
+rootCommand.Add(RulesCommand.Create());
 ```
 
 Final `Program.cs`:
@@ -2034,10 +2050,10 @@ using System.CommandLine;
 using Parlance.Cli.Commands;
 
 var rootCommand = new RootCommand("Parlance — C# code quality analysis and auto-fix tool");
-rootCommand.AddCommand(AnalyzeCommand.Create());
-rootCommand.AddCommand(FixCommand.Create());
-rootCommand.AddCommand(RulesCommand.Create());
-return await rootCommand.InvokeAsync(args);
+rootCommand.Add(AnalyzeCommand.Create());
+rootCommand.Add(FixCommand.Create());
+rootCommand.Add(RulesCommand.Create());
+return await rootCommand.Parse(args).InvokeAsync();
 ```
 
 **Step 3: Build and smoke test**
