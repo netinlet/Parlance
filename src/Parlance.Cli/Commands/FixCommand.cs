@@ -20,7 +20,7 @@ internal static class FixCommand
             var paths = result.GetValueOrDefault<string[]>() ?? [];
             foreach (var path in paths)
             {
-                if (path.StartsWith("--"))
+                if (path.StartsWith("-"))
                     result.AddError($"Unrecognized option: '{path}'");
             }
         });
