@@ -1,9 +1,9 @@
 using System.Collections.Frozen;
 using Microsoft.CodeAnalysis;
-using RoslynDiagnostic = Microsoft.CodeAnalysis.Diagnostic;
 using ParlanceDiagnostic = Parlance.Abstractions.Diagnostic;
-using ParlanceSeverity = Parlance.Abstractions.DiagnosticSeverity;
 using ParlanceLocation = Parlance.Abstractions.Location;
+using ParlanceSeverity = Parlance.Abstractions.DiagnosticSeverity;
+using RoslynDiagnostic = Microsoft.CodeAnalysis.Diagnostic;
 
 namespace Parlance.CSharp;
 
