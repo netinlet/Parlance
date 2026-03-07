@@ -213,4 +213,37 @@ public sealed class CliIntegrationTests : IDisposable
         Assert.Contains("PARL9001", stdout);
         Assert.DoesNotContain("PARL0001", stdout);
     }
+
+    [Fact]
+    public async Task Analyze_UnknownOption_ExitCode1()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, "class C { }");
+
+        var (exitCode, stdout, stderr) = await RunCliAsync("analyze", file, "--bogus");
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("--bogus", stdout + stderr);
+    }
+
+    [Fact]
+    public async Task Analyze_InvalidFormat_ExitCode1()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, "class C { }");
+
+        var (exitCode, stdout, stderr) = await RunCliAsync("analyze", file, "--format", "nope");
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("nope", stdout + stderr);
+    }
+
+    [Fact]
+    public async Task Rules_InvalidFormat_ExitCode1()
+    {
+        var (exitCode, stdout, stderr) = await RunCliAsync("rules", "--format", "nope");
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains("nope", stdout + stderr);
+    }
 }

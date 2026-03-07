@@ -15,6 +15,16 @@ internal static class FixCommand
         suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
         var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
 
+        pathsArg.Validators.Add(result =>
+        {
+            var paths = result.GetValueOrDefault<string[]>() ?? [];
+            foreach (var path in paths)
+            {
+                if (path.StartsWith("-"))
+                    result.AddError($"Unrecognized option: '{path}'");
+            }
+        });
+
         var command = new Command("fix", "Apply auto-fixes to C# source files");
         command.Add(pathsArg);
         command.Add(applyOption);

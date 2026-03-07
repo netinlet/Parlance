@@ -13,6 +13,7 @@ internal static class AnalyzeCommand
 
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
+        formatOption.AcceptOnlyFromAmong("text", "json");
 
         var failBelowOption = new Option<int?>("--fail-below") { Description = "Exit with code 1 if score is below threshold (0-100)" };
         var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
@@ -20,6 +21,16 @@ internal static class AnalyzeCommand
 
         var maxDiagOption = new Option<int?>("--max-diagnostics") { Description = "Maximum number of diagnostics to report" };
         var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
+
+        pathsArg.Validators.Add(result =>
+        {
+            var paths = result.GetValueOrDefault<string[]>() ?? [];
+            foreach (var path in paths)
+            {
+                if (path.StartsWith("-"))
+                    result.AddError($"Unrecognized option: '{path}'");
+            }
+        });
 
         var command = new Command("analyze", "Analyze C# source files for idiomatic patterns");
         command.Add(pathsArg);
@@ -52,7 +63,8 @@ internal static class AnalyzeCommand
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {
                 "json" => new JsonFormatter(),
-                _ => new TextFormatter(),
+                "text" => new TextFormatter(),
+                _ => throw new InvalidOperationException($"Unexpected format value: '{format}'"),
             };
 
             Console.Write(formatter.Format(result));

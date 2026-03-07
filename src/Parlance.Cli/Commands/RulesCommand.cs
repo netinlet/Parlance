@@ -35,6 +35,7 @@ internal static class RulesCommand
         var fixableOption = new Option<bool>("--fixable") { Description = "Show only rules with auto-fixes" };
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
+        formatOption.AcceptOnlyFromAmong("text", "json");
 
         var command = new Command("rules", "List available analysis rules");
         command.Add(categoryOption);
@@ -67,7 +68,7 @@ internal static class RulesCommand
                 });
                 Console.Write(json);
             }
-            else
+            else if (format.Equals("text", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine($"{"ID",-12} {"Severity",-12} {"Category",-20} {"Fix",-5} {"Title"}");
                 Console.WriteLine(new string('-', 80));
@@ -77,6 +78,10 @@ internal static class RulesCommand
                 }
                 Console.WriteLine();
                 Console.WriteLine($"{rules.Count} rule(s)");
+            }
+            else
+            {
+                throw new InvalidOperationException($"Unexpected format value: '{format}'");
             }
 
             return Task.CompletedTask;
