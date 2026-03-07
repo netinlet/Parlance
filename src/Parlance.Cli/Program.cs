@@ -5,4 +5,6 @@ var rootCommand = new RootCommand("Parlance — C# code quality analysis and aut
 rootCommand.Add(AnalyzeCommand.Create());
 rootCommand.Add(FixCommand.Create());
 rootCommand.Add(RulesCommand.Create());
-return await rootCommand.Parse(args).InvokeAsync();
+
+var result = await rootCommand.Parse(args).InvokeAsync();
+return Environment.ExitCode != 0 ? Environment.ExitCode : result;
