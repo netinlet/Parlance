@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Text;
 using System.Text.Json;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Parlance.CSharp.Analyzers.Rules;
@@ -59,35 +60,37 @@ internal static class RulesCommand
             if (fixable)
                 rules = rules.Where(r => r.HasFix).ToList();
 
-            if (format.Equals("json", StringComparison.OrdinalIgnoreCase))
+            var output = format.ToLowerInvariant() switch
             {
-                var json = JsonSerializer.Serialize(rules, new JsonSerializerOptions
+                "json" => JsonSerializer.Serialize(rules, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
                     WriteIndented = true,
-                });
-                Console.Write(json);
-            }
-            else if (format.Equals("text", StringComparison.OrdinalIgnoreCase))
-            {
-                Console.WriteLine($"{"ID",-12} {"Severity",-12} {"Category",-20} {"Fix",-5} {"Title"}");
-                Console.WriteLine(new string('-', 80));
-                foreach (var rule in rules)
-                {
-                    Console.WriteLine($"{rule.Id,-12} {rule.DefaultSeverity,-12} {rule.Category,-20} {(rule.HasFix ? "Yes" : ""),-5} {rule.Title}");
-                }
-                Console.WriteLine();
-                Console.WriteLine($"{rules.Count} rule(s)");
-            }
-            else
-            {
-                throw new InvalidOperationException($"Unexpected format value: '{format}'");
-            }
+                }),
+                "text" => FormatAsText(rules),
+                _ => throw new InvalidOperationException($"Unexpected format value: '{format}'"),
+            };
+
+            Console.Write(output);
 
             return Task.CompletedTask;
         });
 
         return command;
+    }
+
+    private static string FormatAsText(List<RuleInfo> rules)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine($"{"ID",-12} {"Severity",-12} {"Category",-20} {"Fix",-5} {"Title"}");
+        sb.AppendLine(new string('-', 80));
+        foreach (var rule in rules)
+        {
+            sb.AppendLine($"{rule.Id,-12} {rule.DefaultSeverity,-12} {rule.Category,-20} {(rule.HasFix ? "Yes" : ""),-5} {rule.Title}");
+        }
+        sb.AppendLine();
+        sb.AppendLine($"{rules.Count} rule(s)");
+        return sb.ToString();
     }
 
     private static List<RuleInfo> GetRules()
