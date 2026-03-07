@@ -106,7 +106,7 @@ public sealed class CliIntegrationTests : IDisposable
 
         Assert.Equal(0, exitCode);
         var doc = JsonDocument.Parse(stdout);
-        Assert.NotNull(doc.RootElement.GetProperty("summary"));
+        Assert.True(doc.RootElement.TryGetProperty("summary", out _));
     }
 
     [Fact]
