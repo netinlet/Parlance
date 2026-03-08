@@ -234,6 +234,41 @@ public sealed class CliIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Analyze_TargetFramework_AcceptsNet8()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, "class C { }");
+
+        var (exitCode, _, _) = await RunCliAsync("analyze", file, "--target-framework", "net8.0");
+
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
+    public async Task Fix_TargetFramework_AcceptsNet8()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, """
+            using System;
+            using System.IO;
+            class C
+            {
+                void M()
+                {
+                    using (var stream = new MemoryStream())
+                    {
+                        stream.WriteByte(1);
+                    }
+                }
+            }
+            """);
+
+        var (exitCode, _, _) = await RunCliAsync("fix", file, "--target-framework", "net8.0");
+
+        Assert.Equal(0, exitCode);
+    }
+
+    [Fact]
     public async Task Analyze_WithUpstreamAnalyzers_ReportsNonParlDiagnostics()
     {
         var file = Path.Combine(_tempDir, "Test.cs");

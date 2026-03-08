@@ -14,12 +14,18 @@ internal static class FixCommand
         var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
         suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
         var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
+        var tfmOption = new Option<string>("--target-framework") { Description = "Target framework (default: net10.0)" };
+        tfmOption.DefaultValueFactory = _ => "net10.0";
+        var profileOption = new Option<string>("--profile") { Description = "Analysis profile (default: default)" };
+        profileOption.DefaultValueFactory = _ => "default";
 
         var command = new Command("fix", "Apply auto-fixes to C# source files");
         command.Add(pathsArg);
         command.Add(applyOption);
         command.Add(suppressOption);
         command.Add(langVersionOption);
+        command.Add(tfmOption);
+        command.Add(profileOption);
 
         command.SetAction(async (parseResult, ct) =>
         {
@@ -27,6 +33,7 @@ internal static class FixCommand
             var apply = parseResult.GetValue(applyOption);
             var suppress = parseResult.GetValue(suppressOption)!;
             var langVersion = parseResult.GetValue(langVersionOption);
+            var targetFramework = parseResult.GetValue(tfmOption)!;
 
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
@@ -36,7 +43,7 @@ internal static class FixCommand
                 return;
             }
 
-            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion, ct: ct);
+            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion, targetFramework, ct);
 
             if (result.FixedFiles.Count == 0)
             {
