@@ -215,6 +215,25 @@ public sealed class CliIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task Rules_ShowsUpstreamRules()
+    {
+        var (exitCode, stdout, _) = await RunCliAsync("rules");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("PARL0001", stdout);
+        Assert.Matches("(CA|IDE|RCS)", stdout);
+    }
+
+    [Fact]
+    public async Task Rules_TargetFramework_AcceptsNet8()
+    {
+        var (exitCode, stdout, _) = await RunCliAsync("rules", "--target-framework", "net8.0");
+
+        Assert.Equal(0, exitCode);
+        Assert.Contains("PARL0001", stdout);
+    }
+
+    [Fact]
     public async Task Analyze_WithUpstreamAnalyzers_ReportsNonParlDiagnostics()
     {
         var file = Path.Combine(_tempDir, "Test.cs");

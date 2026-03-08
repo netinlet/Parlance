@@ -1,7 +1,8 @@
 using System.CommandLine;
+using System.Reflection;
 using System.Text.Json;
-using Microsoft.CodeAnalysis.Diagnostics;
-using Parlance.CSharp.Analyzers.Rules;
+using Microsoft.CodeAnalysis.CodeFixes;
+using Parlance.Analyzers.Upstream;
 
 namespace Parlance.Cli.Commands;
 
@@ -14,20 +15,6 @@ internal static class RulesCommand
         string DefaultSeverity,
         bool HasFix);
 
-    private static readonly string[] FixableRuleIds = ["PARL0004", "PARL9001"];
-
-    private static readonly DiagnosticAnalyzer[] AllAnalyzers =
-    [
-        new PARL0001_PreferPrimaryConstructors(),
-        new PARL0002_PreferCollectionExpressions(),
-        new PARL0003_PreferRequiredProperties(),
-        new PARL0004_UsePatternMatchingOverIsCast(),
-        new PARL0005_UseSwitchExpression(),
-        new PARL9001_UseSimpleUsingDeclaration(),
-        new PARL9002_UseImplicitObjectCreation(),
-        new PARL9003_UseDefaultLiteral(),
-    ];
-
     public static Command Create()
     {
         var categoryOption = new Option<string?>("--category") { Description = "Filter by category" };
@@ -35,12 +22,15 @@ internal static class RulesCommand
         var fixableOption = new Option<bool>("--fixable") { Description = "Show only rules with auto-fixes" };
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
+        var tfmOption = new Option<string>("--target-framework") { Description = "Target framework for analyzer resolution" };
+        tfmOption.DefaultValueFactory = _ => "net10.0";
 
         var command = new Command("rules", "List available analysis rules");
         command.Add(categoryOption);
         command.Add(severityOption);
         command.Add(fixableOption);
         command.Add(formatOption);
+        command.Add(tfmOption);
 
         command.SetAction((parseResult, _) =>
         {
@@ -48,8 +38,9 @@ internal static class RulesCommand
             var severity = parseResult.GetValue(severityOption);
             var fixable = parseResult.GetValue(fixableOption);
             var format = parseResult.GetValue(formatOption)!;
+            var targetFramework = parseResult.GetValue(tfmOption)!;
 
-            var rules = GetRules();
+            var rules = GetRules(targetFramework);
 
             if (category is not null)
                 rules = rules.Where(r => r.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -85,14 +76,20 @@ internal static class RulesCommand
         return command;
     }
 
-    private static List<RuleInfo> GetRules()
+    private static List<RuleInfo> GetRules(string targetFramework)
     {
+        var analyzers = AnalyzerLoader.LoadAll(targetFramework);
+        var fixableIds = DiscoverFixableIds();
         var rules = new List<RuleInfo>();
+        var seenIds = new HashSet<string>();
 
-        foreach (var analyzer in AllAnalyzers)
+        foreach (var analyzer in analyzers)
         {
             foreach (var descriptor in analyzer.SupportedDiagnostics)
             {
+                if (!seenIds.Add(descriptor.Id))
+                    continue;
+
                 var severity = descriptor.DefaultSeverity switch
                 {
                     Microsoft.CodeAnalysis.DiagnosticSeverity.Error => "Error",
@@ -106,10 +103,47 @@ internal static class RulesCommand
                     descriptor.Title.ToString(),
                     descriptor.Category,
                     severity,
-                    FixableRuleIds.Contains(descriptor.Id)));
+                    fixableIds.Contains(descriptor.Id)));
             }
         }
 
         return rules.OrderBy(r => r.Id).ToList();
+    }
+
+    private static HashSet<string> DiscoverFixableIds()
+    {
+        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
+        var fixableIds = new HashSet<string>();
+
+        Type[] types;
+        try
+        {
+            types = parlAssembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.Where(t => t is not null).ToArray()!;
+        }
+
+        foreach (var type in types)
+        {
+            if (type.IsAbstract || !typeof(CodeFixProvider).IsAssignableFrom(type))
+                continue;
+
+            try
+            {
+                if (Activator.CreateInstance(type) is CodeFixProvider provider)
+                {
+                    foreach (var id in provider.FixableDiagnosticIds)
+                        fixableIds.Add(id);
+                }
+            }
+            catch
+            {
+                // Skip types that can't be instantiated
+            }
+        }
+
+        return fixableIds;
     }
 }
