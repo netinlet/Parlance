@@ -81,6 +81,13 @@ public sealed class PARL0004_UsePatternMatchingOverIsCast : DiagnosticAnalyzer
         if (checkedSymbol is null || targetTypeSymbol is null)
             return false;
 
+        // Only flag when the checked expression is safe to evaluate once.
+        // Method calls, indexers, and other invocations can have side effects —
+        // collapsing two evaluations into one changes runtime behavior.
+        if (checkedSymbol is not (ILocalSymbol or IParameterSymbol or IFieldSymbol
+            or IPropertySymbol { IsIndexer: false }))
+            return false;
+
         foreach (var cast in body.DescendantNodes().OfType<CastExpressionSyntax>())
         {
             var castTypeSymbol = model.GetTypeInfo(cast.Type).Type;
