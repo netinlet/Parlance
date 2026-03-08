@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Reflection;
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -159,8 +160,27 @@ internal static class WorkspaceFixer
     {
         foreach (var file in result.FixedFiles)
         {
-            File.WriteAllText(file.FilePath, file.NewContent);
+            var encoding = DetectEncoding(file.FilePath);
+            File.WriteAllText(file.FilePath, file.NewContent, encoding);
         }
+    }
+
+    internal static Encoding DetectEncoding(string filePath)
+    {
+        using var stream = File.OpenRead(filePath);
+        Span<byte> bom = stackalloc byte[4];
+        var bytesRead = stream.Read(bom);
+
+        if (bytesRead >= 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF)
+            return new UTF8Encoding(encoderShouldEmitUTF8Identifier: true);
+
+        if (bytesRead >= 2 && bom[0] == 0xFF && bom[1] == 0xFE)
+            return new UnicodeEncoding(bigEndian: false, byteOrderMark: true);
+
+        if (bytesRead >= 2 && bom[0] == 0xFE && bom[1] == 0xFF)
+            return new UnicodeEncoding(bigEndian: true, byteOrderMark: true);
+
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
     }
 
     private static List<CodeFixProvider> DiscoverFixProviders()

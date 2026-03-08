@@ -22,6 +22,7 @@ internal static class RulesCommand
         var fixableOption = new Option<bool>("--fixable") { Description = "Show only rules with auto-fixes" };
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
+        formatOption.AcceptOnlyFromAmong("text", "json");
         var tfmOption = new Option<string>("--target-framework") { Description = "Target framework for analyzer resolution" };
         tfmOption.DefaultValueFactory = _ => "net10.0";
 

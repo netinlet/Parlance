@@ -340,4 +340,114 @@ public sealed class CliIntegrationTests : IDisposable
         // Upstream diagnostics also fire alongside PARL ones
         Assert.Matches("(CA|IDE|RCS)", stdout);
     }
+
+    // Reject invalid --format values instead of silently falling back to text
+    [Fact]
+    public async Task Analyze_InvalidFormat_ReturnsNonZeroExit()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, "class C { }");
+
+        var (exitCode, _, stderr) = await RunCliAsync("analyze", file, "--format", "nope");
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("nope", stderr);
+    }
+
+    [Fact]
+    public async Task Rules_InvalidFormat_ReturnsNonZeroExit()
+    {
+        var (exitCode, _, stderr) = await RunCliAsync("rules", "--format", "nope");
+
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("nope", stderr);
+    }
+
+    // Unknown options on commands without variadic args should fail
+    [Fact]
+    public async Task Rules_UnknownOption_ReturnsNonZeroExit()
+    {
+        var (exitCode, _, _) = await RunCliAsync("rules", "--bogus");
+
+        Assert.NotEqual(0, exitCode);
+    }
+
+    // Recursive glob patterns like src/**/*.cs should match nested files
+    [Fact]
+    public async Task Analyze_RecursiveGlob_FindsNestedFiles()
+    {
+        var subDir = Path.Combine(_tempDir, "src", "sub");
+        Directory.CreateDirectory(subDir);
+        File.WriteAllText(Path.Combine(subDir, "Example.cs"), "class Example { }");
+        File.WriteAllText(Path.Combine(_tempDir, "src", "Root.cs"), "class Root { }");
+
+        var pattern = Path.Combine(_tempDir, "src", "**", "*.cs");
+        var (exitCode, stdout, stderr) = await RunCliAsync("analyze", pattern);
+
+        Assert.Equal(0, exitCode);
+        Assert.DoesNotContain("No .cs files found", stderr);
+        Assert.Contains("Idiomatic score:", stdout);
+    }
+
+    // fix --apply should preserve original file encoding and BOM
+    [Fact]
+    public async Task Fix_Apply_PreservesBom()
+    {
+        var file = Path.Combine(_tempDir, "BomTest.cs");
+        var bom = new byte[] { 0xEF, 0xBB, 0xBF };
+        var content = """
+            using System;
+            using System.IO;
+            class C
+            {
+                void M()
+                {
+                    using (var stream = new MemoryStream())
+                    {
+                        stream.WriteByte(1);
+                    }
+                }
+            }
+            """u8;
+
+        using (var fs = File.Create(file))
+        {
+            fs.Write(bom);
+            fs.Write(content);
+        }
+
+        var (exitCode, _, _) = await RunCliAsync("fix", file, "--apply");
+        Assert.Equal(0, exitCode);
+
+        var bytes = File.ReadAllBytes(file);
+        Assert.True(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+            "UTF-8 BOM should be preserved after fix --apply");
+    }
+
+    [Fact]
+    public async Task Fix_Apply_DoesNotAddBomWhenNoneExisted()
+    {
+        var file = Path.Combine(_tempDir, "NoBomTest.cs");
+        File.WriteAllText(file, """
+            using System;
+            using System.IO;
+            class C
+            {
+                void M()
+                {
+                    using (var stream = new MemoryStream())
+                    {
+                        stream.WriteByte(1);
+                    }
+                }
+            }
+            """);
+
+        var (exitCode, _, _) = await RunCliAsync("fix", file, "--apply");
+        Assert.Equal(0, exitCode);
+
+        var bytes = File.ReadAllBytes(file);
+        Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
+            "No BOM should be added when original file had none");
+    }
 }

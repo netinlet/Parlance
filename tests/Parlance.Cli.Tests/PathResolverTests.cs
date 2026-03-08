@@ -91,4 +91,60 @@ public sealed class PathResolverTests : IDisposable
 
         Assert.Single(result);
     }
+
+    [Fact]
+    public void Resolves_RecursiveGlob_DoubleStarSlashStar()
+    {
+        var sub = Path.Combine(_tempDir, "src", "sub");
+        Directory.CreateDirectory(sub);
+        File.WriteAllText(Path.Combine(_tempDir, "src", "Root.cs"), "");
+        File.WriteAllText(Path.Combine(sub, "Nested.cs"), "");
+        File.WriteAllText(Path.Combine(sub, "readme.txt"), "");
+
+        var pattern = Path.Combine(_tempDir, "src", "**", "*.cs");
+        var result = PathResolver.Resolve([pattern]);
+
+        Assert.Equal(2, result.Count);
+        Assert.All(result, f => Assert.EndsWith(".cs", f));
+    }
+
+    [Fact]
+    public void Resolves_RecursiveGlob_DeepNesting()
+    {
+        var deep = Path.Combine(_tempDir, "a", "b", "c");
+        Directory.CreateDirectory(deep);
+        File.WriteAllText(Path.Combine(deep, "Deep.cs"), "");
+
+        var pattern = Path.Combine(_tempDir, "a", "**", "*.cs");
+        var result = PathResolver.Resolve([pattern]);
+
+        Assert.Single(result);
+        Assert.Contains("Deep.cs", result[0]);
+    }
+
+    [Fact]
+    public void SplitGlobPattern_ExtractsRootBeforeWildcard()
+    {
+        var (dir, pattern) = PathResolver.SplitGlobPattern("src/**/*.cs");
+
+        Assert.Equal("src", dir);
+        Assert.Equal("**/*.cs", pattern);
+    }
+
+    [Fact]
+    public void SplitGlobPattern_HandlesNoDirectoryPrefix()
+    {
+        var (_, pattern) = PathResolver.SplitGlobPattern("**/*.cs");
+
+        Assert.Equal("**/*.cs", pattern);
+    }
+
+    [Fact]
+    public void SplitGlobPattern_HandlesDeepPrefix()
+    {
+        var (dir, pattern) = PathResolver.SplitGlobPattern(Path.Combine("a", "b", "**", "*.cs"));
+
+        Assert.Equal(Path.Combine("a", "b"), dir);
+        Assert.Equal("**/*.cs", pattern);
+    }
 }
