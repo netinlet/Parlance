@@ -1,0 +1,5 @@
+<Project>
+  <!-- This file is intentionally empty. The analyzer DLL is automatically picked up
+       from the analyzers/dotnet/cs/ folder in the NuGet package. This .props file
+       exists as a convention placeholder for future build-time configuration. -->
+</Project>
