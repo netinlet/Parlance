@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Parlance.Analyzers.Upstream\Parlance.Analyzers.Upstream.csproj" />
+    <ProjectReference Include="..\..\src\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
+  </ItemGroup>
+</Project>
