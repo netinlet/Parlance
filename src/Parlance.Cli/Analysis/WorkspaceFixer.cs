@@ -1,12 +1,12 @@
 using System.Collections.Immutable;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Parlance.Analyzers.Upstream;
 using Parlance.CSharp;
-using Parlance.CSharp.Analyzers.Fixes;
-using Parlance.CSharp.Analyzers.Rules;
 
 namespace Parlance.Cli.Analysis;
 
@@ -16,25 +16,28 @@ internal sealed record FixedFile(string FilePath, string OriginalContent, string
 
 internal static class WorkspaceFixer
 {
-    private static readonly ImmutableArray<DiagnosticAnalyzer> FixableAnalyzers =
-    [
-        new PARL0004_UsePatternMatchingOverIsCast(),
-        new PARL9001_UseSimpleUsingDeclaration(),
-    ];
-
-    private static readonly CodeFixProvider[] FixProviders =
-    [
-        new PARL0004_UsePatternMatchingOverIsCastFix(),
-        new PARL9001_UseSimpleUsingDeclarationFix(),
-    ];
-
     public static async Task<FixResult> FixAsync(
         IReadOnlyList<string> filePaths,
         string[]? suppressRules = null,
         string? languageVersion = null,
+        string targetFramework = "net10.0",
         CancellationToken ct = default)
     {
         suppressRules ??= [];
+
+        // Discover fix providers from the PARL assembly via reflection
+        var fixProviders = DiscoverFixProviders();
+
+        // Collect all fixable diagnostic IDs from the discovered fix providers
+        var fixableIds = fixProviders
+            .SelectMany(fp => fp.FixableDiagnosticIds)
+            .ToHashSet();
+
+        // Load all analyzers and keep only those that produce fixable diagnostics
+        var allAnalyzers = AnalyzerLoader.LoadAll(targetFramework);
+        var fixableAnalyzers = allAnalyzers
+            .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
+            .ToImmutableArray();
 
         var parseOptions = new CSharpParseOptions(
             languageVersion is not null && LanguageVersionFacts.TryParse(languageVersion, out var lv)
@@ -70,8 +73,8 @@ internal static class WorkspaceFixer
 
         // Filter analyzers by suppress rules
         var analyzers = suppressRules.Length > 0
-            ? FixableAnalyzers.Where(a => !a.SupportedDiagnostics.Any(d => suppressRules.Contains(d.Id))).ToImmutableArray()
-            : FixableAnalyzers;
+            ? fixableAnalyzers.Where(a => !a.SupportedDiagnostics.Any(d => suppressRules.Contains(d.Id))).ToImmutableArray()
+            : fixableAnalyzers;
 
         if (analyzers.Length == 0)
             return new FixResult([]);
@@ -97,7 +100,7 @@ internal static class WorkspaceFixer
             var applied = false;
             foreach (var diagnostic in fixableDiags)
             {
-                var fixProvider = FixProviders.FirstOrDefault(fp =>
+                var fixProvider = fixProviders.FirstOrDefault(fp =>
                     fp.FixableDiagnosticIds.Contains(diagnostic.Id));
 
                 if (fixProvider is null) continue;
@@ -158,5 +161,39 @@ internal static class WorkspaceFixer
         {
             File.WriteAllText(file.FilePath, file.NewContent);
         }
+    }
+
+    private static List<CodeFixProvider> DiscoverFixProviders()
+    {
+        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
+        var providers = new List<CodeFixProvider>();
+
+        Type[] types;
+        try
+        {
+            types = parlAssembly.GetTypes();
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            types = ex.Types.Where(t => t is not null).ToArray()!;
+        }
+
+        foreach (var type in types)
+        {
+            if (type.IsAbstract || !typeof(CodeFixProvider).IsAssignableFrom(type))
+                continue;
+
+            try
+            {
+                if (Activator.CreateInstance(type) is CodeFixProvider provider)
+                    providers.Add(provider);
+            }
+            catch
+            {
+                // Skip types that can't be instantiated
+            }
+        }
+
+        return providers;
     }
 }
