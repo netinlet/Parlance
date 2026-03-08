@@ -1,0 +1,5 @@
+# Local settings (user-specific, not shared)
+settings.local.json
+
+# Worktrees managed by Claude Code (moved to .worktrees/)
+worktrees/
