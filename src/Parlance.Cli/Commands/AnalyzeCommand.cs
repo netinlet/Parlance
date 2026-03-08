@@ -47,7 +47,7 @@ internal static class AnalyzeCommand
             }
 
             var result = await WorkspaceAnalyzer.AnalyzeAsync(
-                files, suppress, maxDiag, langVersion, ct);
+                files, suppress, maxDiag, langVersion, ct: ct);
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {

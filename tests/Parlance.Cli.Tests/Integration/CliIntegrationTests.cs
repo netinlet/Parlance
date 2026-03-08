@@ -213,4 +213,26 @@ public sealed class CliIntegrationTests : IDisposable
         Assert.Contains("PARL9001", stdout);
         Assert.DoesNotContain("PARL0001", stdout);
     }
+
+    [Fact]
+    public async Task Analyze_WithUpstreamAnalyzers_ReportsNonParlDiagnostics()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        // Code that triggers CA1822 (method can be static)
+        File.WriteAllText(file, """
+            public class C
+            {
+                public int GetValue()
+                {
+                    return 42;
+                }
+            }
+            """);
+
+        var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
+
+        Assert.Equal(0, exitCode);
+        // Should contain at least one non-PARL diagnostic
+        Assert.Matches("(CA|IDE|RCS)", stdout);
+    }
 }
