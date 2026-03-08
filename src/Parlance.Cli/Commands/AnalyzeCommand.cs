@@ -13,6 +13,7 @@ internal static class AnalyzeCommand
 
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
+        formatOption.AcceptOnlyFromAmong("text", "json");
 
         var failBelowOption = new Option<int?>("--fail-below") { Description = "Exit with code 1 if score is below threshold (0-100)" };
         var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
@@ -59,8 +60,9 @@ internal static class AnalyzeCommand
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {
+                "text" => new TextFormatter(),
                 "json" => new JsonFormatter(),
-                _ => new TextFormatter(),
+                _ => throw new InvalidOperationException($"Unknown format: {format}"),
             };
 
             Console.Write(formatter.Format(result));

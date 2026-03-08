@@ -24,12 +24,8 @@ internal static class PathResolver
                 continue;
             }
 
-            // Treat as glob pattern
-            var directory = Path.GetDirectoryName(input);
-            var pattern = Path.GetFileName(input);
-
-            if (string.IsNullOrEmpty(directory))
-                directory = Directory.GetCurrentDirectory();
+            // Treat as glob pattern — find the real root directory before any wildcard segment
+            var (directory, pattern) = SplitGlobPattern(input);
 
             if (!Directory.Exists(directory))
                 continue;
@@ -43,5 +39,45 @@ internal static class PathResolver
         }
 
         return [.. files.Order(StringComparer.OrdinalIgnoreCase)];
+    }
+
+    internal static (string Directory, string Pattern) SplitGlobPattern(string input)
+    {
+        // Walk the path to find where wildcards begin, preserving the original
+        // path prefix so we don't lose root separators (e.g. leading /)
+        var separators = new[] { '/', '\\' };
+        var pos = 0;
+        var lastSepBeforeWildcard = -1;
+
+        while (pos < input.Length)
+        {
+            var nextSep = input.IndexOfAny(separators, pos);
+            var segmentEnd = nextSep < 0 ? input.Length : nextSep;
+            var segment = input.AsSpan(pos, segmentEnd - pos);
+
+            if (segment.Contains('*') || segment.Contains('?'))
+            {
+                // Everything before this segment is the root directory
+                var pattern = input[pos..];
+                var directory = lastSepBeforeWildcard >= 0
+                    ? input[..lastSepBeforeWildcard]
+                    : Directory.GetCurrentDirectory();
+
+                if (string.IsNullOrEmpty(directory))
+                    directory = Directory.GetCurrentDirectory();
+
+                return (directory, pattern);
+            }
+
+            lastSepBeforeWildcard = nextSep;
+            pos = nextSep < 0 ? input.Length : nextSep + 1;
+        }
+
+        // No wildcard found — use Path.GetDirectoryName / Path.GetFileName
+        var dir = Path.GetDirectoryName(input);
+        if (string.IsNullOrEmpty(dir))
+            dir = Directory.GetCurrentDirectory();
+
+        return (dir, Path.GetFileName(input));
     }
 }
