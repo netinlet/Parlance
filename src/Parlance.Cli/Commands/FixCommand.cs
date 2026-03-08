@@ -36,7 +36,7 @@ internal static class FixCommand
                 return;
             }
 
-            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion, ct);
+            var result = await WorkspaceFixer.FixAsync(files, suppress, langVersion, ct: ct);
 
             if (result.FixedFiles.Count == 0)
             {
