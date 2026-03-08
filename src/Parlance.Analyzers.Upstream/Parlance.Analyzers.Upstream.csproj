@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <_SkipUpgradeNetAnalyzersNuGetWarning>true</_SkipUpgradeNetAnalyzersNuGetWarning>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Parlance.Cli" />
+    <InternalsVisibleTo Include="Parlance.Analyzers.Upstream.Tests" />
+    <InternalsVisibleTo Include="Parlance.ManifestGenerator" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)'=='net8.0'">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="4.9.2"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0'">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.101"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="5.0.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+  </ItemGroup>
+
+  <Target Name="CopyAnalyzerDlls" AfterTargets="Build"
+          Condition="'$(TargetFramework)' != ''">
+    <ItemGroup>
+      <_NetAnalyzerDlls Include="$(PkgMicrosoft_CodeAnalysis_NetAnalyzers)/analyzers/dotnet/cs/**/*.dll" />
+      <_NetAnalyzerDlls Include="$(PkgMicrosoft_CodeAnalysis_NetAnalyzers)/analyzers/dotnet/*.dll" />
+      <_CodeStyleDlls Include="$(PkgMicrosoft_CodeAnalysis_CSharp_CodeStyle)/analyzers/dotnet/cs/**/*.dll" />
+      <_CodeStyleDlls Include="$(PkgMicrosoft_CodeAnalysis_CSharp_CodeStyle)/analyzers/dotnet/*.dll" />
+      <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/cs/**/*.dll" />
+      <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/roslyn*/cs/**/*.dll" />
+      <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/*.dll" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
+    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls)"
+          DestinationFolder="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <ItemGroup>
+    <Content Include="profiles/**/*.editorconfig">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

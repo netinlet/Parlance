@@ -482,3 +482,6 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Parlance upstream analyzer DLLs (extracted at build time)
+src/Parlance.Analyzers.Upstream/analyzer-dlls/
