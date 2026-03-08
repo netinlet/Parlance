@@ -16,9 +16,13 @@ internal static class WorkspaceAnalyzer
         int? maxDiagnostics = null,
         string? languageVersion = null,
         string targetFramework = "net10.0",
+        string profile = "default",
         CancellationToken ct = default)
     {
         suppressRules ??= [];
+
+        // Validate and load the profile (severity overrides deferred to a follow-up)
+        _ = ProfileProvider.GetProfileContent(targetFramework, profile);
 
         var parseOptions = new CSharpParseOptions(
             ResolveLanguageVersion(languageVersion));

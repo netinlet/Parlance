@@ -44,6 +44,7 @@ internal static class AnalyzeCommand
             var maxDiag = parseResult.GetValue(maxDiagOption);
             var langVersion = parseResult.GetValue(langVersionOption);
             var targetFramework = parseResult.GetValue(tfmOption)!;
+            var profile = parseResult.GetValue(profileOption)!;
 
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
@@ -54,7 +55,7 @@ internal static class AnalyzeCommand
             }
 
             var result = await WorkspaceAnalyzer.AnalyzeAsync(
-                files, suppress, maxDiag, langVersion, targetFramework, ct);
+                files, suppress, maxDiag, langVersion, targetFramework, profile, ct);
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {

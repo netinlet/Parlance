@@ -1,0 +1,14 @@
+# Parlance default profile for net10.0
+# Balanced — warnings for bugs, suggestions for idioms
+[*.cs]
+
+# PARL rules — all enabled at default severity (no overrides needed)
+
+# CA rules — key overrides from defaults
+# dotnet_diagnostic.CA1822.severity = suggestion
+
+# IDE rules — enable common style rules
+# dotnet_diagnostic.IDE0003.severity = suggestion
+
+# RCS rules — enable common simplification rules
+# dotnet_diagnostic.RCS1003.severity = suggestion
