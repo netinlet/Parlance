@@ -4,7 +4,7 @@
 
 **Goal:** Integrate upstream analyzer packages (CA, IDE, Roslynator) into Parlance with version-aware loading, auto-generated manifests, and profile-based `.editorconfig` configuration for net8.0 and net10.0.
 
-**Architecture:** New `Parlance.Analyzers.Upstream` project references upstream NuGet packages and extracts analyzer DLLs via MSBuild targets. `AnalyzerLoader` dynamically discovers all analyzers (PARL + upstream) at runtime via reflection. A `ManifestGenerator` tool produces per-TFM rule manifests. Profiles are `.editorconfig` files applied via Roslyn's native `AnalyzerConfigOptionsProvider`.
+**Architecture:** A multi-target helper project (`Parlance.Analyzers.Upstream`) restores per-TFM analyzer packages via conditional `PackageReference` and copies DLLs to a known output layout. `AnalyzerLoader` dynamically discovers all analyzers (PARL + upstream) at runtime via reflection and `AssemblyLoadContext`. A `ManifestGenerator` tool produces per-TFM rule manifests. Profiles are `.editorconfig` files applied via Roslyn's native `AnalyzerConfigOptionsProvider`.
 
 **Tech Stack:** .NET 10, Roslyn (`Microsoft.CodeAnalysis`), `AssemblyLoadContext`, MSBuild targets, System.CommandLine 2.0.3, xUnit
 
@@ -18,9 +18,13 @@
 | `Microsoft.CodeAnalysis.CSharp.CodeStyle` | 4.9.2 | 5.0.0 |
 | `Roslynator.Analyzers` | 4.15.0 | 4.15.0 |
 
+**Multi-version strategy:** Single multi-target helper `.csproj` with conditional `PackageReference` per TFM. NuGet resolves each TFM independently, giving the correct package version per target. `GeneratePathProperty` exposes `$(PkgPackageName)` per TFM for a `CopyAnalyzerDlls` MSBuild target. Adding a future TFM (e.g., net12.0) = add the TFM string + one conditional `ItemGroup` in one file.
+
 ---
 
-## Task 1: Create Parlance.Analyzers.Upstream Project
+## Task 1: Create Parlance.Analyzers.Upstream Project with Multi-Target DLL Extraction
+
+This task creates the multi-target helper project that restores all upstream analyzer packages per TFM and copies their DLLs to a known output layout (`analyzer-dlls/{tfm}/`).
 
 **Files:**
 - Create: `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`
@@ -40,9 +44,19 @@ Create `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`:
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <!--
+      Multi-target across all supported TFMs. Each TFM gets its own
+      conditional PackageReference, so NuGet resolves the correct
+      analyzer version per target independently.
+
+      To add a new TFM: add it here, add a conditional ItemGroup below.
+    -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- Suppress "SDK has newer analyzers" warning from older package versions -->
+    <_SkipUpgradeNetAnalyzersNuGetWarning>true</_SkipUpgradeNetAnalyzersNuGetWarning>
   </PropertyGroup>
 
   <ItemGroup>
@@ -56,17 +70,25 @@ Create `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`:
   </ItemGroup>
 
   <!--
-    Upstream analyzer packages. These are NOT compiled references — we extract
-    their analyzer DLLs from the NuGet cache at build time.
+    Upstream analyzer packages — version-pinned per TFM.
+    Each package uses GeneratePathProperty="true" so $(PkgPackageName) resolves
+    to the NuGet cache path for that version. ExcludeAssets="all" prevents
+    the analyzers from running on our own code during build.
 
-    Each package is referenced with GeneratePathProperty="true" so MSBuild
-    exposes $(PkgPackageName) pointing to the NuGet cache location.
-    All assets are excluded from the build (ExcludeAssets="all") since we
-    load them dynamically at runtime.
+    To add a new TFM: copy one of these ItemGroups, change the Condition
+    and package versions. That's it.
   -->
 
-  <!-- net10.0 analyzer packages -->
-  <ItemGroup Label="net10.0 analyzers">
+  <ItemGroup Condition="'$(TargetFramework)'=='net8.0'">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="4.9.2"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Roslynator.Analyzers" Version="4.15.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)'=='net10.0'">
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.101"
                       GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="5.0.0"
@@ -76,21 +98,41 @@ Create `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`:
   </ItemGroup>
 
   <!--
-    net8.0 analyzer packages — different package IDs with version suffix
-    to allow both versions to coexist in the same project.
+    Copy analyzer DLLs from NuGet cache to a known output layout.
+    After build, analyzer-dlls/{tfm}/ contains all analyzer assemblies
+    for that target framework.
 
-    NOTE: NuGet doesn't allow two versions of the same package in one project.
-    We may need to resolve net8.0 DLLs via a separate .csproj or by locating
-    them from the NuGet global cache directly. This will be resolved during
-    implementation — the design constraint is that we need both versions
-    available at runtime.
-
-    TODO: Determine the best approach for dual-version package resolution
-    during Task 1 implementation. Options:
-    a) Separate helper .csproj per TFM that restores the right versions
-    b) Direct NuGet cache path resolution
-    c) Download during a build script
+    The glob patterns include both analyzers/dotnet/cs/ and analyzers/dotnet/
+    because the DLL layout changed between package versions.
   -->
+  <Target Name="CopyAnalyzerDlls" AfterTargets="Build"
+          Condition="'$(TargetFramework)' != ''">
+    <ItemGroup>
+      <!-- NetAnalyzers -->
+      <_NetAnalyzerDlls Include="$(PkgMicrosoft_CodeAnalysis_NetAnalyzers)/analyzers/dotnet/cs/**/*.dll" />
+      <_NetAnalyzerDlls Include="$(PkgMicrosoft_CodeAnalysis_NetAnalyzers)/analyzers/dotnet/*.dll" />
+
+      <!-- CodeStyle (IDE rules) -->
+      <_CodeStyleDlls Include="$(PkgMicrosoft_CodeAnalysis_CSharp_CodeStyle)/analyzers/dotnet/cs/**/*.dll" />
+      <_CodeStyleDlls Include="$(PkgMicrosoft_CodeAnalysis_CSharp_CodeStyle)/analyzers/dotnet/*.dll" />
+
+      <!-- Roslynator -->
+      <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/cs/**/*.dll" />
+      <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/*.dll" />
+    </ItemGroup>
+
+    <MakeDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
+    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls)"
+          DestinationFolder="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Ship profile .editorconfig files as content -->
+  <ItemGroup>
+    <Content Include="profiles/**/*.editorconfig">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 
 </Project>
 ```
@@ -101,68 +143,51 @@ Create `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`:
 dotnet sln Parlance.sln add src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj --solution-folder src
 ```
 
-**Step 4: Build to verify**
-
-Run: `dotnet build src/Parlance.Analyzers.Upstream`
-Expected: Successful build with no errors.
-
-**Step 5: Commit**
+**Step 4: Restore and build**
 
 ```bash
-git add src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj Parlance.sln
-git commit -m "Add Parlance.Analyzers.Upstream project with upstream NuGet references"
+dotnet restore src/Parlance.Analyzers.Upstream
+dotnet build src/Parlance.Analyzers.Upstream
+```
+
+Expected: Successful build for both TFMs.
+
+**Step 5: Verify analyzer DLLs were extracted**
+
+```bash
+ls src/Parlance.Analyzers.Upstream/analyzer-dlls/net8.0/
+ls src/Parlance.Analyzers.Upstream/analyzer-dlls/net10.0/
+```
+
+Expected: Both directories contain `.dll` files from all three upstream packages. Note the exact DLL names — they will be needed for `AnalyzerLoader`. If a directory is missing DLLs, check the glob patterns in the `CopyAnalyzerDlls` target against the actual NuGet cache layout for that package version:
+
+```bash
+find ~/.nuget/packages/microsoft.codeanalysis.netanalyzers/8.0.0/analyzers -name "*.dll"
+find ~/.nuget/packages/microsoft.codeanalysis.netanalyzers/10.0.101/analyzers -name "*.dll"
+find ~/.nuget/packages/microsoft.codeanalysis.csharp.codestyle/5.0.0/analyzers -name "*.dll"
+find ~/.nuget/packages/roslynator.analyzers/4.15.0/analyzers -name "*.dll"
+```
+
+Adjust glob patterns until all DLLs are captured.
+
+**Step 6: Add analyzer-dlls to .gitignore**
+
+The `analyzer-dlls/` directory is a build artifact — don't commit binaries.
+
+```bash
+echo "src/Parlance.Analyzers.Upstream/analyzer-dlls/" >> .gitignore
+```
+
+**Step 7: Commit**
+
+```bash
+git add src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj Parlance.sln .gitignore
+git commit -m "Add Parlance.Analyzers.Upstream with multi-target per-TFM analyzer extraction"
 ```
 
 ---
 
-## Task 2: Resolve Dual-Version Package Strategy
-
-Before writing `AnalyzerLoader`, we need to solve the problem of having both net8.0 and net10.0 versions of the same analyzer package available at runtime.
-
-**Files:**
-- Create: `src/Parlance.Analyzers.Upstream/build/net8.0-analyzers.csproj` (if approach a)
-- Modify: `src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj`
-
-**Step 1: Research NuGet dual-version resolution**
-
-Investigate how to reference two versions of `Microsoft.CodeAnalysis.NetAnalyzers` (8.0.0 and 10.0.101) in the same build output. Test each approach:
-
-a) **Separate restore-only .csproj per TFM:** A helper project that restores the net8.0 versions and copies DLLs to a known location. The main project references the net10.0 versions directly.
-
-b) **Direct NuGet global-packages path:** After `dotnet restore`, locate DLLs directly from `~/.nuget/packages/<package>/<version>/analyzers/dotnet/cs/`. The main `.csproj` uses `GeneratePathProperty="true"` for the net10.0 versions. For net8.0, a target resolves the path from the NuGet cache using known version strings.
-
-c) **MSBuild `DownloadFile` task:** Download specific `.nupkg` files during build and extract analyzer DLLs.
-
-**Step 2: Implement chosen approach**
-
-Implement the approach and verify that after `dotnet build`, the output directory contains:
-
-```
-analyzers/net8.0/Microsoft.CodeAnalysis.NetAnalyzers.CSharp.dll
-analyzers/net8.0/Microsoft.CodeAnalysis.CSharp.CodeStyle.dll
-analyzers/net8.0/Roslynator.CSharp.Analyzers.dll
-analyzers/net10.0/Microsoft.CodeAnalysis.NetAnalyzers.CSharp.dll
-analyzers/net10.0/Microsoft.CodeAnalysis.CSharp.CodeStyle.dll
-analyzers/net10.0/Roslynator.CSharp.Analyzers.dll
-```
-
-Note: The exact DLL names inside each NuGet package's `analyzers/dotnet/cs/` folder may differ — there may be multiple DLLs per package. List all DLLs in the NuGet cache for each package and include all of them. For example, `Microsoft.CodeAnalysis.NetAnalyzers` may contain both `Microsoft.CodeAnalysis.NetAnalyzers.CSharp.dll` and `Microsoft.CodeAnalysis.NetAnalyzers.dll`.
-
-**Step 3: Verify build output**
-
-Run: `dotnet build src/Parlance.Analyzers.Upstream && ls -R bin/Debug/net10.0/analyzers/`
-Expected: DLLs organized by TFM in the output directory.
-
-**Step 4: Commit**
-
-```bash
-git add -A src/Parlance.Analyzers.Upstream/
-git commit -m "Add MSBuild targets for dual-version analyzer DLL extraction"
-```
-
----
-
-## Task 3: AnalyzerLoader — Dynamic Analyzer Discovery
+## Task 2: AnalyzerLoader — Dynamic Analyzer Discovery
 
 **Files:**
 - Create: `src/Parlance.Analyzers.Upstream/AnalyzerLoader.cs`
@@ -278,18 +303,17 @@ public sealed class AnalyzerLoaderTests
     {
         var analyzers = AnalyzerLoader.LoadAll("net10.0");
 
-        // PARL (8) + CA (100+) + IDE (50+) + RCS (150+) = at minimum 100 analyzer types
+        // PARL (8) + CA (100+) + IDE (50+) + RCS (150+) = at minimum 50 analyzer types
         Assert.True(analyzers.Length >= 50,
             $"Expected at least 50 analyzer types, got {analyzers.Length}");
     }
 
     [Fact]
-    public void LoadAll_Net8VsNet10_MayDiffer()
+    public void LoadAll_Net8VsNet10_BothHaveAnalyzers()
     {
         var net8 = AnalyzerLoader.LoadAll("net8.0");
         var net10 = AnalyzerLoader.LoadAll("net10.0");
 
-        // Both should have analyzers, counts may differ
         Assert.NotEmpty(net8);
         Assert.NotEmpty(net10);
     }
@@ -320,7 +344,7 @@ internal static class AnalyzerLoader
     /// <summary>
     /// Loads all analyzers (PARL + upstream) for the given target framework.
     /// PARL analyzers are discovered from the Parlance.CSharp.Analyzers assembly.
-    /// Upstream analyzers are loaded from extracted NuGet DLLs.
+    /// Upstream analyzers are loaded from extracted NuGet DLLs in analyzer-dlls/{tfm}/.
     /// </summary>
     public static ImmutableArray<DiagnosticAnalyzer> LoadAll(string targetFramework)
     {
@@ -362,9 +386,34 @@ internal static class AnalyzerLoader
 
     private static string ResolveAnalyzerDirectory(string targetFramework)
     {
-        // Look relative to the executing assembly's location
+        // Look for analyzer-dlls/{tfm}/ relative to the project source directory.
+        // The CopyAnalyzerDlls MSBuild target places DLLs here during build.
+        // At runtime, resolve relative to the executing assembly.
         var baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        return Path.Combine(baseDir, "analyzers", targetFramework);
+
+        // First try the build output location (analyzer-dlls/ in the project dir)
+        var projectDir = FindProjectDirectory(baseDir);
+        if (projectDir is not null)
+        {
+            var projectAnalyzerDir = Path.Combine(projectDir, "analyzer-dlls", targetFramework);
+            if (Directory.Exists(projectAnalyzerDir))
+                return projectAnalyzerDir;
+        }
+
+        // Fallback: relative to the output assembly
+        return Path.Combine(baseDir, "analyzer-dlls", targetFramework);
+    }
+
+    private static string? FindProjectDirectory(string startDir)
+    {
+        var dir = startDir;
+        while (dir is not null)
+        {
+            if (Directory.GetFiles(dir, "*.csproj").Length > 0)
+                return dir;
+            dir = Path.GetDirectoryName(dir);
+        }
+        return null;
     }
 
     private static IEnumerable<DiagnosticAnalyzer> DiscoverAnalyzers(Assembly assembly)
@@ -384,12 +433,10 @@ internal static class AnalyzerLoader
     {
         protected override Assembly? Load(AssemblyName assemblyName)
         {
-            // Try to find the dependency in the analyzer directory
             var path = Path.Combine(analyzerDir, $"{assemblyName.Name}.dll");
             if (File.Exists(path))
                 return LoadFromAssemblyPath(path);
 
-            // Fall back to the default context for shared dependencies
             return null;
         }
     }
@@ -401,7 +448,7 @@ internal static class AnalyzerLoader
 Run: `dotnet test tests/Parlance.Analyzers.Upstream.Tests -v quiet`
 Expected: All tests PASS.
 
-Note: Some tests may need adjustment based on the actual DLL names and rule IDs discovered. The spot-check IDs (CA1822, IDE0003, RCS1003) are well-known stable rules that should exist in both net8.0 and net10.0. If a specific ID isn't found, check the actual DLL contents and adjust the test.
+Note: Some spot-check IDs (CA1822, IDE0003, RCS1003) are well-known stable rules. If a specific ID isn't found, inspect the extracted DLLs and adjust the test to use an ID that exists.
 
 **Step 6: Commit**
 
@@ -414,7 +461,7 @@ git commit -m "Add AnalyzerLoader with dynamic analyzer discovery and tests"
 
 ---
 
-## Task 4: Manifest Generator Tool
+## Task 3: Manifest Generator Tool
 
 **Files:**
 - Create: `tools/Parlance.ManifestGenerator/Parlance.ManifestGenerator.csproj`
@@ -556,6 +603,7 @@ return 0;
 **Step 4: Build and run**
 
 ```bash
+mkdir -p docs/manifests
 dotnet run --project tools/Parlance.ManifestGenerator -- net10.0 docs/manifests/rule-manifest-net10.0.json
 dotnet run --project tools/Parlance.ManifestGenerator -- net8.0 docs/manifests/rule-manifest-net8.0.json
 ```
@@ -564,27 +612,24 @@ Expected: JSON files created with rule entries from all three upstream sources p
 
 **Step 5: Verify manifest contents**
 
-Spot-check that the generated manifest contains:
-- PARL rules (PARL0001, PARL0004, etc.)
-- CA rules (CA1822, CA2000, etc.)
-- IDE rules (IDE0003, IDE0055, etc.)
-- RCS rules (RCS1003, RCS1019, etc.)
+Spot-check that the generated manifest contains rules from each source:
 
 ```bash
 cat docs/manifests/rule-manifest-net10.0.json | python3 -m json.tool | head -50
+grep -c '"id"' docs/manifests/rule-manifest-net10.0.json
+grep -c '"id"' docs/manifests/rule-manifest-net8.0.json
 ```
 
 **Step 6: Commit**
 
 ```bash
-mkdir -p docs/manifests
 git add tools/Parlance.ManifestGenerator/ docs/manifests/ Parlance.sln
 git commit -m "Add ManifestGenerator tool and initial rule manifests"
 ```
 
 ---
 
-## Task 5: Refactor WorkspaceAnalyzer to Use AnalyzerLoader
+## Task 4: Refactor WorkspaceAnalyzer to Use AnalyzerLoader
 
 **Files:**
 - Modify: `src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs`
@@ -635,6 +680,10 @@ Expected: FAIL — current `WorkspaceAnalyzer` only loads PARL analyzers.
 **Step 4: Refactor WorkspaceAnalyzer**
 
 Replace `src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs`:
+- Remove the hardcoded `AllAnalyzers` array
+- Add `targetFramework` parameter (default: `"net10.0"`)
+- Call `AnalyzerLoader.LoadAll(targetFramework)` instead
+- Everything else stays the same — the pipeline doesn't change, just the input set grows
 
 ```csharp
 using System.Collections.Immutable;
@@ -729,7 +778,7 @@ internal static class WorkspaceAnalyzer
 
 **Step 5: Run all tests**
 
-Run: `dotnet test --no-restore -v quiet`
+Run: `dotnet test -v quiet`
 Expected: All tests PASS, including the new upstream analyzer test and all existing PARL tests.
 
 **Step 6: Commit**
@@ -743,7 +792,7 @@ git commit -m "Refactor WorkspaceAnalyzer to use AnalyzerLoader for dynamic disc
 
 ---
 
-## Task 6: Refactor WorkspaceFixer to Use AnalyzerLoader
+## Task 5: Refactor WorkspaceFixer to Use AnalyzerLoader
 
 **Files:**
 - Modify: `src/Parlance.Cli/Analysis/WorkspaceFixer.cs`
@@ -778,7 +827,7 @@ git commit -m "Refactor WorkspaceFixer to use dynamic analyzer and fix provider 
 
 ---
 
-## Task 7: Refactor DiagnosticEnricher to Use Manifest
+## Task 6: Refactor DiagnosticEnricher to Use RuleMetadataProvider
 
 **Files:**
 - Modify: `src/Parlance.CSharp/DiagnosticEnricher.cs`
@@ -793,9 +842,7 @@ Expected: All tests PASS.
 
 Create `src/Parlance.CSharp/RuleMetadataProvider.cs`:
 
-This class loads metadata from:
-1. Curated PARL metadata (the existing hand-written rationale — moved from DiagnosticEnricher)
-2. Manifest data for upstream rules (falls back to upstream title/description)
+Move the existing hand-written PARL rationale from `DiagnosticEnricher` into a `RuleMetadataProvider` class. This class holds curated metadata for PARL rules and returns `null` for upstream rules (they fall back to upstream-provided descriptions).
 
 ```csharp
 using System.Collections.Frozen;
@@ -809,42 +856,10 @@ internal sealed record RuleMetadata(
 
 internal static class RuleMetadataProvider
 {
-    // Curated PARL metadata — the existing hand-written rationale
     private static readonly FrozenDictionary<string, RuleMetadata> CuratedMetadata =
         new Dictionary<string, RuleMetadata>
         {
-            ["PARL0001"] = new(
-                "Modernization",
-                "Primary constructors (C# 12+) combine type declaration and constructor into a single concise form. When a constructor only assigns parameters to fields or properties, a primary constructor removes the boilerplate.",
-                "Convert to a primary constructor by moving parameters to the type declaration."),
-            ["PARL0002"] = new(
-                "Modernization",
-                "Collection expressions (C# 12+) provide a unified syntax for creating collections. They are more concise and let the compiler choose the optimal collection type.",
-                "Replace with a collection expression: [element1, element2, ...]."),
-            ["PARL0003"] = new(
-                "Modernization",
-                "The 'required' modifier (C# 11+) enforces that callers set a property during initialization. This is clearer than constructor-only initialization for simple DTOs and reduces constructor boilerplate.",
-                "Consider adding the 'required' modifier to the properties and removing the constructor. Note: this changes construction semantics — callers must switch to object initializer syntax."),
-            ["PARL0004"] = new(
-                "PatternMatching",
-                "Pattern matching with 'is' (C# 7+) combines type checking and variable declaration in one expression. It is more concise than separate 'is' check followed by a cast, avoids the double type-check, and is the idiomatic modern C# approach.",
-                "Use 'if (obj is Type name)' instead of separate is-check and cast."),
-            ["PARL0005"] = new(
-                "PatternMatching",
-                "Switch expressions (C# 8+) are more concise than switch statements when every branch returns a value. They enforce exhaustiveness and make the data-flow intent clearer.",
-                "Convert the switch statement to a switch expression."),
-            ["PARL9001"] = new(
-                "Modernization",
-                "Using declarations (C# 8+) remove the need for braces and reduce indentation. The variable is disposed at the end of the enclosing scope, which is equivalent when the using is the last meaningful statement.",
-                "Remove the parentheses and braces: change 'using (var x = y) { }' to 'using var x = y;'."),
-            ["PARL9002"] = new(
-                "Modernization",
-                "Target-typed new (C# 9+) lets you omit the type name in a new expression when the type is apparent from the declaration. This reduces redundancy without losing clarity.",
-                "Replace 'new TypeName(...)' with 'new(...)'."),
-            ["PARL9003"] = new(
-                "Modernization",
-                "The default literal (C# 7.1+) lets the compiler infer the type from context, eliminating the redundant type argument in default(T) when the target type is already apparent.",
-                "Replace 'default(T)' with 'default'."),
+            // ... existing PARL metadata entries moved from DiagnosticEnricher ...
         }.ToFrozenDictionary();
 
     public static RuleMetadata? GetMetadata(string ruleId)
@@ -857,7 +872,7 @@ internal static class RuleMetadataProvider
 **Step 3: Refactor DiagnosticEnricher**
 
 Modify `src/Parlance.CSharp/DiagnosticEnricher.cs`:
-- Remove the hardcoded `Metadata` dictionary
+- Remove the hardcoded `Metadata` dictionary and `RuleMetadata` record (moved to `RuleMetadataProvider`)
 - Use `RuleMetadataProvider.GetMetadata(d.Id)` instead
 - For upstream rules without curated metadata, use `d.Descriptor.Category` for category (already the fallback), and `null` for rationale/suggestedFix
 
@@ -876,7 +891,7 @@ git commit -m "Extract RuleMetadataProvider from DiagnosticEnricher for manifest
 
 ---
 
-## Task 8: Refactor RulesCommand to Use AnalyzerLoader
+## Task 7: Refactor RulesCommand to Use AnalyzerLoader
 
 **Files:**
 - Modify: `src/Parlance.Cli/Commands/RulesCommand.cs`
@@ -893,9 +908,7 @@ public async Task Rules_ShowsUpstreamRules()
     var (exitCode, stdout, _) = await RunCliAsync("rules");
 
     Assert.Equal(0, exitCode);
-    // Should include PARL rules
     Assert.Contains("PARL0001", stdout);
-    // Should include upstream rules
     Assert.Matches("(CA|IDE|RCS)", stdout);
 }
 
@@ -938,15 +951,14 @@ git commit -m "Refactor RulesCommand to use AnalyzerLoader, add --target-framewo
 
 ---
 
-## Task 9: Add --target-framework and --profile to AnalyzeCommand and FixCommand
+## Task 8: Add --target-framework and --profile to AnalyzeCommand and FixCommand
 
 **Files:**
 - Modify: `src/Parlance.Cli/Commands/AnalyzeCommand.cs`
 - Modify: `src/Parlance.Cli/Commands/FixCommand.cs`
-- Modify: `src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs`
-- Modify: `src/Parlance.Cli/Analysis/WorkspaceFixer.cs`
+- Modify: `tests/Parlance.Cli.Tests/Integration/CliIntegrationTests.cs`
 
-**Step 1: Write test for --target-framework flag**
+**Step 1: Write tests for new flags**
 
 Add to `tests/Parlance.Cli.Tests/Integration/CliIntegrationTests.cs`:
 
@@ -987,40 +999,30 @@ public async Task Fix_TargetFramework_AcceptsNet8()
 }
 ```
 
-**Step 2: Add options to AnalyzeCommand**
+**Step 2: Add options to AnalyzeCommand and FixCommand**
 
-In `src/Parlance.Cli/Commands/AnalyzeCommand.cs`:
+In both commands:
 - Add `--target-framework` option with default `"net10.0"`
-- Add `--profile` option with default `"default"`
-- Pass `targetFramework` to `WorkspaceAnalyzer.AnalyzeAsync`
-- Profile support is wired in but uses the default profile for now (profile `.editorconfig` loading is Task 10)
+- Add `--profile` option with default `"default"` (wired but profile loading is Task 9)
+- Pass `targetFramework` through to `WorkspaceAnalyzer.AnalyzeAsync` / `WorkspaceFixer.FixAsync`
 
-**Step 3: Add options to FixCommand**
-
-In `src/Parlance.Cli/Commands/FixCommand.cs`:
-- Add `--target-framework` option with default `"net10.0"`
-- Add `--profile` option with default `"default"`
-- Pass `targetFramework` to `WorkspaceFixer.FixAsync`
-
-**Step 4: Run all tests**
+**Step 3: Run all tests**
 
 Run: `dotnet test -v quiet`
 Expected: All tests PASS.
 
-**Step 5: Commit**
+**Step 4: Commit**
 
 ```bash
 git add src/Parlance.Cli/Commands/AnalyzeCommand.cs \
         src/Parlance.Cli/Commands/FixCommand.cs \
-        src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs \
-        src/Parlance.Cli/Analysis/WorkspaceFixer.cs \
         tests/Parlance.Cli.Tests/
 git commit -m "Add --target-framework and --profile options to analyze and fix commands"
 ```
 
 ---
 
-## Task 10: Profile System — .editorconfig Loading
+## Task 9: Profile System — .editorconfig Loading
 
 **Files:**
 - Create: `src/Parlance.Analyzers.Upstream/ProfileProvider.cs`
@@ -1069,9 +1071,9 @@ public sealed class ProfileProviderTests
 
 **Step 2: Create initial default.editorconfig profiles**
 
-Create `src/Parlance.Analyzers.Upstream/profiles/net10.0/default.editorconfig`:
+Create `src/Parlance.Analyzers.Upstream/profiles/net10.0/default.editorconfig` and `profiles/net8.0/default.editorconfig`:
 
-Start with a minimal default profile that sets the root marker and a few representative overrides. The full profile content will be refined after running the manifest generator to see all available rules.
+Start with a minimal default profile. Full profile content will be refined after reviewing the generated manifests.
 
 ```ini
 # Parlance default profile for net10.0
@@ -1081,16 +1083,14 @@ Start with a minimal default profile that sets the root marker and a few represe
 # PARL rules — all enabled at default severity (no overrides needed)
 
 # CA rules — key overrides from defaults
-# dotnet_diagnostic.CA1822.severity = suggestion  # already default
+# dotnet_diagnostic.CA1822.severity = suggestion
 
 # IDE rules — enable common style rules
-# dotnet_diagnostic.IDE0003.severity = suggestion  # already default
+# dotnet_diagnostic.IDE0003.severity = suggestion
 
 # RCS rules — enable common simplification rules
-# dotnet_diagnostic.RCS1003.severity = suggestion  # already default
+# dotnet_diagnostic.RCS1003.severity = suggestion
 ```
-
-Create `src/Parlance.Analyzers.Upstream/profiles/net8.0/default.editorconfig` with similar content.
 
 **Step 3: Implement ProfileProvider**
 
@@ -1112,10 +1112,8 @@ internal static class ProfileProvider
                 $"Unknown profile: '{profile}'. Available: {string.Join(", ", AvailableProfiles)}",
                 nameof(profile));
 
-        var resourceName = $"profiles/{targetFramework}/{profile}.editorconfig";
-        var assembly = Assembly.GetExecutingAssembly();
-        var baseDir = Path.GetDirectoryName(assembly.Location)!;
-        var profilePath = Path.Combine(baseDir, resourceName);
+        var baseDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        var profilePath = Path.Combine(baseDir, "profiles", targetFramework, $"{profile}.editorconfig");
 
         if (!File.Exists(profilePath))
             throw new ArgumentException(
@@ -1129,16 +1127,6 @@ internal static class ProfileProvider
 }
 ```
 
-Update `.csproj` to include profile files as content:
-
-```xml
-<ItemGroup>
-  <Content Include="profiles/**/*.editorconfig">
-    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-  </Content>
-</ItemGroup>
-```
-
 **Step 4: Wire profile into WorkspaceAnalyzer**
 
 In `src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs`:
@@ -1146,7 +1134,7 @@ In `src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs`:
 - Load profile content via `ProfileProvider.GetProfileContent(targetFramework, profile)`
 - Apply to compilation via `AnalyzerConfigOptionsProvider`
 
-This step requires creating an `AnalyzerConfigOptionsProvider` from the `.editorconfig` content. Roslyn provides `AnalyzerConfigSet` for this. Research the exact API during implementation — it may require parsing the `.editorconfig` into `AnalyzerConfig` objects and creating a provider from them.
+This requires creating an `AnalyzerConfigOptionsProvider` from the `.editorconfig` content. Research the exact Roslyn API during implementation — it may require `AnalyzerConfig.Parse()` and constructing a provider from the parsed config.
 
 **Step 5: Run all tests**
 
@@ -1158,7 +1146,6 @@ Expected: All tests PASS.
 ```bash
 git add src/Parlance.Analyzers.Upstream/ProfileProvider.cs \
         src/Parlance.Analyzers.Upstream/profiles/ \
-        src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj \
         src/Parlance.Cli/Analysis/WorkspaceAnalyzer.cs \
         tests/Parlance.Analyzers.Upstream.Tests/ProfileProviderTests.cs
 git commit -m "Add profile system with .editorconfig loading and default profiles"
@@ -1166,7 +1153,7 @@ git commit -m "Add profile system with .editorconfig loading and default profile
 
 ---
 
-## Task 11: End-to-End Integration Testing
+## Task 10: End-to-End Integration Testing
 
 **Files:**
 - Modify: `tests/Parlance.Cli.Tests/Integration/CliIntegrationTests.cs`
@@ -1196,48 +1183,13 @@ public async Task Analyze_DefaultProfile_ProducesUpstreamDiagnostics()
         "analyze", file, "--format", "json");
 
     Assert.Equal(0, exitCode);
-    // JSON output should parse and contain diagnostics
     var doc = System.Text.Json.JsonDocument.Parse(stdout);
     Assert.True(doc.RootElement.TryGetProperty("summary", out _));
 }
 
 [Fact]
-public async Task Analyze_JsonOutput_IncludesUpstreamRuleIds()
-{
-    var file = Path.Combine(_tempDir, "Test.cs");
-    // Code with multiple issues across different analyzer sources
-    File.WriteAllText(file, """
-        using System;
-
-        public class C
-        {
-            public int GetValue()
-            {
-                return 42;
-            }
-
-            void M(object obj)
-            {
-                if (obj is string)
-                {
-                    var s = (string)obj;
-                }
-            }
-        }
-        """);
-
-    var (exitCode, stdout, _) = await RunCliAsync(
-        "analyze", file, "--format", "json");
-
-    Assert.Equal(0, exitCode);
-    // Should contain both PARL and upstream diagnostics
-    Assert.Contains("PARL", stdout);
-}
-
-[Fact]
 public async Task Analyze_ExistingParlTests_StillPass()
 {
-    // Regression: ensure the PARL0004 test case still works
     var file = Path.Combine(_tempDir, "Test.cs");
     File.WriteAllText(file, """
         class C
@@ -1273,7 +1225,7 @@ git commit -m "Add end-to-end integration tests for upstream analyzer pipeline"
 
 ---
 
-## Task 12: Clean Up and Final Verification
+## Task 11: Clean Up and Final Verification
 
 **Files:**
 - Review all modified files
