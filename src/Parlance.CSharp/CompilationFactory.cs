@@ -47,20 +47,15 @@ internal static class CompilationFactory
             return [];
 
         // Find the highest versioned ref pack
-        var latestPack = Directory.GetDirectories(packsRoot)
-            .Select(d => new DirectoryInfo(d))
-            .OrderByDescending(d => d.Name, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        var latestPack = SelectLatestVersionDirectory(packsRoot);
 
         if (latestPack is null)
             return [];
 
         // Look for the ref subdirectory matching the TFM (e.g. ref/net10.0/)
-        var refDir = Directory.GetDirectories(Path.Combine(latestPack.FullName, "ref"))
-            .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        var refDir = SelectLatestVersionDirectory(Path.Combine(latestPack, "ref"));
 
-        if (refDir is null || !Directory.Exists(refDir))
+        if (refDir is null)
             return [];
 
         var dlls = Directory.GetFiles(refDir, "*.dll");
@@ -72,6 +67,23 @@ internal static class CompilationFactory
             builder.Add(MetadataReference.CreateFromFile(dll));
 
         return builder.MoveToImmutable();
+    }
+
+    /// <summary>
+    /// Selects the directory with the highest semantic version name from the given parent directory.
+    /// Directories whose names aren't valid versions are ignored.
+    /// </summary>
+    internal static string? SelectLatestVersionDirectory(string parentDir)
+    {
+        if (!Directory.Exists(parentDir))
+            return null;
+
+        return Directory.GetDirectories(parentDir)
+            .Select(d => (Path: d, Name: Path.GetFileName(d)))
+            .Where(d => Version.TryParse(d.Name, out _))
+            .OrderByDescending(d => Version.Parse(d.Name))
+            .Select(d => d.Path)
+            .FirstOrDefault();
     }
 
     /// <summary>
