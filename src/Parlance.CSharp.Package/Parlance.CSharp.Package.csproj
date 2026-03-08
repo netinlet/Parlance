@@ -13,7 +13,9 @@
 
   <!-- Dependencies that consumers will get -->
   <ItemGroup>
-    <PackageReference Include="Parlance.CSharp.Analyzers" Version="$(Version)" />
+    <PackageReference Include="Parlance.CSharp.Analyzers" Version="$(Version)">
+      <PrivateAssets>none</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.101">
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
