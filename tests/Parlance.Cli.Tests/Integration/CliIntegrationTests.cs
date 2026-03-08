@@ -289,4 +289,55 @@ public sealed class CliIntegrationTests : IDisposable
         // Should contain at least one non-PARL diagnostic
         Assert.Matches("(CA|IDE|RCS)", stdout);
     }
+
+    [Fact]
+    public async Task Analyze_DefaultProfile_ProducesUpstreamDiagnosticsInJson()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        File.WriteAllText(file, """
+            using System;
+
+            public class MyClass
+            {
+                public int Add(int a, int b)
+                {
+                    return a + b;
+                }
+            }
+            """);
+
+        var (exitCode, stdout, _) = await RunCliAsync(
+            "analyze", file, "--format", "json");
+
+        Assert.Equal(0, exitCode);
+        var doc = JsonDocument.Parse(stdout);
+        Assert.True(doc.RootElement.TryGetProperty("summary", out _));
+    }
+
+    [Fact]
+    public async Task Analyze_ParlAndUpstreamDiagnostics_CoexistInOutput()
+    {
+        var file = Path.Combine(_tempDir, "Test.cs");
+        // Code that triggers both PARL0004 (pattern matching) and upstream diagnostics
+        File.WriteAllText(file, """
+            public class C
+            {
+                public void M(object obj)
+                {
+                    if (obj is string)
+                    {
+                        var s = (string)obj;
+                    }
+                }
+            }
+            """);
+
+        var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
+
+        Assert.Equal(0, exitCode);
+        // PARL diagnostics still fire
+        Assert.Contains("PARL0004", stdout);
+        // Upstream diagnostics also fire alongside PARL ones
+        Assert.Matches("(CA|IDE|RCS)", stdout);
+    }
 }
