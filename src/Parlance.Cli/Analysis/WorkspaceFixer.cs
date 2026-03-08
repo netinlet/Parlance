@@ -45,7 +45,7 @@ internal static class WorkspaceFixer
                 ? lv
                 : LanguageVersion.Latest);
 
-        var workspace = new AdhocWorkspace();
+        using var workspace = new AdhocWorkspace();
         var projectId = ProjectId.CreateNewId();
         var projectInfo = ProjectInfo.Create(
             projectId, VersionStamp.Default, "ParlanceFixTarget", "ParlanceFixTarget",
