@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <EnforceCodeStyleInBuild Condition="'$(EnforceCodeStyleInBuild)' == ''">true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+</Project>
