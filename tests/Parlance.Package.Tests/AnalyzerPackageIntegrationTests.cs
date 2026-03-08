@@ -96,8 +96,8 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
     [Fact]
     public void AnalyzerPackage_HasNoLibFolder()
     {
-        var nupkgPath = Path.Combine(_artifactsDir, "Parlance.CSharp.Analyzers.0.1.0.nupkg");
-        Assert.True(File.Exists(nupkgPath), $"Expected nupkg at {nupkgPath}");
+        var nupkgPath = Directory.GetFiles(_artifactsDir, "Parlance.CSharp.Analyzers.*.nupkg").FirstOrDefault();
+        Assert.NotNull(nupkgPath);
 
         using var zip = ZipFile.OpenRead(nupkgPath);
         var entries = zip.Entries.Select(e => e.FullName).ToList();
@@ -109,8 +109,9 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
     [Fact]
     public void BundlePackage_ContainsBuildProps()
     {
-        var nupkgPath = Path.Combine(_artifactsDir, "Parlance.CSharp.0.1.0.nupkg");
-        Assert.True(File.Exists(nupkgPath), $"Expected nupkg at {nupkgPath}");
+        var nupkgPath = Directory.GetFiles(_artifactsDir, "Parlance.CSharp.0.*.nupkg")
+            .FirstOrDefault(f => !Path.GetFileName(f).Contains("Analyzers"));
+        Assert.NotNull(nupkgPath);
 
         using var zip = ZipFile.OpenRead(nupkgPath);
         var entries = zip.Entries.Select(e => e.FullName).ToList();
