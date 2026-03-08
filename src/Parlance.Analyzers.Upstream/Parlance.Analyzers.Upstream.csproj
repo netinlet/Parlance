@@ -54,6 +54,10 @@
   </Target>
 
   <ItemGroup>
+    <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Include="profiles/**/*.editorconfig">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
