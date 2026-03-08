@@ -20,6 +20,10 @@ internal static class AnalyzeCommand
 
         var maxDiagOption = new Option<int?>("--max-diagnostics") { Description = "Maximum number of diagnostics to report" };
         var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
+        var tfmOption = new Option<string>("--target-framework") { Description = "Target framework (default: net10.0)" };
+        tfmOption.DefaultValueFactory = _ => "net10.0";
+        var profileOption = new Option<string>("--profile") { Description = "Analysis profile (default: default)" };
+        profileOption.DefaultValueFactory = _ => "default";
 
         var command = new Command("analyze", "Analyze C# source files for idiomatic patterns");
         command.Add(pathsArg);
@@ -28,6 +32,8 @@ internal static class AnalyzeCommand
         command.Add(suppressOption);
         command.Add(maxDiagOption);
         command.Add(langVersionOption);
+        command.Add(tfmOption);
+        command.Add(profileOption);
 
         command.SetAction(async (parseResult, ct) =>
         {
@@ -37,6 +43,7 @@ internal static class AnalyzeCommand
             var suppress = parseResult.GetValue(suppressOption)!;
             var maxDiag = parseResult.GetValue(maxDiagOption);
             var langVersion = parseResult.GetValue(langVersionOption);
+            var targetFramework = parseResult.GetValue(tfmOption)!;
 
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
@@ -47,7 +54,7 @@ internal static class AnalyzeCommand
             }
 
             var result = await WorkspaceAnalyzer.AnalyzeAsync(
-                files, suppress, maxDiag, langVersion, ct: ct);
+                files, suppress, maxDiag, langVersion, targetFramework, ct);
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {
