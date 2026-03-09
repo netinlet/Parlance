@@ -22,7 +22,7 @@ internal static class AnalyzerLoader
 
         // Discover PARL analyzers from the Parlance.CSharp.Analyzers assembly
         var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
-        analyzers.AddRange(DiscoverAnalyzers(parlAssembly));
+        analyzers.AddRange(parlAssembly.DiscoverInstances<DiagnosticAnalyzer>());
 
         // Load upstream analyzer DLLs
         var analyzerDir = ResolveAnalyzerDirectory(targetFramework);
@@ -41,7 +41,7 @@ internal static class AnalyzerLoader
                         ResolveFromDirectory(alc, assemblyName, analyzerDir);
 
                     var assembly = loadContext.LoadFromAssemblyPath(dllPath);
-                    analyzers.AddRange(DiscoverAnalyzers(assembly));
+                    analyzers.AddRange(assembly.DiscoverInstances<DiagnosticAnalyzer>());
                 }
                 catch
                 {
@@ -76,43 +76,6 @@ internal static class AnalyzerLoader
 
         // Fall back to default context for framework/Roslyn assemblies
         return null;
-    }
-
-    private static List<DiagnosticAnalyzer> DiscoverAnalyzers(Assembly assembly)
-    {
-        var results = new List<DiagnosticAnalyzer>();
-        Type[] types;
-        try
-        {
-            types = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            // Use the types that did load successfully
-            types = ex.Types.Where(t => t is not null).ToArray()!;
-        }
-        catch
-        {
-            return results;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.IsAbstract || !typeof(DiagnosticAnalyzer).IsAssignableFrom(type))
-                continue;
-
-            try
-            {
-                if (Activator.CreateInstance(type) is DiagnosticAnalyzer analyzer)
-                    results.Add(analyzer);
-            }
-            catch
-            {
-                // Skip types that can't be instantiated
-            }
-        }
-
-        return results;
     }
 
     private static string? ResolveAnalyzerDirectory(string targetFramework)

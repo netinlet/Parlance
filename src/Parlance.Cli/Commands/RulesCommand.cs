@@ -1,5 +1,4 @@
 using System.CommandLine;
-using System.Reflection;
 using System.Text.Json;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Parlance.Analyzers.Upstream;
@@ -114,37 +113,8 @@ internal static class RulesCommand
     private static HashSet<string> DiscoverFixableIds()
     {
         var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
-        var fixableIds = new HashSet<string>();
-
-        Type[] types;
-        try
-        {
-            types = parlAssembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t is not null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.IsAbstract || !typeof(CodeFixProvider).IsAssignableFrom(type))
-                continue;
-
-            try
-            {
-                if (Activator.CreateInstance(type) is CodeFixProvider provider)
-                {
-                    foreach (var id in provider.FixableDiagnosticIds)
-                        fixableIds.Add(id);
-                }
-            }
-            catch
-            {
-                // Skip types that can't be instantiated
-            }
-        }
-
-        return fixableIds;
+        return parlAssembly.DiscoverInstances<CodeFixProvider>()
+            .SelectMany(fp => fp.FixableDiagnosticIds)
+            .ToHashSet();
     }
 }

@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using System.Reflection;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
@@ -24,7 +23,7 @@ internal static class WorkspaceFixer
         string targetFramework = "net10.0",
         CancellationToken ct = default)
     {
-        suppressRules ??= [];
+        var suppressed = suppressRules?.ToImmutableArray() ?? [];
 
         // Discover fix providers from the PARL assembly via reflection
         var fixProviders = DiscoverFixProviders();
@@ -41,9 +40,7 @@ internal static class WorkspaceFixer
             .ToImmutableArray();
 
         var parseOptions = new CSharpParseOptions(
-            languageVersion is not null && LanguageVersionFacts.TryParse(languageVersion, out var lv)
-                ? lv
-                : LanguageVersion.Latest);
+            LanguageVersionResolver.Resolve(languageVersion));
 
         using var workspace = new AdhocWorkspace();
         var projectId = ProjectId.CreateNewId();
@@ -72,10 +69,7 @@ internal static class WorkspaceFixer
 
         workspace.TryApplyChanges(solution);
 
-        // Filter analyzers by suppress rules
-        var analyzers = suppressRules.Length > 0
-            ? fixableAnalyzers.Where(a => !a.SupportedDiagnostics.Any(d => suppressRules.Contains(d.Id))).ToImmutableArray()
-            : fixableAnalyzers;
+        var analyzers = fixableAnalyzers.ExceptSuppressed(suppressed);
 
         if (analyzers.Length == 0)
             return new FixResult([]);
@@ -92,7 +86,7 @@ internal static class WorkspaceFixer
             var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
             var fixableDiags = diagnostics
-                .Where(d => !suppressRules.Contains(d.Id))
+                .Where(d => !suppressed.Contains(d.Id))
                 .ToList();
 
             if (fixableDiags.Count == 0)
@@ -186,34 +180,6 @@ internal static class WorkspaceFixer
     private static List<CodeFixProvider> DiscoverFixProviders()
     {
         var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
-        var providers = new List<CodeFixProvider>();
-
-        Type[] types;
-        try
-        {
-            types = parlAssembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t is not null).ToArray()!;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.IsAbstract || !typeof(CodeFixProvider).IsAssignableFrom(type))
-                continue;
-
-            try
-            {
-                if (Activator.CreateInstance(type) is CodeFixProvider provider)
-                    providers.Add(provider);
-            }
-            catch
-            {
-                // Skip types that can't be instantiated
-            }
-        }
-
-        return providers;
+        return parlAssembly.DiscoverInstances<CodeFixProvider>();
     }
 }
