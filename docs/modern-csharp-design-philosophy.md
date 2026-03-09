@@ -296,6 +296,30 @@ When a rule has two valid suggestions, prefer the one that leads toward immutabi
 
 When Microsoft's own libraries adopt a pattern, it's safe for a PARL rule. When the BCL, ASP.NET Core, or EF Core use a feature internally, that's the strongest signal that the pattern is intended and stable.
 
+### 6. Experimental Rules: Leading, Not Just Following
+
+Parlance doesn't have to wait for Microsoft to bless every pattern. When we discover a compelling transformation through real-world refactoring — like the extension method pattern from issue #32 — we can promote it as an **experimental** rule.
+
+Experimental rules:
+
+- Use a distinct severity or tag (e.g., `experimental` category, or an `PARLX` prefix) so developers know these are opinionated and forward-looking
+- Require the same before/after evidence as stable rules, but the "proof" can come from our own codebase experience rather than ecosystem-wide adoption
+- Are opt-in by default (disabled in `default` and `minimal` profiles, enabled in `strict` and `ai-agent`)
+- Graduate to stable when the pattern shows up in Microsoft libraries, LDM discussions, or widespread community adoption
+- Can be retired without stigma if they don't prove out
+
+This is how Parlance stays ahead of the curve rather than just codifying what everyone already knows. The best linters don't just enforce consensus — they **teach patterns that developers haven't discovered yet**.
+
+Examples of experimental-grade patterns:
+
+- Static helper methods that read better as extension methods (issue #32)
+- Duplicated code blocks that share a common first-parameter type — suggesting consolidation via generics + extensions
+- `foreach` + manual accumulation patterns that would be clearer as LINQ pipelines
+- Nested `if`/`else` chains that map cleanly to `switch` expressions but aren't obvious candidates
+- Mutable builder patterns that could be replaced with `with` expressions on records
+
+The bar for experimental rules: **"Would a senior developer, seeing the before/after, say 'that's clearly better'?"** If yes, ship it as experimental. Let adoption data and feedback determine graduation.
+
 ## Future Rule Candidates
 
 Based on this philosophy, potential future PARL rules (beyond the current 8):
