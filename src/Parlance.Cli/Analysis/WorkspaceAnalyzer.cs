@@ -19,7 +19,7 @@ internal static class WorkspaceAnalyzer
         string profile = "default",
         CancellationToken ct = default)
     {
-        suppressRules ??= [];
+        var suppressed = suppressRules?.ToImmutableArray() ?? [];
 
         // TODO: Wire profile severity overrides into the compilation via
         // AnalyzerConfigOptionsProvider. Currently validates the profile exists
@@ -39,7 +39,7 @@ internal static class WorkspaceAnalyzer
         }
 
         var parseOptions = new CSharpParseOptions(
-            ResolveLanguageVersion(languageVersion));
+            LanguageVersionResolver.Resolve(languageVersion));
 
         var trees = new List<SyntaxTree>(filePaths.Count);
         var pathMap = new Dictionary<SyntaxTree, string>();
@@ -60,18 +60,14 @@ internal static class WorkspaceAnalyzer
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var allAnalyzers = AnalyzerLoader.LoadAll(targetFramework);
+        var analyzers = allAnalyzers.ExceptSuppressed(suppressed);
 
-        var analyzers = suppressRules.Length > 0
-            ? allAnalyzers.Where(a => !a.SupportedDiagnostics.Any(d => suppressRules.Contains(d.Id))).ToImmutableArray()
-            : allAnalyzers;
-
-        var compilationWithAnalyzers = compilation.WithAnalyzers(
-            analyzers.ToImmutableArray());
+        var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
 
         var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
         var filtered = roslynDiagnostics
-            .Where(d => !suppressRules.Contains(d.Id))
+            .Where(d => !suppressed.Contains(d.Id))
             .ToList();
 
         var enriched = DiagnosticEnricher.Enrich(filtered);
@@ -92,14 +88,4 @@ internal static class WorkspaceAnalyzer
         return new AnalysisOutput(fileDiagnostics, summary, filePaths.Count);
     }
 
-    private static LanguageVersion ResolveLanguageVersion(string? version)
-    {
-        if (version is null)
-            return LanguageVersion.Latest;
-
-        if (LanguageVersionFacts.TryParse(version, out var parsed))
-            return parsed;
-
-        return LanguageVersion.Latest;
-    }
 }
