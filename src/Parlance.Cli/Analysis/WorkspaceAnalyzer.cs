@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.Analyzers.Upstream;
 using Parlance.Cli.Formatting;
 using Parlance.CSharp;
@@ -17,9 +19,11 @@ internal static class WorkspaceAnalyzer
         string? languageVersion = null,
         string targetFramework = "net10.0",
         string profile = "default",
+        ILogger? logger = null,
         CancellationToken ct = default)
     {
         suppressRules ??= [];
+        logger ??= NullLogger.Instance;
 
         // Validate and load the profile (severity overrides deferred to a follow-up)
         try
@@ -28,7 +32,7 @@ internal static class WorkspaceAnalyzer
         }
         catch (ArgumentException ex)
         {
-            await Console.Error.WriteLineAsync(ex.Message);
+            logger.LogError(ex, "{Message}", ex.Message);
             Environment.ExitCode = 2;
             return new AnalysisOutput([], new Abstractions.AnalysisSummary(
                 0, 0, 0, 0, ImmutableDictionary<string, int>.Empty, 100), 0);

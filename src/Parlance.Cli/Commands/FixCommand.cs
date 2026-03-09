@@ -1,11 +1,12 @@
 using System.CommandLine;
+using Microsoft.Extensions.Logging;
 using Parlance.Cli.Analysis;
 
 namespace Parlance.Cli.Commands;
 
 internal static class FixCommand
 {
-    public static Command Create()
+    public static Command Create(ILogger logger)
     {
         var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.OneOrMore };
         pathsArg.Description = "Files, directories, or glob patterns to fix";
@@ -34,7 +35,7 @@ internal static class FixCommand
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
             {
-                Console.Error.WriteLine("No .cs files found matching the specified paths.");
+                logger.LogError("No .cs files found matching the specified paths.");
                 Environment.ExitCode = 2;
                 return;
             }

@@ -1,4 +1,5 @@
 using System.CommandLine;
+using Microsoft.Extensions.Logging;
 using Parlance.Cli.Analysis;
 using Parlance.Cli.Formatting;
 
@@ -6,7 +7,7 @@ namespace Parlance.Cli.Commands;
 
 internal static class AnalyzeCommand
 {
-    public static Command Create()
+    public static Command Create(ILogger logger)
     {
         var pathsArg = new Argument<string[]>("paths") { Arity = ArgumentArity.OneOrMore };
         pathsArg.Description = "Files, directories, or glob patterns to analyze";
@@ -50,13 +51,13 @@ internal static class AnalyzeCommand
             var files = PathResolver.Resolve(paths);
             if (files.Count == 0)
             {
-                Console.Error.WriteLine("No .cs files found matching the specified paths.");
+                logger.LogError("No .cs files found matching the specified paths.");
                 Environment.ExitCode = 2;
                 return;
             }
 
             var result = await WorkspaceAnalyzer.AnalyzeAsync(
-                files, suppress, maxDiag, langVersion, targetFramework, profile, ct);
+                files, suppress, maxDiag, langVersion, targetFramework, profile, logger, ct);
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {
