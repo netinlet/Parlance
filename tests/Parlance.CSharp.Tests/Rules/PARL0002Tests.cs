@@ -162,4 +162,75 @@ public sealed class PARL0002Tests
 
         await Verify.VerifyAnalyzerAsync(source, expected);
     }
+
+    [Fact]
+    public async Task NoFlag_ArrayEmpty_InReturnStatement()
+    {
+        // return [] may not compile if return type isn't collection-expression-compatible
+        var source = """
+            using System;
+            class C
+            {
+                int[] M() => Array.Empty<int>();
+            }
+            """;
+
+        await Verify.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task NoFlag_ArrayEmpty_InMethodArgument()
+    {
+        // Foo([]) won't compile if parameter type doesn't support collection expressions
+        var source = """
+            using System;
+            class C
+            {
+                void M() { N(Array.Empty<int>()); }
+                void N(int[] items) { }
+            }
+            """;
+
+        await Verify.VerifyAnalyzerAsync(source);
+    }
+
+    [Fact]
+    public async Task Flags_ArrayEmpty_FieldInitializer()
+    {
+        // Field has explicit array type — [] is valid
+        var source = """
+            using System;
+            class C
+            {
+                private int[] _items = {|#0:Array.Empty<int>()|};
+            }
+            """;
+
+        var expected = Verify.Diagnostic("PARL0002")
+            .WithLocation(0)
+            .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Info)
+            .WithArguments("Array.Empty<T>()");
+
+        await Verify.VerifyAnalyzerAsync(source, expected);
+    }
+
+    [Fact]
+    public async Task Flags_ArrayEmpty_PropertyInitializer()
+    {
+        // Property has explicit array type — [] is valid
+        var source = """
+            using System;
+            class C
+            {
+                int[] Items { get; } = {|#0:Array.Empty<int>()|};
+            }
+            """;
+
+        var expected = Verify.Diagnostic("PARL0002")
+            .WithLocation(0)
+            .WithSeverity(Microsoft.CodeAnalysis.DiagnosticSeverity.Info)
+            .WithArguments("Array.Empty<T>()");
+
+        await Verify.VerifyAnalyzerAsync(source, expected);
+    }
 }

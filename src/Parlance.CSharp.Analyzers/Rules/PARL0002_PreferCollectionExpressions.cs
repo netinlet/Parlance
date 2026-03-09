@@ -95,8 +95,11 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
             method.ContainingType.SpecialType == SpecialType.System_Array &&
             method.IsGenericMethod)
         {
-            // Collection expressions have no natural type — can't use with var
-            if (IsInVarDeclaration(invocation))
+            // Collection expressions have no natural type — only flag when
+            // the target type is explicitly known to accept []. This avoids
+            // false positives in return statements, method arguments, and
+            // other contexts where [] may not compile.
+            if (!IsInExplicitlyTypedDeclaration(invocation))
                 return;
 
             context.ReportDiagnostic(Diagnostic.Create(
@@ -122,6 +125,31 @@ public sealed class PARL0002_PreferCollectionExpressions : DiagnosticAnalyzer
         {
             return declaration.Type.IsVar;
         }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks whether the expression is the initializer of a variable or field declaration
+    /// with an explicit (non-var) type. This confirms [] would be a valid replacement.
+    /// </summary>
+    private static bool IsInExplicitlyTypedDeclaration(ExpressionSyntax expression)
+    {
+        if (expression.Parent is not EqualsValueClauseSyntax equalsClause)
+            return false;
+
+        // Local variable: int[] x = Array.Empty<int>();
+        if (equalsClause.Parent is VariableDeclaratorSyntax
+            {
+                Parent: VariableDeclarationSyntax declaration
+            })
+        {
+            return !declaration.Type.IsVar;
+        }
+
+        // Property initializer: int[] Prop { get; } = Array.Empty<int>();
+        if (equalsClause.Parent is PropertyDeclarationSyntax)
+            return true;
 
         return false;
     }
