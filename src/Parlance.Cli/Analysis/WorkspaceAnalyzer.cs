@@ -73,16 +73,14 @@ internal static class WorkspaceAnalyzer
         var enriched = DiagnosticEnricher.Enrich(filtered);
         var summary = IdiomaticScoreCalculator.Calculate(enriched);
 
-        var fileDiagnostics = new List<FileDiagnostic>();
-        for (var i = 0; i < enriched.Count; i++)
+        var fileDiagnostics = filtered.Zip(enriched, (roslynDiag, parlanceDiag) =>
         {
-            var roslynDiag = filtered[i];
             var filePath = roslynDiag.Location.SourceTree is not null &&
                            pathMap.TryGetValue(roslynDiag.Location.SourceTree, out var p)
                 ? p
                 : "unknown";
-            fileDiagnostics.Add(new FileDiagnostic(filePath, enriched[i]));
-        }
+            return new FileDiagnostic(filePath, parlanceDiag);
+        }).ToList();
 
         if (maxDiagnostics.HasValue && fileDiagnostics.Count > maxDiagnostics.Value)
             fileDiagnostics = fileDiagnostics.Take(maxDiagnostics.Value).ToList();
