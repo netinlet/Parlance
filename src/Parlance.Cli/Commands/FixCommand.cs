@@ -16,16 +16,12 @@ internal static class FixCommand
         var langVersionOption = new Option<string?>("--language-version") { Description = "C# language version (default: Latest)" };
         var tfmOption = new Option<string>("--target-framework") { Description = "Target framework (default: net10.0)" };
         tfmOption.DefaultValueFactory = _ => "net10.0";
-        var profileOption = new Option<string>("--profile") { Description = "Analysis profile (default: default)" };
-        profileOption.DefaultValueFactory = _ => "default";
-
         var command = new Command("fix", "Apply auto-fixes to C# source files");
         command.Add(pathsArg);
         command.Add(applyOption);
         command.Add(suppressOption);
         command.Add(langVersionOption);
         command.Add(tfmOption);
-        command.Add(profileOption);
 
         command.SetAction(async (parseResult, ct) =>
         {
