@@ -22,7 +22,17 @@ internal static class WorkspaceAnalyzer
         suppressRules ??= [];
 
         // Validate and load the profile (severity overrides deferred to a follow-up)
-        _ = ProfileProvider.GetProfileContent(targetFramework, profile);
+        try
+        {
+            _ = ProfileProvider.GetProfileContent(targetFramework, profile);
+        }
+        catch (ArgumentException ex)
+        {
+            await Console.Error.WriteLineAsync(ex.Message);
+            Environment.ExitCode = 2;
+            return new AnalysisOutput([], new Abstractions.AnalysisSummary(
+                0, 0, 0, 0, ImmutableDictionary<string, int>.Empty, 100), 0);
+        }
 
         var parseOptions = new CSharpParseOptions(
             ResolveLanguageVersion(languageVersion));
