@@ -36,7 +36,7 @@ internal static class AnalyzerLoader
 
                 try
                 {
-                    var loadContext = new AssemblyLoadContext(Path.GetFileName(dllPath), isCollectible: true);
+                    var loadContext = new AssemblyLoadContext(Path.GetFileName(dllPath), isCollectible: false);
                     loadContext.Resolving += (alc, assemblyName) =>
                         ResolveFromDirectory(alc, assemblyName, analyzerDir);
 
