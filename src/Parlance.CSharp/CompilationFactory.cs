@@ -62,11 +62,11 @@ internal static class CompilationFactory
         if (dlls.Length == 0)
             return [];
 
-        var builder = ImmutableArray.CreateBuilder<MetadataReference>(dlls.Length);
+        var builder = ImmutableArray.CreateBuilder<MetadataReference>();
         foreach (var dll in dlls)
             builder.Add(MetadataReference.CreateFromFile(dll));
 
-        return builder.MoveToImmutable();
+        return builder.ToImmutable();
     }
 
     /// <summary>
