@@ -21,7 +21,11 @@ internal static class WorkspaceAnalyzer
     {
         suppressRules ??= [];
 
-        // Validate and load the profile (severity overrides deferred to a follow-up)
+        // TODO: Wire profile severity overrides into the compilation via
+        // AnalyzerConfigOptionsProvider. Currently validates the profile exists
+        // but discards the content. See implementation plan Task 9:
+        // docs/plans/2026-03-07-upstream-analyzer-integration.md#task-9
+        // Tracked by GitHub issues #15 and #16.
         try
         {
             _ = ProfileProvider.GetProfileContent(targetFramework, profile);
