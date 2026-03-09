@@ -1,7 +1,9 @@
+using System.Collections.Immutable;
+
 namespace Parlance.Abstractions;
 
 public sealed record AnalysisOptions(
-    string[] SuppressRules,
+    ImmutableArray<string> SuppressRules,
     int? MaxDiagnostics = null,
     bool IncludeFixSuggestions = true,
     string? LanguageVersion = null)
