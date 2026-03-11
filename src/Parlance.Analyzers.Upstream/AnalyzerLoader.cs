@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -43,9 +44,9 @@ internal static class AnalyzerLoader
                     var assembly = loadContext.LoadFromAssemblyPath(dllPath);
                     analyzers.AddRange(assembly.DiscoverInstances<DiagnosticAnalyzer>());
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Skip DLLs that fail to load (dependency-only assemblies, etc.)
+                    Debug.WriteLine($"Failed to load analyzer from '{dllPath}': {ex.Message}");
                 }
             }
         }
@@ -68,9 +69,9 @@ internal static class AnalyzerLoader
             {
                 return context.LoadFromAssemblyPath(file);
             }
-            catch
+            catch (Exception ex)
             {
-                // Continue trying other candidates
+                Debug.WriteLine($"Failed to resolve '{assemblyName.Name}' from '{file}': {ex.Message}");
             }
         }
 
@@ -80,26 +81,19 @@ internal static class AnalyzerLoader
 
     private static string? ResolveAnalyzerDirectory(string targetFramework)
     {
-        // Walk up from the executing assembly location to find the project root
-        // (directory containing a .csproj file), then look for analyzer-dlls/{tfm}/
         var assemblyLocation = typeof(AnalyzerLoader).Assembly.Location;
-        var dir = Path.GetDirectoryName(assemblyLocation);
+        var assemblyDir = Path.GetDirectoryName(assemblyLocation);
 
-        while (dir is not null)
+        // Packaged/installed scenario: analyzer-dlls next to the executing assembly
+        if (assemblyDir is not null)
         {
-            if (Directory.GetFiles(dir, "*.csproj").Length > 0)
-            {
-                var analyzerPath = Path.Combine(dir, "analyzer-dlls", targetFramework);
-                if (Directory.Exists(analyzerPath))
-                    return analyzerPath;
-            }
-
-            dir = Path.GetDirectoryName(dir);
+            var localPath = Path.Combine(assemblyDir, "analyzer-dlls", targetFramework);
+            if (Directory.Exists(localPath))
+                return localPath;
         }
 
-        // Fallback: try relative to the assembly location in case of test scenarios
-        // where build output is nested deeply
-        var srcDir = FindDirectoryAbove(Path.GetDirectoryName(assemblyLocation), "src");
+        // Development scenario: walk up to find the Parlance.Analyzers.Upstream project
+        var srcDir = FindDirectoryAbove(assemblyDir, "src");
         if (srcDir is not null)
         {
             var analyzerPath = Path.Combine(srcDir, "Parlance.Analyzers.Upstream", "analyzer-dlls", targetFramework);
