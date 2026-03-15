@@ -25,7 +25,7 @@ The honest split:
 
 2. **Static factory with options record** — `CSharpWorkspaceSession.OpenSolutionAsync(path, options?)`. Bundles lifecycle configuration into `WorkspaceOpenOptions`. Owns `MSBuildLocator.RegisterDefaults()` internally. Callers never touch MSBuild/Roslyn directly.
 
-3. **Internal compilation cache, swappable** — Callers express lifecycle intent via `WorkspaceMode` in options (`Report` or `Server`). The engine maps mode to an internal `IProjectCompilationCache` strategy. The cache is swappable internally for performance tuning (eager recompilation, memory-constrained, etc.) without changing the public API. Roslyn concerns stay inside the engine.
+3. **Internal compilation cache, swappable** — Callers express lifecycle intent via `WorkspaceMode` in options (`Report` or `Server`). File watching defaults by mode (`true` for Server, `false` for Report) but can be overridden. The engine maps mode to an internal `IProjectCompilationCache` strategy. The cache is swappable internally for performance tuning (eager recompilation, memory-constrained, etc.) without changing the public API. Roslyn concerns stay inside the engine.
 
 4. **No stale reads** — Hard guarantee. A read never returns without first checking if it's current. Per-project dirty tracking with dependency-aware cascade — changing Project B only invalidates Project A if A depends on B. Not a single global generation counter. `SnapshotVersion` on the session lets callers detect staleness. Synchronization details designed in the compilation cache issue.
 
@@ -101,11 +101,11 @@ public enum WorkspaceMode
 ```csharp
 public sealed record WorkspaceOpenOptions(
     WorkspaceMode Mode = WorkspaceMode.Report,
-    bool EnableFileWatching = false,
+    bool? EnableFileWatching = null,
     ILoggerFactory? LoggerFactory = null);
 ```
 
-Bundles lifecycle configuration. `EnableFileWatching` is separate from `Mode` — server mode typically wants it, but it's opt-in so tests and debugging can run server mode without watchers.
+Bundles lifecycle configuration. `EnableFileWatching` defaults by mode when `null`: `true` for `Server`, `false` for `Report`. Explicit `false` in server mode is allowed for testing/debugging, but callers accept responsibility for freshness — the session may drift stale after external edits without watchers or a manual refresh call.
 
 ### `WorkspaceProjectKey`
 
@@ -120,13 +120,21 @@ Strongly typed wrapper around Roslyn's `ProjectId.Id` GUID. Named to avoid colli
 ```csharp
 public enum WorkspaceLoadStatus
 {
-    Loaded,    // Fully operational
-    Degraded,  // Partially loaded — some projects failed, others are usable
-    Failed     // Nothing loaded
+    Loaded,    // All projects loaded successfully
+    Degraded,  // Some projects loaded, some failed — usable but incomplete
+    Failed     // No projects loaded
 }
 ```
 
-Three states, not two. `Degraded` is the honest middle ground — a solution where 5 of 6 projects loaded successfully. Callers can still work with the loaded projects.
+Session-level status only. `Degraded` is the honest middle ground — a solution where 5 of 6 projects loaded successfully. Callers can still work with the loaded projects. Individual projects use `ProjectLoadStatus` (binary `Loaded`/`Failed`).
+
+### `ProjectLoadStatus`
+
+```csharp
+public enum ProjectLoadStatus { Loaded, Failed }
+```
+
+Binary at the project level — a single project either loaded or it didn't. `Degraded` only applies at the session level (some projects loaded, some failed).
 
 ### `CSharpProjectInfo`
 
@@ -135,13 +143,16 @@ public sealed record CSharpProjectInfo(
     WorkspaceProjectKey Key,
     string Name,
     string ProjectPath,
-    string? TargetFramework,
+    IReadOnlyList<string> TargetFrameworks,
+    string ActiveTargetFramework,
     string? LangVersion,
-    WorkspaceLoadStatus Status,
+    ProjectLoadStatus Status,
     IReadOnlyList<WorkspaceDiagnostic> Diagnostics);
 ```
 
-Project metadata and health in one type — no separate `ProjectHealth` to correlate by ID. C#-specific fields (`TargetFramework`, `LangVersion`) live here honestly. `Diagnostics` captures MSBuild load warnings/errors for this project.
+Project metadata and health in one type — no separate `ProjectHealth` to correlate by ID. C#-specific fields live here honestly. `Diagnostics` captures MSBuild load warnings/errors for this project.
+
+`TargetFrameworks` lists all TFMs defined by the project (e.g. `["net8.0", "net10.0"]`). `ActiveTargetFramework` is the one MSBuild evaluated — MSBuildWorkspace loads one TFM per project evaluation. For single-targeted projects, both contain the same value. `LangVersion` corresponds to the active TFM.
 
 ### `WorkspaceDiagnostic`
 
@@ -164,7 +175,7 @@ public sealed record CSharpWorkspaceHealth(
     IReadOnlyList<CSharpProjectInfo> Projects);
 ```
 
-Top-level `Status` is derived: `Loaded` if all projects loaded, `Degraded` if some failed, `Failed` if none loaded.
+Top-level `Status` is derived from project statuses: `Loaded` if all projects have `ProjectLoadStatus.Loaded`, `Degraded` if some loaded and some failed, `Failed` if none loaded.
 
 ## CSharpWorkspaceSession
 
@@ -232,7 +243,7 @@ No stubs, no `NotImplementedException` methods. Future capabilities (compilation
 
 ### Error handling
 
-- Individual project load failures captured in `CSharpProjectInfo` with `Status = Failed` or `Degraded` and structured `WorkspaceDiagnostic` messages
+- Individual project load failures captured in `CSharpProjectInfo` with `Status = ProjectLoadStatus.Failed` and structured `WorkspaceDiagnostic` messages
 - Solution-level failure (file not found, MSBuild locator failure) throws `WorkspaceLoadException` wrapping the underlying cause
 - `WorkspaceFailed` events from MSBuildWorkspace logged and surfaced in project diagnostics
 
