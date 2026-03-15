@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Parlance.Abstractions;
 
 namespace Parlance.CSharp.Tests;
@@ -22,11 +23,11 @@ public sealed class IdiomaticScoreCalculatorTests
     [Fact]
     public void SingleError_Deducts10()
     {
-        var diagnostics = new[]
-        {
-            new Diagnostic("PARL0001", "Modernization", DiagnosticSeverity.Error,
+        ImmutableList<Diagnostic> diagnostics =
+        [
+            new("PARL0001", "Modernization", DiagnosticSeverity.Error,
                 "test", DummyLocation)
-        };
+        ];
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 
@@ -38,11 +39,11 @@ public sealed class IdiomaticScoreCalculatorTests
     [Fact]
     public void SingleWarning_Deducts5()
     {
-        var diagnostics = new[]
-        {
-            new Diagnostic("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
+        ImmutableList<Diagnostic> diagnostics =
+        [
+            new("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
                 "test", DummyLocation)
-        };
+        ];
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 
@@ -53,11 +54,11 @@ public sealed class IdiomaticScoreCalculatorTests
     [Fact]
     public void SingleSuggestion_Deducts2()
     {
-        var diagnostics = new[]
-        {
-            new Diagnostic("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
+        ImmutableList<Diagnostic> diagnostics =
+        [
+            new("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
                 "test", DummyLocation)
-        };
+        ];
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 
@@ -68,15 +69,15 @@ public sealed class IdiomaticScoreCalculatorTests
     [Fact]
     public void MixedSeverities_CorrectDeductions()
     {
-        var diagnostics = new[]
-        {
-            new Diagnostic("PARL0001", "Modernization", DiagnosticSeverity.Error,
+        ImmutableList<Diagnostic> diagnostics =
+        [
+            new("PARL0001", "Modernization", DiagnosticSeverity.Error,
                 "test", DummyLocation),
-            new Diagnostic("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
+            new("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
                 "test", DummyLocation),
-            new Diagnostic("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
+            new("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
                 "test", DummyLocation),
-        };
+        ];
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 
@@ -96,7 +97,7 @@ public sealed class IdiomaticScoreCalculatorTests
         var diagnostics = Enumerable.Range(0, 20)
             .Select(i => new Diagnostic($"PARL{i:D4}", "Test", DiagnosticSeverity.Error,
                 "test", DummyLocation))
-            .ToArray();
+            .ToImmutableList();
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 
@@ -107,11 +108,11 @@ public sealed class IdiomaticScoreCalculatorTests
     [Fact]
     public void SilentSeverity_NoDeduction()
     {
-        var diagnostics = new[]
-        {
-            new Diagnostic("PARL0001", "Modernization", DiagnosticSeverity.Silent,
+        ImmutableList<Diagnostic> diagnostics =
+        [
+            new("PARL0001", "Modernization", DiagnosticSeverity.Silent,
                 "test", DummyLocation)
-        };
+        ];
 
         var result = IdiomaticScoreCalculator.Calculate(diagnostics);
 

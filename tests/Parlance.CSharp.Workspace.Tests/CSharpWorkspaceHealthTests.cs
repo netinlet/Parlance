@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.CSharp.Workspace.Tests;
@@ -20,11 +21,11 @@ public sealed class CSharpWorkspaceHealthTests
     [Fact]
     public void FromProjects_AllLoaded_NoDiagnostics_StatusIsLoaded()
     {
-        var projects = new[]
-        {
+        ImmutableList<CSharpProjectInfo> projects =
+        [
             MakeProject(ProjectLoadStatus.Loaded, "A"),
             MakeProject(ProjectLoadStatus.Loaded, "B")
-        };
+        ];
 
         var health = CSharpWorkspaceHealth.FromProjects(projects);
 
@@ -36,11 +37,11 @@ public sealed class CSharpWorkspaceHealthTests
     [Fact]
     public void FromProjects_AllFailed_StatusIsFailed()
     {
-        var projects = new[]
-        {
+        ImmutableList<CSharpProjectInfo> projects =
+        [
             MakeProject(ProjectLoadStatus.Failed, "A"),
             MakeProject(ProjectLoadStatus.Failed, "B")
-        };
+        ];
 
         var health = CSharpWorkspaceHealth.FromProjects(projects);
 
@@ -50,15 +51,15 @@ public sealed class CSharpWorkspaceHealthTests
     [Fact]
     public void FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsDegraded()
     {
-        var projects = new[]
-        {
+        ImmutableList<CSharpProjectInfo> projects =
+        [
             MakeProject(ProjectLoadStatus.Loaded, "A"),
             MakeProject(ProjectLoadStatus.Loaded, "B")
-        };
-        var diagnostics = new[]
-        {
-            new WorkspaceDiagnostic("MSB3277", "Found conflicts", WorkspaceDiagnosticSeverity.Warning)
-        };
+        ];
+        ImmutableList<WorkspaceDiagnostic> diagnostics =
+        [
+            new("MSB3277", "Found conflicts", WorkspaceDiagnosticSeverity.Warning)
+        ];
 
         var health = CSharpWorkspaceHealth.FromProjects(projects, diagnostics);
 
@@ -69,11 +70,11 @@ public sealed class CSharpWorkspaceHealthTests
     [Fact]
     public void FromProjects_Mixed_StatusIsDegraded()
     {
-        var projects = new[]
-        {
+        ImmutableList<CSharpProjectInfo> projects =
+        [
             MakeProject(ProjectLoadStatus.Loaded, "A"),
             MakeProject(ProjectLoadStatus.Failed, "B")
-        };
+        ];
 
         var health = CSharpWorkspaceHealth.FromProjects(projects);
 
@@ -104,7 +105,10 @@ public sealed class CSharpWorkspaceHealthTests
     public void CSharpProjectInfo_ConstructionSetsProperties()
     {
         var key = new WorkspaceProjectKey(Guid.NewGuid());
-        var diags = new[] { new WorkspaceDiagnostic("W001", "warn", WorkspaceDiagnosticSeverity.Warning) };
+        ImmutableList<WorkspaceDiagnostic> diags =
+        [
+            new("W001", "warn", WorkspaceDiagnosticSeverity.Warning)
+        ];
 
         var info = new CSharpProjectInfo(
             Key: key,

@@ -1,21 +1,23 @@
+using System.Collections.Immutable;
+
 namespace Parlance.CSharp.Workspace;
 
 public sealed record CSharpWorkspaceHealth(
     WorkspaceLoadStatus Status,
-    IReadOnlyList<CSharpProjectInfo> Projects,
-    IReadOnlyList<WorkspaceDiagnostic> Diagnostics)
+    ImmutableList<CSharpProjectInfo> Projects,
+    ImmutableList<WorkspaceDiagnostic> Diagnostics)
 {
     public static CSharpWorkspaceHealth FromProjects(
-        IReadOnlyList<CSharpProjectInfo> projects,
-        IReadOnlyList<WorkspaceDiagnostic>? diagnostics = null)
+        ImmutableList<CSharpProjectInfo> projects,
+        ImmutableList<WorkspaceDiagnostic>? diagnostics = null)
     {
         diagnostics ??= [];
         return new(DeriveStatus(projects, diagnostics), projects, diagnostics);
     }
 
     private static WorkspaceLoadStatus DeriveStatus(
-        IReadOnlyList<CSharpProjectInfo> projects,
-        IReadOnlyList<WorkspaceDiagnostic> diagnostics)
+        ImmutableList<CSharpProjectInfo> projects,
+        ImmutableList<WorkspaceDiagnostic> diagnostics)
     {
         var hasBlockingDiagnostics = diagnostics.Any(d =>
             d.Severity is WorkspaceDiagnosticSeverity.Error or WorkspaceDiagnosticSeverity.Warning);

@@ -42,18 +42,16 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
         var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
         // Filter out suppressed rules (belt and suspenders)
-        var filtered = roslynDiagnostics
+        var enriched = roslynDiagnostics
             .Where(d => !options.SuppressRules.Contains(d.Id))
-            .ToList();
-
-        var enriched = DiagnosticEnricher.Enrich(filtered);
+            .ToParlanceDiagnostics();
 
         // Score reflects all diagnostics so the score represents true code quality
         var summary = IdiomaticScoreCalculator.Calculate(enriched);
 
         // Cap the diagnostics list for presentation after scoring
         if (options.MaxDiagnostics.HasValue && enriched.Count > options.MaxDiagnostics.Value)
-            enriched = enriched.Take(options.MaxDiagnostics.Value).ToList();
+            enriched = enriched.Take(options.MaxDiagnostics.Value).ToImmutableList();
 
         return new AnalysisResult(enriched, summary);
     }

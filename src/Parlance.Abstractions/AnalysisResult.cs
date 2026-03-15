@@ -1,5 +1,7 @@
+using System.Collections.Immutable;
+
 namespace Parlance.Abstractions;
 
 public sealed record AnalysisResult(
-    IReadOnlyList<Diagnostic> Diagnostics,
+    ImmutableList<Diagnostic> Diagnostics,
     AnalysisSummary Summary);
