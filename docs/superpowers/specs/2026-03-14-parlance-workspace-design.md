@@ -27,7 +27,7 @@ The honest split:
 
 3. **Internal compilation cache, swappable** — Callers express lifecycle intent via `WorkspaceMode` in options (`Report` or `Server`). File watching defaults by mode (`true` for Server, `false` for Report) but can be overridden. The engine maps mode to an internal `IProjectCompilationCache` strategy. The cache is swappable internally for performance tuning (eager recompilation, memory-constrained, etc.) without changing the public API. Roslyn concerns stay inside the engine.
 
-4. **No stale reads** — Hard guarantee. A read never returns without first checking if it's current. Per-project dirty tracking with dependency-aware cascade — changing Project B only invalidates Project A if A depends on B. Not a single global generation counter. `SnapshotVersion` on the session lets callers detect staleness. Synchronization details designed in the compilation cache issue.
+4. **No stale reads relative to known state** — The compilation cache guarantees that a read never returns data older than what the engine knows about. With file watching enabled, the engine learns about external changes automatically. Without file watching, the engine only knows about changes reported via `RefreshAsync()`. The guarantee is: reads are always consistent with the engine's current snapshot — not that the engine is omniscient. `SnapshotVersion` on the session lets callers detect staleness. Per-project dirty tracking with dependency-aware cascade — changing Project B only invalidates Project A if A depends on B. Synchronization details designed in the compilation cache issue.
 
 5. **Location backward compat** — `FilePath` added as optional last parameter to existing `Location` record in Abstractions. No compile-time breaking change. Record equality semantics change subtly but acceptably (no existing code uses `FilePath`).
 
@@ -144,7 +144,7 @@ public sealed record CSharpProjectInfo(
     string Name,
     string ProjectPath,
     IReadOnlyList<string> TargetFrameworks,
-    string ActiveTargetFramework,
+    string? ActiveTargetFramework,
     string? LangVersion,
     ProjectLoadStatus Status,
     IReadOnlyList<WorkspaceDiagnostic> Diagnostics);
@@ -152,7 +152,7 @@ public sealed record CSharpProjectInfo(
 
 Project metadata and health in one type — no separate `ProjectHealth` to correlate by ID. C#-specific fields live here honestly. `Diagnostics` captures MSBuild load warnings/errors for this project.
 
-`TargetFrameworks` lists all TFMs defined by the project (e.g. `["net8.0", "net10.0"]`). `ActiveTargetFramework` is the one MSBuild evaluated — MSBuildWorkspace loads one TFM per project evaluation. For single-targeted projects, both contain the same value. `LangVersion` corresponds to the active TFM.
+`TargetFrameworks` lists all TFMs defined by the project (e.g. `["net8.0", "net10.0"]`). Empty for projects that failed before MSBuild could evaluate them. `ActiveTargetFramework` is the one MSBuild evaluated — MSBuildWorkspace loads one TFM per project evaluation. `null` for failed projects. For single-targeted projects that loaded successfully, `TargetFrameworks` contains one entry matching `ActiveTargetFramework`. `LangVersion` corresponds to the active TFM; `null` for failed projects.
 
 ### `WorkspaceDiagnostic`
 
@@ -222,6 +222,9 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key);
     public CSharpProjectInfo? GetProjectByPath(string projectPath);
 
+    // Freshness — manual refresh for sessions without file watching
+    public Task RefreshAsync(CancellationToken ct = default);
+
     // Lifecycle
     public ValueTask DisposeAsync();
 }
@@ -233,7 +236,9 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
 `GetProjectByPath` instead of `GetProjectByName` — paths are unambiguous, names can collide in large solutions.
 
-No stubs, no `NotImplementedException` methods. Future capabilities (compilation, semantic navigation, diagnostics, file watching) are added as public methods in their respective issues.
+`RefreshAsync` — rescans the workspace for file changes and marks affected projects dirty. Primary use case: server mode with file watching disabled (testing, debugging). With file watching enabled, this is typically unnecessary but safe to call. Increments `SnapshotVersion` if changes are detected.
+
+No stubs, no `NotImplementedException` methods. Future capabilities (compilation, semantic navigation, diagnostics) are added as public methods in their respective issues.
 
 ### Disposal
 
