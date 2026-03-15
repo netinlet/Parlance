@@ -5,7 +5,7 @@ namespace Parlance.CSharp;
 
 internal static class IdiomaticScoreCalculator
 {
-    public static AnalysisSummary Calculate(IReadOnlyList<Diagnostic> diagnostics)
+    public static AnalysisSummary Calculate(ImmutableList<Diagnostic> diagnostics)
     {
         var errors = 0;
         var warnings = 0;

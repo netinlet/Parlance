@@ -1,8 +1,11 @@
+using System.Collections.Immutable;
+using System.Text;
 using System.Xml.Linq;
 using Microsoft.Build.Locator;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.MSBuild;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.CSharp.Workspace.Internal;
@@ -23,7 +26,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         string workspacePath,
         MSBuildWorkspace workspace,
         CSharpWorkspaceHealth health,
-        IReadOnlyList<CSharpProjectInfo> projects,
+        ImmutableList<CSharpProjectInfo> projects,
         IProjectCompilationCache cache,
         WorkspaceMode mode,
         ILoggerFactory loggerFactory)
@@ -44,7 +47,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
     public CSharpWorkspaceHealth Health { get; }
 
-    public IReadOnlyList<CSharpProjectInfo> Projects { get; }
+    public ImmutableList<CSharpProjectInfo> Projects { get; }
 
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key) =>
         Projects.FirstOrDefault(p => p.Key == key);
@@ -74,8 +77,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 if (currentText.ToString() == diskContent)
                     continue;
 
-                var newText = Microsoft.CodeAnalysis.Text.SourceText.From(
-                    diskContent, currentText.Encoding);
+                var newText = SourceText.From(diskContent, currentText.Encoding);
                 solution = solution.WithDocumentText(document.Id, newText);
                 affectedProjects.Add(project.Id);
             }
@@ -144,8 +146,8 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
             var existingDoc = solution.GetDocument(docIds[0]);
             var encoding = existingDoc is not null
                 ? (await existingDoc.GetTextAsync()).Encoding
-                : System.Text.Encoding.UTF8;
-            var newText = Microsoft.CodeAnalysis.Text.SourceText.From(content, encoding);
+                : Encoding.UTF8;
+            var newText = SourceText.From(content, encoding);
             foreach (var docId in docIds)
             {
                 solution = solution.WithDocumentText(docId, newText);
@@ -270,10 +272,10 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 $"Failed to load workspace: {ex.Message}", workspacePath, ex);
         }
 
-        WorkspaceDiagnostic[] diagnosticsSnapshot;
+        ImmutableList<WorkspaceDiagnostic> diagnosticsSnapshot;
         lock (diagnosticsLock)
         {
-            diagnosticsSnapshot = [.. workspaceDiagnostics];
+            diagnosticsSnapshot = workspaceDiagnostics.ToImmutableList();
         }
 
         // Eagerly load all document texts into memory so the workspace holds cached copies.
@@ -328,11 +330,9 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         return session;
     }
 
-    private static IReadOnlyList<CSharpProjectInfo> MapProjects(
-        Solution solution,
-        ILogger logger)
+    private static ImmutableList<CSharpProjectInfo> MapProjects(Solution solution, ILogger logger)
     {
-        var projects = new List<CSharpProjectInfo>();
+        var projects = ImmutableList.CreateBuilder<CSharpProjectInfo>();
 
         foreach (var project in solution.Projects)
         {
@@ -365,17 +365,20 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     ActiveTargetFramework: null,
                     LangVersion: null,
                     Status: ProjectLoadStatus.Failed,
-                    Diagnostics: [new WorkspaceDiagnostic(
-                        "MapError", ex.Message, WorkspaceDiagnosticSeverity.Error)]));
+                    Diagnostics:
+                    [
+                        new WorkspaceDiagnostic(
+                            "MapError", ex.Message, WorkspaceDiagnosticSeverity.Error)
+                    ]));
 
                 logger.LogError(ex, "Failed to map project: {Name}", project.Name);
             }
         }
 
-        return projects;
+        return projects.ToImmutable();
     }
 
-    private static (IReadOnlyList<string> TargetFrameworks, string? ActiveTargetFramework)
+    private static (ImmutableList<string> TargetFrameworks, string? ActiveTargetFramework)
         EvaluateFrameworkInfo(string? projectFilePath)
     {
         if (projectFilePath is null || !File.Exists(projectFilePath))
@@ -387,15 +390,15 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         var targetFramework = doc.Descendants(ns + "TargetFramework").FirstOrDefault()?.Value;
         var targetFrameworks = doc.Descendants(ns + "TargetFrameworks").FirstOrDefault()?.Value;
 
-        var parsedTargetFrameworks = !string.IsNullOrWhiteSpace(targetFrameworks)
-            ? targetFrameworks.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        ImmutableList<string> parsedTargetFrameworks = !string.IsNullOrWhiteSpace(targetFrameworks)
+            ? [.. targetFrameworks.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)]
             : !string.IsNullOrWhiteSpace(targetFramework)
                 ? [targetFramework]
                 : [];
 
         var activeTargetFramework = !string.IsNullOrWhiteSpace(targetFramework)
             ? targetFramework
-            : parsedTargetFrameworks.Length == 1
+            : parsedTargetFrameworks.Count == 1
                 ? parsedTargetFrameworks[0]
                 : null;
 

@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using ParlanceDiagnostic = Parlance.Abstractions.Diagnostic;
 using ParlanceLocation = Parlance.Abstractions.Location;
@@ -8,10 +9,9 @@ namespace Parlance.CSharp;
 
 internal static class DiagnosticEnricher
 {
-    public static IReadOnlyList<ParlanceDiagnostic> Enrich(
-        IReadOnlyList<RoslynDiagnostic> diagnostics)
+    public static ImmutableList<ParlanceDiagnostic> ToParlanceDiagnostics(this IEnumerable<RoslynDiagnostic> diagnostics)
     {
-        var result = new List<ParlanceDiagnostic>(diagnostics.Count);
+        var result = new List<ParlanceDiagnostic>();
 
         foreach (var d in diagnostics)
         {
@@ -46,6 +46,6 @@ internal static class DiagnosticEnricher
                 SuggestedFix: meta?.SuggestedFix));
         }
 
-        return result;
+        return result.ToImmutableList();
     }
 }

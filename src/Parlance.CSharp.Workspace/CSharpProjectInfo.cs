@@ -1,11 +1,13 @@
+using System.Collections.Immutable;
+
 namespace Parlance.CSharp.Workspace;
 
 public sealed record CSharpProjectInfo(
     WorkspaceProjectKey Key,
     string Name,
     string ProjectPath,
-    IReadOnlyList<string> TargetFrameworks,
+    ImmutableList<string> TargetFrameworks,
     string? ActiveTargetFramework,
     string? LangVersion,
     ProjectLoadStatus Status,
-    IReadOnlyList<WorkspaceDiagnostic> Diagnostics);
+    ImmutableList<WorkspaceDiagnostic> Diagnostics);

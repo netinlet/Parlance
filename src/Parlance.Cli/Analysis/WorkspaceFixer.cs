@@ -10,7 +10,7 @@ using Parlance.CSharp;
 
 namespace Parlance.Cli.Analysis;
 
-internal sealed record FixResult(IReadOnlyList<FixedFile> FixedFiles);
+internal sealed record FixResult(ImmutableList<FixedFile> FixedFiles);
 
 internal sealed record FixedFile(string FilePath, string OriginalContent, string NewContent);
 
@@ -147,7 +147,7 @@ internal static class WorkspaceFixer
             }
         }
 
-        return new FixResult(fixedFiles);
+        return new FixResult(fixedFiles.ToImmutableList());
     }
 
     public static void ApplyFixes(FixResult result)
