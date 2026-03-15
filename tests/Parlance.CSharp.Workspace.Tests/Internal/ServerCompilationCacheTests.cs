@@ -22,8 +22,7 @@ public sealed class ServerCompilationCacheTests
         return (workspace, workspace.CurrentSolution.GetProject(project.Id)!);
     }
 
-    private static (AdhocWorkspace Workspace, Project ProjectA, Project ProjectB)
-        CreateDependentProjects()
+    private static (AdhocWorkspace Workspace, Project ProjectA, Project ProjectB) CreateDependentProjects()
     {
         var workspace = new AdhocWorkspace();
 

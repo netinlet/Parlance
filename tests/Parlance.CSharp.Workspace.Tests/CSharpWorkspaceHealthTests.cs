@@ -48,7 +48,7 @@ public sealed class CSharpWorkspaceHealthTests
     }
 
     [Fact]
-    public void FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsLoaded()
+    public void FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsDegraded()
     {
         var projects = new[]
         {
@@ -62,7 +62,7 @@ public sealed class CSharpWorkspaceHealthTests
 
         var health = CSharpWorkspaceHealth.FromProjects(projects, diagnostics);
 
-        Assert.Equal(WorkspaceLoadStatus.Loaded, health.Status);
+        Assert.Equal(WorkspaceLoadStatus.Degraded, health.Status);
         Assert.Single(health.Diagnostics);
     }
 
