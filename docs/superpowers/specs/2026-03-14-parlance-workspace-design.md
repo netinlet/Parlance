@@ -27,7 +27,7 @@ The honest split:
 
 3. **Internal compilation cache, swappable** — Callers express lifecycle intent via `WorkspaceMode` in options (`Report` or `Server`). File watching defaults by mode (`true` for Server, `false` for Report) but can be overridden. The engine maps mode to an internal `IProjectCompilationCache` strategy. The cache is swappable internally for performance tuning (eager recompilation, memory-constrained, etc.) without changing the public API. Roslyn concerns stay inside the engine.
 
-4. **No stale reads relative to known state** — The compilation cache guarantees that a read never returns data older than what the engine knows about. With file watching enabled, the engine learns about external changes automatically. Without file watching, the engine only knows about changes reported via `RefreshAsync()`. The guarantee is: reads are always consistent with the engine's current snapshot — not that the engine is omniscient. `SnapshotVersion` on the session lets callers detect staleness. Per-project dirty tracking with dependency-aware cascade — changing Project B only invalidates Project A if A depends on B. Synchronization details designed in the compilation cache issue.
+4. **No stale reads relative to known state** — The compilation cache guarantees that a read never returns data older than what the engine knows about. With file watching enabled, the engine detects source-text changes to already-loaded documents automatically. Without file watching, the engine only knows about changes reported via `RefreshAsync()`. Structural changes (added/removed files, `.csproj` edits, NuGet changes) are not detected by either mechanism and require session rebuild. The guarantee is: reads are always consistent with the engine's current snapshot — not that the engine is omniscient. `SnapshotVersion` on the session lets callers detect staleness. Per-project dirty tracking with dependency-aware cascade — changing Project B only invalidates Project A if A depends on B. Synchronization details designed in the compilation cache issue.
 
 5. **Location backward compat** — `FilePath` added as optional last parameter to existing `Location` record in Abstractions. No compile-time breaking change. Record equality semantics change subtly but acceptably (no existing code uses `FilePath`).
 
@@ -320,7 +320,14 @@ Internal to `Parlance.CSharp.Workspace`. Uses Roslyn types freely. Public caller
 - **Model tests** — Record equality, `CSharpWorkspaceHealth`/`CSharpProjectInfo`/`WorkspaceDiagnostic` construction
 - **Location tests** — Existing call sites work with new optional `FilePath`; verify existing 120+ tests still pass
 
-Cache tests (per-project dirtiness, dependency cascade) belong in the compilation cache issue. Integration tests (loading `Parlance.sln`) come in the loading issue.
+Cache tests (per-project dirtiness, dependency cascade) belong in the compilation cache issue.
+
+**Integration tests** (loading issue and beyond):
+- Load `Parlance.sln` successfully, verify `CSharpWorkspaceHealth` and project list
+- `RefreshAsync` updates an existing loaded document and bumps `SnapshotVersion`
+- `RefreshAsync` throws `InvalidOperationException` in Report mode
+- Structural changes (adding a new `.cs` file) are not detected by refresh — session must be reopened to pick them up
+- `WorkspaceOpenOptions` with Report mode + `EnableFileWatching = true` throws `ArgumentException`
 
 ## Acceptance Criteria
 
