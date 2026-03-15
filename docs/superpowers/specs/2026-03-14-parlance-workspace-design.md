@@ -2,30 +2,37 @@
 
 **Issue:** #33 — Create Parlance.Workspace project and design API
 **Milestone:** 1 — Workspace Loads a Real Project
-**Date:** 2026-03-14
+**Date:** 2026-03-15 (revised)
 
 ## Summary
 
-New project `Parlance.Workspace` (net10.0) wrapping `MSBuildWorkspace`. Defines `IWorkspace` interface in Abstractions, `ParlanceWorkspace` implementation with full-vision API stubs, and a Strategy pattern for compilation caching/invalidation. This issue is scaffolding and API design — loading implementation is issue #34.
+New project `Parlance.Workspace` (net10.0) wrapping `MSBuildWorkspace`. Explicitly C#-first — no cross-language interface in Abstractions yet. The host/engine abstraction boundary will emerge naturally in Milestone 2 when the MCP server (the host) is built. For now, `ParlanceWorkspace` is a concrete C# workspace engine with clean internal boundaries so that shared abstractions can be extracted later from real code, not speculation.
+
+## Design Philosophy
+
+**Normalize outputs, not internals.** Mature multi-language analysis systems (SonarQube, CodeQL, Semgrep) unify the host, workflow, and result model. They keep compilation, caching, and program semantics inside each language engine. Parlance follows this principle:
+
+- **Abstractions** owns the normalized result model (`Diagnostic`, `Location`, `AnalysisResult`) — these are already language-neutral and stay unchanged.
+- **Parlance.Workspace** owns everything C#/Roslyn-specific: MSBuild loading, compilation, semantic model, caching strategy, project identity.
+- **The host/engine boundary** (an `IWorkspaceEngine` or similar interface) will be designed in Milestone 2 when we build the MCP server — the actual host. Designing the plugin interface before building the host or the plugin leads to speculative abstractions that leak implementation concepts.
+
+This means a future TypeScript workspace would be a separate project (e.g. `Parlance.TypeScript`) implementing whatever shared interface emerges from Milestone 2, with its own `ts.Program` internals, its own caching model, its own invalidation semantics.
 
 ## Key Decisions
 
-1. **Interface in Abstractions** — `IWorkspace` lives in `Parlance.Abstractions` so a future `TypeScriptWorkspace` (or other language) can implement the same contract. MCP server and CLI code against the interface. Roslyn types stay internal to `Parlance.Workspace`.
+1. **No cross-language interface yet** — `ParlanceWorkspace` is a concrete sealed class in `Parlance.Workspace`. No `IWorkspace` in Abstractions. The MCP server (Milestone 2) will reveal the right abstraction boundary between host and engine. Designing it now would produce a C# interface pretending to be language-neutral.
 
-2. **Static factory, no DI** — `ParlanceWorkspace.OpenSolutionAsync(path, strategy?, logger?)`. Owns `MSBuildLocator.RegisterDefaults()` call internally (guarded by `IsRegistered`). Callers never touch MSBuild/Roslyn directly.
+2. **Static factory, no DI** — `ParlanceWorkspace.OpenSolutionAsync(path, mode, logger?)`. Owns `MSBuildLocator.RegisterDefaults()` call internally (guarded by `IsRegistered`). Callers never touch MSBuild/Roslyn directly.
 
-3. **Compilation Strategy pattern** — `ICompilationStrategy` selected at creation time. Two implementations:
-   - `ServerCompilationStrategy` — debounce + generation barrier for long-running MCP server mode
-   - `ReportCompilationStrategy` — compile once, no invalidation, for one-shot CLI/CI mode
-   - Swappable at creation, not at runtime
+3. **Public compilation Strategy pattern** — `ICompilationStrategy` is public in `Parlance.Workspace` (not Abstractions — it uses Roslyn types, and the workspace is explicitly C#-specific). Factory takes `ICompilationStrategy?`, defaulting to `ReportCompilationStrategy`. Well-known strategies available via `CompilationStrategies.Report` and `CompilationStrategies.Server`. Custom strategies just implement the interface — swappable for eager recompilation, memory-constrained, profiling, etc.
 
-4. **No stale reads** — Hard guarantee. A read never returns without first checking if it's current. Generation counter with barrier: file changes increment generation, reads check cached generation vs. current before returning. If stale, recompile before serving.
+4. **No stale reads** — Hard guarantee. A read never returns without first checking if it's current. The `ServerCompilationStrategy` uses a generation counter with barrier: file changes increment generation, reads check cached generation vs. current before returning. Synchronization details (concurrent reader coalescing, cascading invalidation across project dependencies) will be designed in issue #37 when real compilation is implemented. The guarantee is a design constraint; the implementation is deferred.
 
-5. **Full-vision stubs** — Internal API designed for the complete roadmap (navigation, diagnostics). External surface starts with loading and health. Stubbed methods throw `NotImplementedException`, grouped by concern.
+5. **Location backward compat** — `FilePath` added as optional last parameter to existing `Location` record in Abstractions. No compile-time breaking change to existing call sites. Record equality semantics change subtly (a `Location` with `FilePath = null` and one with `FilePath = "foo.cs"` are not equal), but this is acceptable since no existing code constructs `Location` with a `FilePath`.
 
-6. **Location backward compat** — `FilePath` added as optional last parameter to existing `Location` record. No breaking change to existing call sites.
+6. **Workspace types are workspace types** — `ProjectId`, `ProjectInfo`, `ProjectHealth`, `WorkspaceHealth` live in `Parlance.Workspace`, not Abstractions. They use C#-specific concepts (TargetFramework, LangVersion) honestly. When the host/engine boundary is designed in Milestone 2, the truly shared subset will be extracted into Abstractions — informed by what the MCP server actually needs.
 
-7. **Flat records** — All new model types are positional records in Abstractions, matching existing style.
+7. **No public stubs** — Methods are added to `ParlanceWorkspace` when they are implemented, not before. No `NotImplementedException` traps. The public API surface reflects actual capability.
 
 ## Project Structure
 
@@ -33,10 +40,10 @@ New project `Parlance.Workspace` (net10.0) wrapping `MSBuildWorkspace`. Defines 
 
 - **TFM:** net10.0
 - **Dependencies:**
-  - `Parlance.Abstractions` (project reference)
+  - `Parlance.Abstractions` (project reference — for `Diagnostic`, `Location`, `AnalysisResult`)
   - `Microsoft.Build.Locator`
   - `Microsoft.CodeAnalysis.Workspaces.MSBuild`
-  - `Microsoft.CodeAnalysis.CSharp`
+  - `Microsoft.CodeAnalysis.CSharp.Workspaces`
   - `Microsoft.Extensions.Logging.Abstractions`
 
 ### New test project: `tests/Parlance.Workspace.Tests/Parlance.Workspace.Tests.csproj`
@@ -47,23 +54,21 @@ New project `Parlance.Workspace` (net10.0) wrapping `MSBuildWorkspace`. Defines 
 ### Dependency graph update
 
 ```
-Parlance.Abstractions          (IWorkspace, models — unchanged TFM)
+Parlance.Abstractions          (Diagnostic, Location, AnalysisResult — unchanged)
     ↑
-Parlance.Workspace             (NEW — ParlanceWorkspace, strategies)
+Parlance.Workspace             (NEW — ParlanceWorkspace, C#/Roslyn engine)
     ↑
 Parlance.CSharp                (evolves later to use Workspace)
     ↑
 Parlance.Analyzers.Upstream
     ↑
-Parlance.Mcp                   (NEW — future)
+Parlance.Mcp                   (NEW — Milestone 2, host/engine boundary designed here)
 Parlance.Cli
 ```
 
 ## Abstractions Layer Changes
 
-### Modified: `Location`
-
-Add optional `FilePath` as last parameter — no breaking change:
+Only one change to Abstractions — adding `FilePath` to `Location`:
 
 ```csharp
 public sealed record Location(
@@ -74,80 +79,89 @@ public sealed record Location(
     string? FilePath = null);
 ```
 
-### New: `ProjectStatus`
+Everything else in this spec lives in `Parlance.Workspace`.
+
+## Workspace Types (in Parlance.Workspace)
+
+### `WorkspaceProjectId`
 
 ```csharp
-public enum ProjectStatus { Loading, Loaded, Failed }
+public readonly record struct WorkspaceProjectId
+{
+    public Guid Value { get; }
+
+    private WorkspaceProjectId(Guid value) => Value = value;
+
+    public static WorkspaceProjectId Create(Guid value) =>
+        value == Guid.Empty
+            ? throw new ArgumentException("Project ID cannot be empty", nameof(value))
+            : new(value);
+
+    public override string ToString() => Value.ToString();
+}
 ```
 
-### New: `ProjectInfo`
+Strongly typed wrapper around Roslyn's `ProjectId.Id` GUID. Factory-only construction with validation — `default(WorkspaceProjectId)` produces `Guid.Empty` (unavoidable with value types), but `Create()` rejects it. API boundaries should validate. Named `WorkspaceProjectId` to avoid collision with Roslyn's `ProjectId`. Future entity IDs (e.g. `WorkspaceDocumentId`) follow the same one-off pattern.
+
+### `ProjectStatus`
+
+```csharp
+public enum ProjectStatus { Loaded, Failed }
+```
+
+No `Loading` state — the factory returns after loading completes. Callers only observe post-load state.
+
+### `ProjectInfo`
 
 ```csharp
 public sealed record ProjectInfo(
-    string Id,
+    WorkspaceProjectId Id,
     string Name,
     string FilePath,
+    ProjectStatus Status,
     string? TargetFramework,
     string? LangVersion);
 ```
 
-### New: `ProjectHealth`
+C#-specific fields (`TargetFramework`, `LangVersion`) live here honestly. When the host/engine boundary is designed in Milestone 2, the MCP server will determine which fields it needs in a shared model vs. which are language-specific detail.
+
+### `ProjectHealth`
 
 ```csharp
 public sealed record ProjectHealth(
-    string ProjectId,
+    WorkspaceProjectId ProjectId,
     string ProjectName,
     ProjectStatus Status,
-    IReadOnlyList<string> Diagnostics);
+    IReadOnlyList<WorkspaceDiagnostic> Diagnostics);
 ```
 
-### New: `WorkspaceHealth`
+### `WorkspaceDiagnostic`
+
+```csharp
+public sealed record WorkspaceDiagnostic(
+    string Code,
+    string Message,
+    WorkspaceDiagnosticSeverity Severity);
+
+public enum WorkspaceDiagnosticSeverity { Error, Warning, Info }
+```
+
+Structured diagnostic for workspace-level issues (MSBuild load failures, missing references, etc.). Distinct from the analysis `Diagnostic` in Abstractions — these are about the workspace itself, not code quality findings.
+
+### `WorkspaceHealth`
 
 ```csharp
 public sealed record WorkspaceHealth(
-    IReadOnlyList<ProjectHealth> Projects,
-    bool IsFullyLoaded);
+    IReadOnlyList<ProjectHealth> Projects);
 ```
 
-### New: `IWorkspace`
+No `IsLoadComplete` — the factory returns after loading, so health always represents the post-load state. Check individual `ProjectHealth.Status` for per-project success/failure.
 
-```csharp
-public interface IWorkspace : IAsyncDisposable
-{
-    // --- Loading (Issue #33/#34) ---
-    string SolutionPath { get; }
-    WorkspaceHealth Health { get; }
+## ParlanceWorkspace
 
-    // --- Project queries ---
-    IReadOnlyList<ProjectInfo> Projects { get; }
-    ProjectInfo? GetProject(string projectIdOrName);
+Sealed class. The public API for issue #33 is loading and health only.
 
-    // --- Compilation (Issue #37) ---
-    Task<object> GetCompilationAsync(string projectId, CancellationToken ct = default);
-    Task<object> GetSemanticModelAsync(string documentPath, CancellationToken ct = default);
-
-    // --- Semantic Navigation (Issues #43-#46) ---
-    Task<object> DescribeTypeAsync(string typeName, CancellationToken ct = default);
-    Task<object> FindImplementationsAsync(string typeName, CancellationToken ct = default);
-    Task<object> FindReferencesAsync(string symbolName, CancellationToken ct = default);
-    Task<object> GetTypeAtLocationAsync(string filePath, int line, int column, CancellationToken ct = default);
-
-    // --- Diagnostics (Issues #48-#50) ---
-    Task<AnalysisResult> AnalyzeProjectAsync(string projectId, AnalysisOptions? options = null, CancellationToken ct = default);
-    Task<AnalysisResult> AnalyzeDocumentAsync(string documentPath, AnalysisOptions? options = null, CancellationToken ct = default);
-
-    // --- File Watching (Issue #36) ---
-    event Action<string>? FileChanged;
-}
-```
-
-## Workspace Implementation
-
-### `ParlanceWorkspace`
-
-Sealed class implementing `IWorkspace`.
-
-**Static factory:**
+### Static factories
 
 ```csharp
 public static Task<ParlanceWorkspace> OpenSolutionAsync(
@@ -155,86 +169,127 @@ public static Task<ParlanceWorkspace> OpenSolutionAsync(
     ICompilationStrategy? strategy = null,
     ILogger<ParlanceWorkspace>? logger = null,
     CancellationToken ct = default);
+
+public static Task<ParlanceWorkspace> OpenProjectAsync(
+    string projectPath,
+    ICompilationStrategy? strategy = null,
+    ILogger<ParlanceWorkspace>? logger = null,
+    CancellationToken ct = default);
 ```
 
+- `strategy` defaults to `CompilationStrategies.Report` when `null`
 - Calls `MSBuildLocator.RegisterDefaults()` guarded by `MSBuildLocator.IsRegistered`
 - Creates `MSBuildWorkspace.Create()`
-- Opens the solution via `MSBuildWorkspace.OpenSolutionAsync()`
+- Opens via `MSBuildWorkspace.OpenSolutionAsync()` or `OpenProjectAsync()`
 - Subscribes to `WorkspaceFailed` for diagnostic capture
-- Populates `Projects` and `Health` from loaded solution
-- Defaults to `ServerCompilationStrategy` if no strategy provided
+- Populates `Projects` and `Health` from loaded solution/project
 
-**Disposal:**
-
-- `IAsyncDisposable` — disposes inner `MSBuildWorkspace`
-- Stops file watching if active
-- Clears compilation caches via strategy
-
-**Implemented in issue #33:**
-
-- `SolutionPath` — returns path passed to factory
-- `Health` — built from solution load results
-- `Projects` — populated from solution's project graph
-- `GetProject(string)` — lookup by ID or name
-
-**Stubbed (throw `NotImplementedException`):**
-
-- `GetCompilationAsync` / `GetSemanticModelAsync` — issue #37
-- `DescribeTypeAsync` / `FindImplementationsAsync` / `FindReferencesAsync` / `GetTypeAtLocationAsync` — Milestone 3
-- `AnalyzeProjectAsync` / `AnalyzeDocumentAsync` — Milestone 4
-- `FileChanged` event — issue #36
-
-**Error handling:**
-
-- Individual project load failures captured in `ProjectHealth` with `Status = Failed`
-- Solution-level failure throws (can't operate without a solution)
-- `WorkspaceFailed` events logged and surfaced in health
-
-### `ICompilationStrategy` (internal)
+### Public API (issue #33 scope)
 
 ```csharp
-internal interface ICompilationStrategy
+public sealed class ParlanceWorkspace : IAsyncDisposable
 {
-    Task<CSharpCompilation> GetCompilationAsync(Project project, CancellationToken ct = default);
-    void Invalidate(string projectId);
+    // What was loaded
+    public string WorkspacePath { get; }
+
+    // Post-load state
+    public WorkspaceHealth Health { get; }
+    public IReadOnlyList<ProjectInfo> Projects { get; }
+
+    // Lookups
+    public ProjectInfo? GetProject(WorkspaceProjectId id);
+    public ProjectInfo? GetProjectByName(string name);
+
+    // Lifecycle
+    public ValueTask DisposeAsync();
+}
+```
+
+`WorkspacePath` — not `SolutionPath`. Returns the path that was passed to whichever factory was called (`.sln` or `.csproj`).
+
+No stubs, no `NotImplementedException` methods. Future capabilities (compilation, semantic navigation, diagnostics, file watching) are added as public methods in their respective issues (#37, #43-#46, #50, #36).
+
+### Disposal
+
+- Disposes inner `MSBuildWorkspace`
+- Stops file watching if active (issue #36)
+- Clears compilation caches via strategy
+
+### Error handling
+
+- Individual project load failures captured in `ProjectHealth` with `Status = Failed` and structured `WorkspaceDiagnostic` messages
+- Solution-level failure (file not found, MSBuild locator failure, etc.) throws. Consider a `WorkspaceLoadException` wrapping the underlying cause so callers can distinguish workspace failures from other exceptions.
+- `WorkspaceFailed` events from MSBuildWorkspace logged and surfaced in health
+
+## Compilation Strategy
+
+### `ICompilationStrategy`
+
+```csharp
+public interface ICompilationStrategy
+{
+    Task<Compilation> GetCompilationAsync(Project project, CancellationToken ct = default);
+    void Invalidate(WorkspaceProjectId projectId);
     void InvalidateAll();
 }
 ```
 
-Uses Roslyn types — internal to `Parlance.Workspace`, never exposed to callers.
+Public in `Parlance.Workspace`. Uses Roslyn's base `Compilation` type (not `CSharpCompilation`) — costs nothing and doesn't artificially exclude VB.NET. Custom strategies implement this interface for alternative caching/invalidation behavior.
 
-### `ServerCompilationStrategy` (internal, sealed)
+### `CompilationStrategies` (static accessor)
 
-- `ConcurrentDictionary<string, CachedCompilation>` cache
+```csharp
+public static class CompilationStrategies
+{
+    public static ICompilationStrategy Report { get; } = new ReportCompilationStrategy();
+    public static ICompilationStrategy Server { get; } = new ServerCompilationStrategy();
+}
+```
+
+Well-known strategies. Discoverable entry point for callers.
+
+### `ServerCompilationStrategy` (sealed)
+
+- `ConcurrentDictionary<WorkspaceProjectId, CachedCompilation>` cache (keyed by typed ID)
 - Global generation counter (interlocked increment on `Invalidate`)
 - `GetCompilationAsync` checks cached generation vs. current generation
   - Current: return cached
   - Stale: recompile, update cache with current generation, return
 - **Hard guarantee:** a read never returns without checking currency
-- Thread-safe — concurrent queries to different projects don't block each other
+- Synchronization details (concurrent reader coalescing, cascading invalidation across project dependencies, debounce window behavior) will be designed in issue #37
 
-### `ReportCompilationStrategy` (internal, sealed)
+### `ReportCompilationStrategy` (sealed)
 
 - Same dictionary structure
 - `Invalidate` / `InvalidateAll` are no-ops
 - First `GetCompilationAsync` compiles and caches; subsequent calls return cached
-- Designed for one-shot: load, compile what's needed, serve, dispose
+- One-shot: load, compile what's needed, serve, dispose
 
 ## Testing (Issue #33 scope)
 
-- **Model tests** — Record equality, `WorkspaceHealth`/`ProjectHealth` construction
-- **Location tests** — Existing call sites work with new optional `FilePath`
-- **Strategy tests** — Generation barrier logic (ServerCompilationStrategy), compile-once (ReportCompilationStrategy). May use mock projects or be deferred to issue #34.
 - **Build verification** — Project builds, MSBuild dependencies resolved
+- **Model tests** — Record equality, `WorkspaceHealth`/`ProjectHealth`/`WorkspaceDiagnostic` construction, `WorkspaceProjectId.Create()` validation (rejects `Guid.Empty`)
+- **Location tests** — Existing call sites work with new optional `FilePath`; verify existing 120+ tests still pass
 
-Integration tests (loading `Parlance.sln`) come in issue #34.
+Strategy tests (generation barrier, compile-once) belong in issue #37. Integration tests (loading `Parlance.sln`) come in issue #34.
 
 ## Acceptance Criteria (from issue #33)
 
 - [ ] Project builds with MSBuild dependencies resolved
-- [ ] Core type compiles with the designed API surface (methods stubbed/throwing)
-- [ ] API design documented or self-evident from the type signatures
+- [ ] Core type compiles with the designed API surface
+- [ ] API design self-evident from the type signatures
+- [ ] Existing tests continue to pass (Location change verified)
+
+## Future: Host/Engine Boundary (Milestone 2)
+
+When the MCP server is built, it will need to hold a workspace reference and dispatch tool calls. That's when the shared interface emerges — designed from what the host actually needs, not from what the engine happens to expose. The interface will likely cover:
+
+- Workspace identity and health (normalized)
+- Capability queries (what can this engine do?)
+- Normalized analysis results (already in Abstractions)
+
+Language-specific concerns (compilation, semantic model, caching, MSBuild) stay inside the engine. This follows the pattern of SonarQube (host/plugin), CodeQL (per-language extractors), and Semgrep (common UX, per-language backends).
 
 ## Roadmap Reference
 
-`docs/plans/2026-03-14-ide-for-ai-roadmap.md` — Milestone 1, Issue #1
+`docs/plans/2026-03-14-ide-for-ai-roadmap.md` — Milestone 1, GitHub issue #33
