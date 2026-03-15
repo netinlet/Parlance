@@ -10,10 +10,10 @@ The primary consumer is the AI agent (Claude). The primary feedback loop is dogf
 
 ## Architectural North Star
 
-**The engine holds the full Roslyn workspace internally from the start; tools are just views into it.**
+**The engine holds the full Roslyn workspace internally; tools are just views into it.**
 
 ```
-ParlanceWorkspace (MSBuildWorkspace, Compilation, SemanticModel)
+CSharpWorkspaceSession (MSBuildWorkspace, Compilation, SemanticModel)
     ↑
 MCP Server (primary interface, long-running, stdio + HTTP/SSE)
     ├── Semantic Navigation Tools (describe-type, find-implementations, ...)
@@ -23,20 +23,34 @@ MCP Server (primary interface, long-running, stdio + HTTP/SSE)
 CLI (thin client, report mode, one-shot)
 ```
 
-The engine wraps `MSBuildWorkspace` and owns the full `Workspace` → `Solution` → `Project` → `Compilation` → `SemanticModel` graph. Callers never touch Roslyn directly. The internal API is designed for the full vision (semantic queries, navigation, impact analysis) even though the external surface starts small.
+The C# engine wraps `MSBuildWorkspace` and owns the full `Workspace` → `Solution` → `Project` → `Compilation` → `SemanticModel` graph. Callers never touch Roslyn directly. The public API surface reflects only what is implemented — no stubs, no `NotImplementedException` placeholders.
+
+### Multi-Language Architecture
+
+**Normalize outputs, not internals.** Mature multi-language systems (SonarQube, CodeQL, Semgrep) unify the host, workflow, and result model. They keep compilation, caching, and program semantics inside each language engine.
+
+- **Parlance.Abstractions** owns the normalized result model (`Diagnostic`, `Location`, `AnalysisResult`) — language-neutral.
+- **Parlance.CSharp.Workspace** owns everything C#/Roslyn-specific: MSBuild loading, compilation, semantic model, caching, project identity.
+- **The host/engine boundary** will be designed in Milestone 2 when the MCP server is built. Designing the plugin interface before building the host leads to speculative abstractions that leak implementation concepts.
+
+A future language workspace (e.g. TypeScript) would be a separate project implementing whatever shared interface emerges from Milestone 2, with its own internals, caching model, and invalidation semantics.
+
+The honest split:
+- **Shared (future):** session lifecycle, snapshot identity, health, normalized diagnostics, capability signaling
+- **Language-specific:** workspace loading, build/program creation, semantic model access, invalidation, caching, fix application mechanics
 
 ## Two Modes
 
 - **Server mode** (Milestones 2-4): Long-running process, hot workspace, MCP interface. Immediate feedback while coding. File watching keeps the workspace current.
 - **Report mode** (Milestone 5): One-shot — load, analyze, output, exit. For CI, quality gates, SonarQube-style reports. The CLI `analyze` command becomes this.
 
-Same engine, same analyzers, different lifecycle.
+Same engine, same analyzers, different lifecycle. Mode is selected via `WorkspaceOpenOptions` at session creation.
 
 ## Dependency Graph
 
 ```
-Milestone 1 (Workspace Engine)
-  └── Milestone 2 (MCP Server)
+Milestone 1 (C# Workspace Engine)
+  └── Milestone 2 (MCP Server + host/engine boundary design)
         ├── Milestone 3 (Semantic Navigation) ← priority: helps build everything after
         └── Milestone 4 (Diagnostics over MCP)
   Milestone 5 (CLI Pivot) ← last, uses same engine
@@ -58,18 +72,21 @@ Curation sets are named, opinionated selections of rules from any source (NetAna
 
 Curation set definitions are a product design exercise as much as engineering. They evolve continuously through dogfooding and have no "done" state. They are tracked via a pinned tracking issue and `curation` label, not a milestone.
 
-PARL analyzers are trimmed to 1 stub rule as part of Milestone 4 (issue #16). Until then, the existing 8 rules remain but are not a development focus. They are loaded identically to any 3rd party analyzer package — no special code path. Value comes from curating 3rd party analyzers.
+PARL analyzers are trimmed to 1 stub rule as part of Milestone 4. Until then, the existing 8 rules remain but are not a development focus. They are loaded identically to any 3rd party analyzer package — no special code path. Value comes from curating 3rd party analyzers.
 
 ## Key Decisions
 
 - **MSBuildWorkspace from day one.** This is a pivot, not incremental. The synthetic compilation approach is replaced.
+- **C#-first, honestly.** No speculative multi-language abstractions. The host/engine boundary is designed when the host (MCP server) is built.
 - **MCP server is the primary interface.** CLI becomes a thin client.
 - **Semantic navigation before diagnostics.** Build the tools that make Claude better at coding, then use them to build the diagnostic layer.
 - **File watching is core, not optional.** Stale compilations produce wrong diagnostics.
+- **No stale reads.** Per-project dirty tracking with dependency-aware cascade. Reads validate freshness before serving. Snapshot version on the session for staleness detection.
 - **Lazy project compilation.** Load the project graph eagerly, compile on demand. Design for large solutions.
 - **Pluggable transport.** stdio (Claude Code) + HTTP/SSE (future clients). Day one.
 - **Logging day one.** `Microsoft.Extensions.Logging`, structured, throughout.
 - **Curation sets are code-defined.** `.editorconfig` is an output, not an input. (Note: earlier design docs used the term "profiles" — "curation sets" supersedes that terminology.)
+- **No public stubs.** API surface reflects actual capability. Methods added when implemented.
 
 ## Risks and Technical Uncertainty
 
@@ -79,19 +96,19 @@ PARL analyzers are trimmed to 1 stub rule as part of Milestone 4 (issue #16). Un
 
 ## Project Structure
 
-`Parlance.Workspace` is a new project that sits below `Parlance.CSharp` in the dependency graph:
+`Parlance.CSharp.Workspace` is a new project that sits below `Parlance.CSharp` in the dependency graph:
 
 ```
-Parlance.Abstractions          (interfaces, models — unchanged)
+Parlance.Abstractions              (Diagnostic, Location, AnalysisResult — unchanged)
     ↑
-Parlance.Workspace             (NEW — MSBuildWorkspace, semantic model, file watching)
+Parlance.CSharp.Workspace          (NEW — CSharpWorkspaceSession, C#/Roslyn engine)
     ↑
-Parlance.CSharp                (analysis engine — evolves to use Workspace instead of CompilationFactory)
+Parlance.CSharp                    (analysis engine — evolves to use workspace engine)
     ↑
-Parlance.Analyzers.Upstream    (analyzer loading — evolves to be the only loading path)
+Parlance.Analyzers.Upstream        (analyzer loading — evolves to be the only loading path)
     ↑
-Parlance.Mcp                   (NEW — MCP server, tools)
-Parlance.Cli                   (thin client — refactored in Milestone 5)
+Parlance.Mcp                      (NEW — MCP server, host/engine boundary designed here)
+Parlance.Cli                      (thin client — refactored in Milestone 5)
 ```
 
 ## Not in Scope (Future Work)
@@ -115,58 +132,74 @@ These capabilities from the research document are intentionally deferred. They m
 
 ---
 
-## Milestone 1: Workspace Loads a Real Project
+## Milestone 1: C# Workspace Engine
 
-Foundation. Replaces synthetic `CompilationFactory` with real `MSBuildWorkspace`.
+Foundation. Replaces synthetic `CompilationFactory` with real `MSBuildWorkspace` via `CSharpWorkspaceSession`.
+
+### Key types (from design spec)
+
+- `CSharpWorkspaceSession` — sealed class wrapping MSBuildWorkspace, static factories, `IAsyncDisposable`
+- `WorkspaceOpenOptions` — mode, file watching, logging configuration
+- `WorkspaceMode` — `Report` (one-shot) or `Server` (long-running)
+- `CSharpWorkspaceHealth` — overall status with per-project details
+- `CSharpProjectInfo` — project metadata, status, and diagnostics inline
+- `WorkspaceProjectKey` — strongly typed project identity (avoids Roslyn `ProjectId` collision)
+- `WorkspaceLoadStatus` — `Loaded`, `Degraded`, `Failed`
+- `SnapshotVersion` — monotonic counter for staleness detection
+
+See `docs/superpowers/specs/2026-03-14-parlance-workspace-design.md` for full API design.
 
 ### Issues
 
-#### 1. Create `Parlance.Workspace` project and design API
+#### 1. Create `Parlance.CSharp.Workspace` project and design API
 
-New project: `Parlance.Workspace` (net10.0). Add `Microsoft.Build.Locator`, `Microsoft.CodeAnalysis.Workspaces.MSBuild`. Design the core `ParlanceWorkspace` type that wraps `MSBuildWorkspace`. Internal API surface designed for the full vision (diagnostics, semantic model, symbols) — external surface starts with loading and health only. This issue is project scaffolding and API design; loading implementation is issue #2.
+New project: `Parlance.CSharp.Workspace` (net10.0). Add `Microsoft.Build.Locator`, `Microsoft.CodeAnalysis.Workspaces.MSBuild`, `Microsoft.CodeAnalysis.CSharp.Workspaces`. Implement the `CSharpWorkspaceSession` type with loading and health API. No stubs — only implemented surface is public.
 
 **Labels:** `engine`
 
 **Acceptance:**
 - Project builds with MSBuild dependencies resolved
-- Core type compiles with the designed API surface (methods stubbed/throwing)
-- API design documented or self-evident from the type signatures
+- Core type compiles with the designed API surface
+- API design self-evident from the type signatures
+- Existing tests continue to pass
 
 #### 2. Implement solution/project loading
 
-Load `.sln` via `OpenSolutionAsync()`, `.csproj` via `OpenProjectAsync()`. Resolve NuGet references, project references, target frameworks. Error boundaries: one project failing doesn't block others.
+Load `.sln` via `OpenSolutionAsync()`, `.csproj` via `OpenProjectAsync()`. Resolve NuGet references, project references, target frameworks. Error boundaries: one project failing produces `Degraded` status, not a crash.
 
 **Labels:** `engine`
 
 **Acceptance:**
 - Loads `Parlance.sln` successfully
-- Reports all projects and their status
-- A broken project reference doesn't crash the loader
+- Reports all projects with `CSharpProjectInfo` (status, TFM, diagnostics)
+- A broken project reference produces `Degraded` health, not a crash
 - Integration test confirms loading
 
 #### 3. Workspace health reporting
 
-Report what loaded, what failed, per-project status, language version, TFM, package references. Degraded-state awareness (partial load is OK, total failure is reported).
+`CSharpWorkspaceHealth` with per-project `CSharpProjectInfo`. Three-state model: `Loaded`, `Degraded`, `Failed`. Structured `WorkspaceDiagnostic` messages for load failures. `WorkspaceLoadException` for total failures.
 
 **Labels:** `engine`
 
 **Acceptance:**
 - Health report for `Parlance.sln` shows all projects, TFMs, language versions
-- Failed projects reported with reason, not swallowed
+- Failed projects reported with structured diagnostics, not swallowed
+- `Degraded` status when some but not all projects fail
 
 #### 4. File watching and incremental updates
 
-`FileSystemWatcher` on loaded project directories. On file change, update workspace via `WithDocumentText()` — not full reload. Debounce rapid changes. Invalidate cached compilations.
+`FileSystemWatcher` on loaded project directories. On file change, update workspace via `WithDocumentText()` — not full reload. Debounce rapid changes. Mark affected projects dirty. Increment `SnapshotVersion`.
 
 **Labels:** `engine`
 
 **Acceptance:**
 - Modify a `.cs` file, workspace reflects the change without full reload
 - Rapid saves don't cause thrashing
+- `SnapshotVersion` increments on change
 
-#### 5. Lazy project compilation
+#### 5. Compilation cache with per-project dirtiness
 
-Load project graph structure eagerly (what projects exist, their dependencies). Compile on demand when a query targets a specific project. Cache compilations, invalidate on file change.
+Internal `IProjectCompilationCache` — selected by `WorkspaceMode`. Per-project dirty tracking with dependency-aware cascade via Roslyn's `ProjectDependencyGraph`. Reads validate per-project freshness before serving. Hard guarantee: a read never returns stale data.
 
 **Labels:** `engine`
 
@@ -174,11 +207,12 @@ Load project graph structure eagerly (what projects exist, their dependencies). 
 - Loading a solution does not compile all projects upfront
 - First query against a project triggers compilation
 - Subsequent queries use cached compilation
-- File change invalidates the right cache entries
+- File change marks the right projects dirty (including dependents)
+- Concurrent queries to different projects don't block each other
 
 #### 6. Structured logging for workspace operations
 
-`Microsoft.Extensions.Logging` throughout workspace engine. Log: load start/complete, project load, file change, compilation, errors. Configurable sinks.
+`Microsoft.Extensions.Logging` via `ILoggerFactory` in `WorkspaceOpenOptions`. Log: load start/complete, project load, file change, compilation, errors. Configurable sinks.
 
 **Labels:** `engine`
 
@@ -190,7 +224,7 @@ Load project graph structure eagerly (what projects exist, their dependencies). 
 
 ## Milestone 2: First MCP Tool Working
 
-MCP server starts, loads workspace, Claude can query it.
+MCP server starts, loads workspace, Claude can query it. **This is where the host/engine boundary is designed** — the MCP server is the host, `CSharpWorkspaceSession` is the first engine. The shared `IWorkspaceSession` interface (or equivalent) in Abstractions emerges from what the host actually needs.
 
 ### Issues
 
@@ -215,9 +249,11 @@ Document the evaluation findings before building on top.
 - Graceful shutdown on SIGTERM/SIGINT
 - Transport abstraction allows adding HTTP/SSE later without restructuring
 
-#### 8. Wire workspace engine into MCP server
+#### 8. Wire workspace engine into MCP server and design host/engine boundary
 
-MCP server loads workspace on startup (configurable solution path). Holds engine reference for tool handlers. The engine's file watcher keeps the workspace current — the MCP layer queries the engine's current state on each tool call (no caching at the MCP level that could go stale).
+MCP server loads `CSharpWorkspaceSession` on startup (configurable solution path). **Design the shared `IWorkspaceSession` or equivalent interface in Abstractions** based on what the host actually needs — session identity, health, snapshot version, capability queries. The C# engine is wrapped in an adapter. This is the seam where a future language engine plugs in.
+
+The engine's file watcher keeps the workspace current — the MCP layer queries the engine's current state on each tool call (no caching at the MCP level that could go stale).
 
 **Labels:** `mcp`, `engine`
 
@@ -226,6 +262,7 @@ MCP server loads workspace on startup (configurable solution path). Holds engine
 - Workspace health is available to tool handlers
 - Load failure is reported, not crashed
 - File changes are reflected in subsequent tool calls without server restart
+- Host/engine interface documented and implemented
 
 #### 9. Implement `workspace-status` tool and end-to-end verification
 
@@ -376,7 +413,7 @@ CLI becomes a thin client over the workspace engine. Report mode for CI and qual
 
 #### 20. Refactor CLI to use workspace engine
 
-Replace synthetic compilation with workspace engine from Milestone 1. `analyze`, `fix`, `rules` commands all use the new engine.
+Replace synthetic compilation with `CSharpWorkspaceSession` from Milestone 1. `analyze`, `fix`, `rules` commands all use the new engine with `WorkspaceMode.Report`.
 
 **Labels:** `cli`, `engine`
 
@@ -443,7 +480,7 @@ The pivot replaces several components of the current architecture:
 
 | Current | Replaced by | When |
 |---|---|---|
-| `CompilationFactory` (synthetic ref-pack loading) | `ParlanceWorkspace` (MSBuildWorkspace) | Milestone 1 |
+| `CompilationFactory` (synthetic ref-pack loading) | `CSharpWorkspaceSession` (MSBuildWorkspace) | Milestone 1 |
 | `IAnalysisEngine.AnalyzeSourceAsync(string)` | Workspace-centric API | Milestone 1 |
 | `WorkspaceAnalyzer` (multi-file synthetic compilation) | Workspace engine project queries | Milestone 1 |
 | `CSharpAnalysisEngine` (file-centric) | Workspace-based analysis | Milestone 4 |
@@ -458,3 +495,9 @@ The pivot replaces several components of the current architecture:
 - System.CommandLine 2.0.3 CLI structure — refactored, not replaced
 - xUnit test infrastructure
 - Real-world test repos and `test-repos.sh`
+
+## Design References
+
+- Workspace design spec: `docs/superpowers/specs/2026-03-14-parlance-workspace-design.md`
+- Design framing (Option A/B analysis): `docs/plans/2026-03-15-parlance-workspace-reframe-design.md`
+- AI vision research: `docs/research/2026-03-10-ide-for-ai-analysis.md`
