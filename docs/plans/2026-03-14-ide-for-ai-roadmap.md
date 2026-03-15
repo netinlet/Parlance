@@ -80,7 +80,7 @@ PARL analyzers are trimmed to 1 stub rule as part of Milestone 4. Until then, th
 - **C#-first, honestly.** No speculative multi-language abstractions. The host/engine boundary is designed when the host (MCP server) is built.
 - **MCP server is the primary interface.** CLI becomes a thin client.
 - **Semantic navigation before diagnostics.** Build the tools that make Claude better at coding, then use them to build the diagnostic layer.
-- **File watching is core, not optional.** Stale compilations produce wrong diagnostics.
+- **File watching is on by default in server mode.** Stale compilations produce wrong diagnostics. Can be disabled for testing/debugging if callers use `RefreshAsync()` for manual updates.
 - **No stale reads.** Per-project dirty tracking with dependency-aware cascade. Reads validate freshness before serving. Snapshot version on the session for staleness detection.
 - **Lazy project compilation.** Load the project graph eagerly, compile on demand. Design for large solutions.
 - **Pluggable transport.** stdio (Claude Code) + HTTP/SSE (future clients). Day one.
