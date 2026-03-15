@@ -33,11 +33,53 @@ The C# engine wraps `MSBuildWorkspace` and owns the full `Workspace` → `Soluti
 - **Parlance.CSharp.Workspace** owns everything C#/Roslyn-specific: MSBuild loading, compilation, semantic model, caching, project identity.
 - **The host/engine boundary** will be designed in Milestone 2 when the MCP server is built. Designing the plugin interface before building the host leads to speculative abstractions that leak implementation concepts.
 
-A future language workspace (e.g. TypeScript) would be a separate project implementing whatever shared interface emerges from Milestone 2, with its own internals, caching model, and invalidation semantics.
-
 The honest split:
 - **Shared (future):** session lifecycle, snapshot identity, health, normalized diagnostics, capability signaling
 - **Language-specific:** workspace loading, build/program creation, semantic model access, invalidation, caching, fix application mechanics
+
+#### Why C#-first, not multi-language now
+
+The current roadmap is deeply Roslyn-shaped: real MSBuildWorkspace, semantic navigation, analyzer execution over real compilations, hot server mode. These are C# goals, not generic workspace goals.
+
+Designing a multi-language abstraction now leads to one of two bad outcomes: a dishonest generic interface that really means "C# workspace," or a least-common-denominator interface too weak to be useful. C#-first ships working product value without lying about the abstraction boundary.
+
+#### What multi-language would look like (deferred to second language)
+
+When a second language is added, the shared layer describes sessions and capabilities — not compiler internals:
+
+```csharp
+public interface IWorkspaceSession : IAsyncDisposable
+{
+    WorkspaceSessionId Id { get; }
+    string RootPath { get; }
+    long SnapshotVersion { get; }
+    WorkspaceCapabilities Capabilities { get; }
+    WorkspaceHealth Health { get; }
+    IReadOnlyList<WorkspaceUnit> Units { get; }
+    Task RefreshAsync(CancellationToken ct = default);
+}
+
+public interface ILanguageWorkspaceAdapter
+{
+    string Language { get; }
+    bool CanOpen(WorkspaceOpenRequest request);
+    Task<IWorkspaceSession> OpenAsync(WorkspaceOpenRequest request, CancellationToken ct = default);
+}
+```
+
+Key design principles for the multi-language layer:
+
+- **Snapshot semantics are shared; invalidation mechanics are not.** Every session has a `SnapshotVersion`. How freshness is maintained is adapter-specific (C# uses file watching + per-project invalidation; TypeScript might rebuild on every change; syntax-only engines might just re-read files).
+- **Capability-based query surfaces.** The MCP host lights up tools based on `WorkspaceCapabilities` — `describe-type` only when `SupportsSemanticNavigation` is true, `preview-fix` only when `SupportsFixes` is true. Not every language answers the same semantic questions.
+- **Language-specific operations stay behind language-specific services.** Common diagnostics output and session lifecycle can be shared. Compilation, semantic model access, caching — those stay inside the engine.
+
+Migration path:
+
+1. Keep the existing C# engine intact
+2. Introduce a host-level `IWorkspaceSession` in Abstractions
+3. Wrap `CSharpWorkspaceSession` in a C# adapter
+4. Add a second adapter for the new language
+5. Move only truly shared concepts into the shared layer
 
 ## Two Modes
 
@@ -500,5 +542,4 @@ The pivot replaces several components of the current architecture:
 ## Design References
 
 - Workspace design spec: `docs/superpowers/specs/2026-03-14-parlance-workspace-design.md`
-- Design framing (Option A/B analysis): `docs/plans/2026-03-15-parlance-workspace-reframe-design.md`
 - AI vision research: `docs/research/2026-03-10-ide-for-ai-analysis.md`

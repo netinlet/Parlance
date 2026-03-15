@@ -363,5 +363,4 @@ To keep the path to multi-language open:
 
 ## Roadmap Reference
 
-`docs/plans/2026-03-14-ide-for-ai-roadmap.md` — Milestone 1
-`docs/plans/2026-03-15-parlance-workspace-reframe-design.md` — design framing document
+`docs/plans/2026-03-14-ide-for-ai-roadmap.md` — Milestone 1 (includes multi-language architecture sketch)
