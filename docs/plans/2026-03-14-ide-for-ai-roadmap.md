@@ -122,6 +122,7 @@ These capabilities from the research document are intentionally deferred. They m
 - `generate-boilerplate` — Compiler-correct IDisposable, equality, etc.
 - `trace-data-flow` — How does a value flow through the code?
 - `find-similar` — Semantic similarity search across the codebase
+- **Structural change detection** — Detect added/removed files, `.csproj` edits, `Directory.Build.props` changes, NuGet restore/reference changes without requiring session rebuild. Milestone 1 only handles source text changes to existing documents.
 
 ## GitHub Project Setup
 
