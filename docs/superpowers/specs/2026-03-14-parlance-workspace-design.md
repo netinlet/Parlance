@@ -102,10 +102,21 @@ public enum WorkspaceMode
 public sealed record WorkspaceOpenOptions(
     WorkspaceMode Mode = WorkspaceMode.Report,
     bool? EnableFileWatching = null,
-    ILoggerFactory? LoggerFactory = null);
+    ILoggerFactory? LoggerFactory = null)
+{
+    public bool FileWatchingEnabled => Mode switch
+    {
+        WorkspaceMode.Report => EnableFileWatching == true
+            ? throw new ArgumentException(
+                "File watching is not supported in Report mode")
+            : false,
+        WorkspaceMode.Server => EnableFileWatching ?? true,
+        _ => false
+    };
+}
 ```
 
-Bundles lifecycle configuration. `EnableFileWatching` defaults by mode when `null`: `true` for `Server`, `false` for `Report`. Explicit `false` in server mode is allowed for testing/debugging, but callers accept responsibility for freshness — the session may drift stale after external edits without watchers or a manual refresh call.
+Bundles lifecycle configuration. `EnableFileWatching` defaults by mode when `null`: `true` for `Server`, `false` for `Report`. Report mode with `EnableFileWatching = true` throws — file watching is nonsensical in a one-shot session. Server mode with `EnableFileWatching = false` is valid for testing/debugging, but callers must use `RefreshAsync()` to update the session manually.
 
 ### `WorkspaceProjectKey`
 
