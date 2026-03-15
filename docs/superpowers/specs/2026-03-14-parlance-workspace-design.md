@@ -236,7 +236,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
 `GetProjectByPath` instead of `GetProjectByName` — paths are unambiguous, names can collide in large solutions.
 
-`RefreshAsync` — rescans the workspace for file changes and marks affected projects dirty. Primary use case: server mode with file watching disabled (testing, debugging). With file watching enabled, this is typically unnecessary but safe to call. Increments `SnapshotVersion` if changes are detected.
+`RefreshAsync` — Server mode only (throws `InvalidOperationException` in Report mode). Scans loaded documents for on-disk changes, reads updated file contents, applies new `SourceText` to the Roslyn workspace via `Solution.WithDocumentText()`, then marks affected projects dirty in the compilation cache. Both the workspace's source and the cache's compiled artifacts are updated — marking caches dirty alone is not enough, because recompilation against stale `SourceText` produces stale results. Primary use case: server mode with file watching disabled (testing, debugging). With file watching enabled, this is typically unnecessary but safe to call. Increments `SnapshotVersion` if changes are detected.
 
 No stubs, no `NotImplementedException` methods. Future capabilities (compilation, semantic navigation, diagnostics) are added as public methods in their respective issues.
 
@@ -299,6 +299,7 @@ Internal to `Parlance.CSharp.Workspace`. Uses Roslyn types freely. Public caller
 - `MarkDirty` / `MarkAllDirty` are no-ops
 - First `GetAsync` compiles and caches; subsequent calls return cached
 - One-shot: load, compile what's needed, serve, dispose
+- `RefreshAsync` is not supported in Report mode — the session throws `InvalidOperationException`. Report mode is immutable by contract.
 
 ## Testing (this issue scope)
 
