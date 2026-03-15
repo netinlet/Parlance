@@ -151,7 +151,7 @@ Conclusion: this portion of the plan is not implemented.
 
 ### Follow-up guidance from the local Denace Roslyn articles
 
-Reading the converted Denace series in `docs/denace.dev/` did not change the findings above, but it does reinforce a few practical next steps for this codebase:
+Reading the Denace Roslyn series (https://denace.dev) did not change the findings above, but it does reinforce a few practical next steps for this codebase:
 
 - before creating a custom rule, check whether a built-in Roslyn/IDE analyzer already covers the scenario; custom diagnostics carry ongoing maintenance cost
 - use `Microsoft.CodeAnalysis.Testing` as the main verification surface and keep adding negative/regression cases whenever a false positive or unsafe recommendation is found
@@ -176,7 +176,7 @@ Primary references consulted:
 - https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/keywords/required
 - https://learn.microsoft.com/en-us/dotnet/standard/assembly/reference-assemblies
 - https://learn.microsoft.com/en-us/dotnet/csharp/whats-new/tutorials/primary-constructors
-- `docs/denace.dev/exploring-roslyn-dotnet-compiler-platform-sdk.md`
-- `docs/denace.dev/getting-started-with-roslyn-analyzers.md`
-- `docs/denace.dev/fixing-mistakes-with-roslyn-code-fixes.md`
-- `docs/denace.dev/testing-roslyn-analyzers-and-code-fixes.md`
+- https://denace.dev/exploring-roslyn-net-compiler-platform-sdk
+- https://denace.dev/getting-started-with-roslyn-analyzers
+- https://denace.dev/fixing-mistakes-with-roslyn-code-fixes
+- https://denace.dev/testing-roslyn-analyzers-and-code-fixes

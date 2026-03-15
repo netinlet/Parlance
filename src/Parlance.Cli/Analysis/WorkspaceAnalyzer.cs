@@ -21,11 +21,8 @@ internal static class WorkspaceAnalyzer
     {
         var suppressed = suppressRules?.ToImmutableArray() ?? [];
 
-        // TODO: Wire profile severity overrides into the compilation via
-        // AnalyzerConfigOptionsProvider. Currently validates the profile exists
-        // but discards the content. See implementation plan Task 9:
-        // docs/plans/2026-03-07-upstream-analyzer-integration.md#task-9
-        // Tracked by GitHub issues #15 and #16.
+        // TODO: Wire curation set severity overrides into the compilation.
+        // Currently validates the profile exists but discards the content.
         try
         {
             _ = ProfileProvider.GetProfileContent(targetFramework, profile);

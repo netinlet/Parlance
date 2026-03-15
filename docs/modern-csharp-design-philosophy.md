@@ -342,8 +342,7 @@ Based on this philosophy, potential future PARL rules (beyond the current 8):
 
 - **`docs/analyzer-development-guide.md`** — How to *implement* analyzers correctly (Roslyn mechanics, testing, performance). Read that for the "how."
 - **This document** — *What* analyzers should target and *why* (language philosophy, transformation catalog, design principles). Read this for the "what" and "why."
-- **`docs/2026-03-04-blueprint-starter.md`** — Product vision and business strategy.
-- **`docs/2026-03-04-business-critique.md`** — Market positioning and adoption strategy.
+- **`docs/plans/2026-03-14-ide-for-ai-roadmap.md`** — Current product roadmap and architecture.
 
 ## Sources
 
