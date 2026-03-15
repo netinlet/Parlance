@@ -365,7 +365,7 @@ git commit -m "Add workspace model enums and WorkspaceProjectKey"
 
 - [ ] **Step 1: Write tests for CSharpWorkspaceHealth status derivation**
 
-The interesting behavior is the `FromProjects` factory that derives `WorkspaceLoadStatus` from the project list plus any workspace-level diagnostics that cannot yet be attributed to a specific project. `WorkspaceDiagnostic` and `CSharpProjectInfo` are straightforward records exercised through the health tests.
+The interesting behavior is the `FromProjects` factory that derives `WorkspaceLoadStatus` from the project list. Workspace-level diagnostics are still retained on the health record, but they do not redefine completeness status by themselves. `WorkspaceDiagnostic` and `CSharpProjectInfo` are straightforward records exercised through the health tests.
 
 Create `tests/Parlance.CSharp.Workspace.Tests/CSharpWorkspaceHealthTests.cs`:
 
@@ -420,7 +420,7 @@ public sealed class CSharpWorkspaceHealthTests
     }
 
     [Fact]
-    public void FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsDegraded()
+    public void FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsLoaded()
     {
         var projects = new[]
         {
@@ -434,7 +434,7 @@ public sealed class CSharpWorkspaceHealthTests
 
         var health = CSharpWorkspaceHealth.FromProjects(projects, diagnostics);
 
-        Assert.Equal(WorkspaceLoadStatus.Degraded, health.Status);
+        Assert.Equal(WorkspaceLoadStatus.Loaded, health.Status);
         Assert.Single(health.Diagnostics);
     }
 
@@ -575,21 +575,16 @@ public sealed record CSharpWorkspaceHealth(
         IReadOnlyList<WorkspaceDiagnostic>? diagnostics = null)
     {
         diagnostics ??= [];
-        return new(DeriveStatus(projects, diagnostics), projects, diagnostics);
+        return new(DeriveStatus(projects), projects, diagnostics);
     }
 
     private static WorkspaceLoadStatus DeriveStatus(
-        IReadOnlyList<CSharpProjectInfo> projects,
-        IReadOnlyList<WorkspaceDiagnostic> diagnostics)
+        IReadOnlyList<CSharpProjectInfo> projects)
     {
-        var hasBlockingDiagnostics = diagnostics.Any(d =>
-            d.Severity is WorkspaceDiagnosticSeverity.Error or WorkspaceDiagnosticSeverity.Warning);
-
         return projects switch
         {
             { Count: 0 } => WorkspaceLoadStatus.Failed,
             _ when projects.All(p => p.Status is ProjectLoadStatus.Failed) => WorkspaceLoadStatus.Failed,
-            _ when hasBlockingDiagnostics => WorkspaceLoadStatus.Degraded,
             _ when projects.All(p => p.Status is ProjectLoadStatus.Loaded) => WorkspaceLoadStatus.Loaded,
             _ => WorkspaceLoadStatus.Degraded
         };
@@ -1451,11 +1446,13 @@ This is the core session class. It includes:
 - Static factory methods `OpenSolutionAsync` and `OpenProjectAsync`
 - MSBuildLocator registration guard
 - MSBuildWorkspace creation and diagnostic subscription
-- Project mapping: Roslyn Project → CSharpProjectInfo (TFM info from evaluated MSBuild properties, LangVersion from CSharpParseOptions)
+- Project mapping: Roslyn Project → CSharpProjectInfo (declared TFMs from evaluated MSBuild properties, active TFM from the Roslyn project MSBuildWorkspace actually evaluated, LangVersion from CSharpParseOptions)
 - Health derivation, workspace diagnostics capture, project lookups, SnapshotVersion, DisposeAsync
 - No RefreshAsync or file watcher yet — those are added in Chunk 3
 
 **Important:** `MSBuildLocator.RegisterDefaults()` must be called before any MSBuild types are loaded into the AppDomain. The `EnsureMSBuildRegistered` method uses double-checked locking to ensure thread-safe one-time registration.
+
+**Multi-targeting note:** MSBuildWorkspace surfaces multi-targeted SDK-style projects as one Roslyn `Project` per evaluated TFM. Roslyn disambiguates those public project names with `(<TFM>)`, so the mapping code should derive `ActiveTargetFramework` from the loaded Roslyn project and use a separate MSBuild evaluation only to collect the declared `TargetFrameworks` list.
 
 - [ ] **Step 1: Create test helper for locating solution**
 
@@ -1534,6 +1531,32 @@ public sealed class SolutionLoadingTests
         Assert.Contains("net10.0", abstractions.TargetFrameworks);
         Assert.Equal("net10.0", abstractions.ActiveTargetFramework);
         Assert.NotNull(abstractions.LangVersion);
+    }
+
+    [Fact]
+    public async Task OpenSolutionAsync_ContainsMultiTargetedProjectPerFramework()
+    {
+        var solutionPath = TestPaths.FindSolutionPath();
+        var upstreamPath = Path.Combine(
+            TestPaths.RepoRoot,
+            "src",
+            "Parlance.Analyzers.Upstream",
+            "Parlance.Analyzers.Upstream.csproj");
+
+        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+
+        var upstreamProjects = session.Projects
+            .Where(p => string.Equals(p.ProjectPath, upstreamPath, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        Assert.Equal(2, upstreamProjects.Count);
+        Assert.Contains(upstreamProjects, p => p.ActiveTargetFramework == "net8.0");
+        Assert.Contains(upstreamProjects, p => p.ActiveTargetFramework == "net10.0");
+        Assert.All(upstreamProjects, p =>
+        {
+            Assert.Equal(ProjectLoadStatus.Loaded, p.Status);
+            Assert.Equal(["net8.0", "net10.0"], p.TargetFrameworks);
+        });
     }
 
     [Fact]
@@ -1634,16 +1657,21 @@ public sealed class ProjectLoadingTests
     }
 
     [Fact]
-    public async Task OpenProjectAsync_ReportsTargetFramework()
+    public async Task OpenProjectAsync_MultiTargetedProject_ReportsPerFrameworkActiveTargetFramework()
     {
         var projectPath = Path.Combine(
-            TestPaths.RepoRoot, "src", "Parlance.Abstractions", "Parlance.Abstractions.csproj");
+            TestPaths.RepoRoot, "src", "Parlance.Analyzers.Upstream", "Parlance.Analyzers.Upstream.csproj");
 
         await using var session = await CSharpWorkspaceSession.OpenProjectAsync(projectPath);
 
-        var project = session.Projects[0];
-        Assert.Contains("net10.0", project.TargetFrameworks);
-        Assert.Equal("net10.0", project.ActiveTargetFramework);
+        Assert.Equal(2, session.Projects.Count);
+        Assert.Contains(session.Projects, p => p.ActiveTargetFramework == "net8.0");
+        Assert.Contains(session.Projects, p => p.ActiveTargetFramework == "net10.0");
+        Assert.All(session.Projects, p =>
+        {
+            Assert.Equal(ProjectLoadStatus.Loaded, p.Status);
+            Assert.Equal(["net8.0", "net10.0"], p.TargetFrameworks);
+        });
     }
 }
 ```
@@ -1841,7 +1869,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         {
             try
             {
-                var (tfms, activeTfm) = EvaluateFrameworkInfo(project.FilePath);
+                var (tfms, activeTfm) = EvaluateFrameworkInfo(project);
                 var langVersion = (project.ParseOptions as CSharpParseOptions)
                     ?.LanguageVersion.ToDisplayString();
 
@@ -1856,7 +1884,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     Diagnostics: []));
 
                 logger.LogDebug(
-                    "Loaded project: {Name} ({TFM})", project.Name, activeTfm ?? "unknown");
+                    "Loaded project: {Name} ({TFM})", project.Name, activeTfm);
             }
             catch (Exception ex)
             {
@@ -1878,16 +1906,16 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         return projects;
     }
 
-    private static (IReadOnlyList<string> TargetFrameworks, string? ActiveTargetFramework)
-        EvaluateFrameworkInfo(string? projectFilePath)
+    private static (IReadOnlyList<string> TargetFrameworks, string ActiveTargetFramework)
+        EvaluateFrameworkInfo(Microsoft.CodeAnalysis.Project project)
     {
-        if (projectFilePath is null || !File.Exists(projectFilePath))
-            return ([], null);
+        if (project.FilePath is null || !File.Exists(project.FilePath))
+            throw new InvalidOperationException($"Project file path unavailable for {project.Name}");
 
         var projectCollection = new ProjectCollection();
         try
         {
-            var msbuildProject = projectCollection.LoadProject(projectFilePath);
+            var msbuildProject = projectCollection.LoadProject(project.FilePath);
             var targetFramework = msbuildProject.GetPropertyValue("TargetFramework");
             var targetFrameworks = msbuildProject.GetPropertyValue("TargetFrameworks");
 
@@ -1897,11 +1925,15 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     ? [targetFramework]
                     : [];
 
-            var activeTargetFramework = !string.IsNullOrWhiteSpace(targetFramework)
-                ? targetFramework
-                : parsedTargetFrameworks.Length == 1
-                    ? parsedTargetFrameworks[0]
-                    : null;
+            if (parsedTargetFrameworks.Length == 0)
+                throw new InvalidOperationException(
+                    $"No TargetFramework information found for {project.Name}");
+
+            var activeTargetFramework = parsedTargetFrameworks.Length == 1
+                ? parsedTargetFrameworks[0]
+                : ResolveActiveTargetFramework(project, parsedTargetFrameworks)
+                    ?? throw new InvalidOperationException(
+                        $"Could not determine the evaluated TargetFramework for {project.Name}");
 
             return (parsedTargetFrameworks, activeTargetFramework);
         }
@@ -1909,6 +1941,35 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         {
             projectCollection.UnloadAllProjects();
         }
+    }
+
+    private static string? ResolveActiveTargetFramework(
+        Microsoft.CodeAnalysis.Project project,
+        IReadOnlyList<string> targetFrameworks)
+    {
+        foreach (var tfm in targetFrameworks)
+        {
+            if (project.Name.EndsWith($"({tfm})", StringComparison.Ordinal))
+                return tfm;
+        }
+
+        if (project.OutputFilePath is { Length: > 0 } outputFilePath)
+        {
+            foreach (var tfm in targetFrameworks)
+            {
+                if (outputFilePath.Contains(
+                        $"{Path.DirectorySeparatorChar}{tfm}{Path.DirectorySeparatorChar}",
+                        StringComparison.OrdinalIgnoreCase) ||
+                    outputFilePath.Contains(
+                        $"{Path.AltDirectorySeparatorChar}{tfm}{Path.AltDirectorySeparatorChar}",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return tfm;
+                }
+            }
+        }
+
+        return null;
     }
 
     private static readonly Lock _msbuildLock = new();
@@ -1932,7 +1993,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj --filter "SolutionLoadingTests|ProjectLoadingTests"
 ```
 
-Expected: All 11 tests pass. Solution loading may take a few seconds — this is normal for MSBuildWorkspace.
+Expected: All 12 tests pass. Solution loading may take a few seconds — this is normal for MSBuildWorkspace.
 
 - [ ] **Step 7: Run ALL tests to verify nothing is broken**
 
@@ -1962,7 +2023,7 @@ git commit -m "Add CSharpWorkspaceSession with solution/project loading and heal
 - Create: `src/Parlance.CSharp.Workspace/Internal/WorkspaceFileWatcher.cs`
 - Create: `tests/Parlance.CSharp.Workspace.Tests/Integration/FileWatcherTests.cs`
 
-Internal `FileSystemWatcher` wrapper that monitors project directories for content changes to already-loaded `.cs` documents, debounces rapid saves, and invokes a callback with the changed file paths. Created/deleted/renamed files are intentionally ignored in Milestone 1 because they are structural changes requiring session rebuild.
+Internal `FileSystemWatcher` wrapper that monitors the parent directories of already-loaded `.cs` documents, including linked files outside the project directory, debounces rapid saves, and invokes a callback with the changed file paths. Created/deleted/renamed files are intentionally ignored in Milestone 1 because they are structural changes requiring session rebuild.
 
 - [ ] **Step 1: Write tests for WorkspaceFileWatcher**
 
@@ -1988,7 +2049,6 @@ public sealed class FileWatcherTests
 
             var tcs = new TaskCompletionSource<IReadOnlyList<string>>();
             await using var watcher = new WorkspaceFileWatcher(
-                [dir],
                 [filePath],
                 changes => { tcs.TrySetResult(changes); return Task.CompletedTask; },
                 NullLoggerFactory.Instance);
@@ -2002,6 +2062,37 @@ public sealed class FileWatcherTests
         finally
         {
             Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task DetectsTrackedFileChangeInLinkedDirectory()
+    {
+        var rootDir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(rootDir);
+        try
+        {
+            var sharedDir = Path.Combine(rootDir, "Shared");
+            Directory.CreateDirectory(sharedDir);
+
+            var linkedFile = Path.Combine(sharedDir, "Shared.cs");
+            await File.WriteAllTextAsync(linkedFile, "// original");
+
+            var tcs = new TaskCompletionSource<IReadOnlyList<string>>();
+            await using var watcher = new WorkspaceFileWatcher(
+                [linkedFile],
+                changes => { tcs.TrySetResult(changes); return Task.CompletedTask; },
+                NullLoggerFactory.Instance);
+
+            await Task.Delay(200);
+            await File.WriteAllTextAsync(linkedFile, "// modified");
+
+            var result = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Contains(linkedFile, result);
+        }
+        finally
+        {
+            Directory.Delete(rootDir, true);
         }
     }
 
@@ -2020,7 +2111,6 @@ public sealed class FileWatcherTests
 
             var callbackFired = false;
             await using var watcher = new WorkspaceFileWatcher(
-                [dir],
                 [trackedFile],
                 _ => { callbackFired = true; return Task.CompletedTask; },
                 NullLoggerFactory.Instance);
@@ -2044,13 +2134,15 @@ public sealed class FileWatcherTests
         Directory.CreateDirectory(dir);
         try
         {
+            var trackedFile = Path.Combine(dir, "Tracked.cs");
+            await File.WriteAllTextAsync(trackedFile, "// tracked");
+
             var txtFile = Path.Combine(dir, "readme.txt");
             await File.WriteAllTextAsync(txtFile, "original");
 
             var callbackFired = false;
             await using var watcher = new WorkspaceFileWatcher(
-                [dir],
-                [],
+                [trackedFile],
                 _ => { callbackFired = true; return Task.CompletedTask; },
                 NullLoggerFactory.Instance);
 
@@ -2078,7 +2170,6 @@ public sealed class FileWatcherTests
 
             var callbackCount = 0;
             var watcher = new WorkspaceFileWatcher(
-                [dir],
                 [filePath],
                 _ => { Interlocked.Increment(ref callbackCount); return Task.CompletedTask; },
                 NullLoggerFactory.Instance);
@@ -2130,7 +2221,6 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
     private const int DebounceMs = 300;
 
     public WorkspaceFileWatcher(
-        IReadOnlyList<string> directories,
         IReadOnlyList<string> watchedFiles,
         Func<IReadOnlyList<string>, Task> onChanges,
         ILoggerFactory loggerFactory)
@@ -2140,7 +2230,9 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
         _logger = loggerFactory.CreateLogger<WorkspaceFileWatcher>();
         _debounceTimer = new Timer(OnDebounceElapsed, null, Timeout.Infinite, Timeout.Infinite);
 
-        _watchers = directories
+        _watchers = _watchedFiles
+            .Select(Path.GetDirectoryName)
+            .OfType<string>()
             .Where(Directory.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(dir =>
@@ -2157,7 +2249,9 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
             .ToArray();
 
         _logger.LogInformation(
-            "File watcher started: {Count} director(ies)", _watchers.Length);
+            "File watcher started: {Count} director(ies) for {FileCount} tracked file(s)",
+            _watchers.Length,
+            _watchedFiles.Count);
     }
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
@@ -2244,7 +2338,7 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
 dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj --filter "FileWatcherTests"
 ```
 
-Expected: All 4 tests pass.
+Expected: All 5 tests pass.
 
 - [ ] **Step 5: Commit**
 
@@ -2500,11 +2594,9 @@ Add after `RefreshAsync`:
 
 ```csharp
     internal void StartFileWatching(
-        IReadOnlyList<string> projectDirectories,
         IReadOnlyList<string> documentPaths)
     {
         _watcher = new WorkspaceFileWatcher(
-            projectDirectories,
             documentPaths,
             OnFileChanges,
             _loggerFactory);
@@ -2592,13 +2684,6 @@ In `LoadAsync`, replace the final `return new CSharpWorkspaceSession(workspacePa
 
         if (options.FileWatchingEnabled)
         {
-            var projectDirs = projects
-                .Where(p => p.Status is ProjectLoadStatus.Loaded)
-                .Select(p => Path.GetDirectoryName(p.ProjectPath))
-                .OfType<string>()
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
             var documentPaths = solution.Projects
                 .SelectMany(p => p.Documents)
                 .Select(d => d.FilePath)
@@ -2606,7 +2691,8 @@ In `LoadAsync`, replace the final `return new CSharpWorkspaceSession(workspacePa
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            session.StartFileWatching(projectDirs, documentPaths);
+            // Watch the directories of loaded documents so linked files stay live too.
+            session.StartFileWatching(documentPaths);
         }
 
         return session;
@@ -2692,12 +2778,15 @@ Verify against the spec's acceptance criteria:
 | Existing tests continue to pass | `dotnet test Parlance.sln` in Step 1 |
 | Loads Parlance.sln successfully | SolutionLoadingTests pass |
 | Reports all projects with CSharpProjectInfo | SolutionLoadingTests.ContainsAbstractionsProject |
+| Multi-targeted projects preserve declared TFMs plus the specific evaluated TFM for each loaded Roslyn project | SolutionLoadingTests.OpenSolutionAsync_ContainsMultiTargetedProjectPerFramework / ProjectLoadingTests.OpenProjectAsync_MultiTargetedProject_ReportsPerFrameworkActiveTargetFramework |
 | Health report shows status, TFMs, language versions, and workspace diagnostics | SolutionLoadingTests.OpenSolutionAsync_ReportsHealthStatusAndDiagnostics |
-| Workspace load diagnostics surfaced on health; project-scoped mapping failures use project diagnostics | CSharpWorkspaceHealthTests.FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsDegraded |
+| Workspace load diagnostics are surfaced on health without redefining completeness status | CSharpWorkspaceHealthTests.FromProjects_AllLoaded_WithWorkspaceWarning_StatusIsLoaded |
 | Modify .cs file → workspace reflects change without reload | RefreshTests.RefreshAsync_DetectsSourceTextChange |
 | SnapshotVersion increments on change | RefreshTests.RefreshAsync_DetectsSourceTextChange |
 | Loading does not compile all projects upfront | Cache tests verify lazy compilation |
 | File change marks right projects dirty (including dependents) | ServerCompilationCacheTests.MarkDirty_CascadesToTransitiveDependents |
 | Concurrent queries to different projects don't block | ServerCompilationCacheTests.ConcurrentQueries_DifferentProjects_BothSucceed |
+| File watcher observes already-loaded linked files outside the project directory | FileWatcherTests.DetectsTrackedFileChangeInLinkedDirectory |
+| File watcher ignores non-.cs edits even when watched files exist in the same directory | FileWatcherTests.IgnoresNonCsFiles |
 | File watcher ignores structural changes instead of observing-and-dropping them | FileWatcherTests.IgnoresUntrackedCsFiles |
 | Loading produces structured log output | Logger.LogInformation calls throughout session loading |
