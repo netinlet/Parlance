@@ -462,7 +462,7 @@ Read and used:
 - https://raw.githubusercontent.com/dotnet/roslyn/main/docs/wiki/Getting-Started-Writing-a-Custom-Analyzer-%26-Code-Fix.md
 - https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.diagnostics.analysiscontext.enableconcurrentexecution
 - https://learn.microsoft.com/en-us/dotnet/api/microsoft.codeanalysis.diagnostics.analysiscontext.configuregeneratedcodeanalysis
-- `docs/denace.dev/exploring-roslyn-dotnet-compiler-platform-sdk.md`
-- `docs/denace.dev/getting-started-with-roslyn-analyzers.md`
-- `docs/denace.dev/fixing-mistakes-with-roslyn-code-fixes.md`
-- `docs/denace.dev/testing-roslyn-analyzers-and-code-fixes.md`
+- https://denace.dev/exploring-roslyn-net-compiler-platform-sdk
+- https://denace.dev/getting-started-with-roslyn-analyzers
+- https://denace.dev/fixing-mistakes-with-roslyn-code-fixes
+- https://denace.dev/testing-roslyn-analyzers-and-code-fixes
