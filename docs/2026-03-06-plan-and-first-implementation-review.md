@@ -6,11 +6,7 @@ HEAD reviewed: `0a0bb47`
 
 ## Scope
 
-Review of:
-
-- `docs/plans/2026-03-04-phase1-core-engine-design.md`
-- `docs/plans/2026-03-04-phase1-implementation.md`
-- Current first-round implementation in `src/` and `tests/`
+Review of the Phase 1 core engine design, implementation plan, and first-round implementation in `src/` and `tests/`.
 
 Focus:
 
@@ -105,8 +101,6 @@ Severity: Medium
 
 Files:
 
-- `docs/plans/2026-03-04-phase1-core-engine-design.md:94`
-- `docs/plans/2026-03-04-phase1-core-engine-design.md:110`
 - `src/Parlance.CSharp/CompilationFactory.cs:22`
 
 The plan says the engine compiles against .NET 10 reference assemblies resolved from the installed SDK.
@@ -127,7 +121,6 @@ Severity: Medium
 
 Files:
 
-- `docs/plans/2026-03-04-phase1-core-engine-design.md:131`
 - `src/Parlance.Abstractions/AnalysisOptions.cs:3`
 - `src/Parlance.CSharp/CSharpAnalysisEngine.cs:31`
 
