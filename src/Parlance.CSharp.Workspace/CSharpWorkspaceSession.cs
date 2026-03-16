@@ -342,6 +342,11 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 var langVersion = (project.ParseOptions as CSharpParseOptions)
                     ?.LanguageVersion.ToDisplayString();
 
+                var projectRefs = project.ProjectReferences
+                    .Select(r => solution.GetProject(r.ProjectId)?.Name)
+                    .OfType<string>()
+                    .ToImmutableList();
+
                 projects.Add(new CSharpProjectInfo(
                     Key: new WorkspaceProjectKey(project.Id.Id),
                     Name: project.Name,
@@ -350,7 +355,8 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     ActiveTargetFramework: activeTfm,
                     LangVersion: langVersion,
                     Status: ProjectLoadStatus.Loaded,
-                    Diagnostics: []));
+                    Diagnostics: [],
+                    ProjectReferences: projectRefs));
 
                 logger.LogDebug(
                     "Loaded project: {Name} ({TFM})", project.Name, activeTfm ?? "unknown");
@@ -369,7 +375,8 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     [
                         new WorkspaceDiagnostic(
                             "MapError", ex.Message, WorkspaceDiagnosticSeverity.Error)
-                    ]));
+                    ],
+                    ProjectReferences: []));
 
                 logger.LogError(ex, "Failed to map project: {Name}", project.Name);
             }

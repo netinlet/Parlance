@@ -16,7 +16,8 @@ public sealed class CSharpWorkspaceHealthTests
             ActiveTargetFramework: "net10.0",
             LangVersion: "13.0",
             Status: status,
-            Diagnostics: []);
+            Diagnostics: [],
+            ProjectReferences: []);
 
     [Fact]
     public void FromProjects_AllLoaded_NoDiagnostics_StatusIsLoaded()
@@ -118,7 +119,8 @@ public sealed class CSharpWorkspaceHealthTests
             ActiveTargetFramework: "net10.0",
             LangVersion: "13.0",
             Status: ProjectLoadStatus.Loaded,
-            Diagnostics: diags);
+            Diagnostics: diags,
+            ProjectReferences: ["SomeOtherProject"]);
 
         Assert.Equal(key, info.Key);
         Assert.Equal("MyProject", info.Name);
@@ -128,6 +130,7 @@ public sealed class CSharpWorkspaceHealthTests
         Assert.Equal("13.0", info.LangVersion);
         Assert.Equal(ProjectLoadStatus.Loaded, info.Status);
         Assert.Single(info.Diagnostics);
+        Assert.Equal(["SomeOtherProject"], info.ProjectReferences);
     }
 
     [Fact]
@@ -141,7 +144,8 @@ public sealed class CSharpWorkspaceHealthTests
             ActiveTargetFramework: null,
             LangVersion: null,
             Status: ProjectLoadStatus.Failed,
-            Diagnostics: [new WorkspaceDiagnostic("ERR", "Load failed", WorkspaceDiagnosticSeverity.Error)]);
+            Diagnostics: [new WorkspaceDiagnostic("ERR", "Load failed", WorkspaceDiagnosticSeverity.Error)],
+            ProjectReferences: []);
 
         Assert.Null(info.ActiveTargetFramework);
         Assert.Null(info.LangVersion);
