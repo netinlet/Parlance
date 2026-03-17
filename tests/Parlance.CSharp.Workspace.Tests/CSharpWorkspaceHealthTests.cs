@@ -1,5 +1,4 @@
 using System.Collections.Immutable;
-using Parlance.CSharp.Workspace;
 
 namespace Parlance.CSharp.Workspace.Tests;
 

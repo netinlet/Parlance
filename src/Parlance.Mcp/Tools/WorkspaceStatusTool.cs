@@ -8,10 +8,9 @@ namespace Parlance.Mcp.Tools;
 public sealed class WorkspaceStatusTool
 {
     [McpServerTool(Name = "workspace-status", ReadOnly = true)]
-    [Description("Returns workspace health, loaded projects, target frameworks, language versions, and project dependencies")]
-    public static WorkspaceStatusResult GetStatus(
-        WorkspaceSessionHolder holder,
-        ILogger<WorkspaceStatusTool> logger)
+    [Description(
+        "Returns workspace health, loaded projects, target frameworks, language versions, and project dependencies")]
+    public static WorkspaceStatusResult GetStatus(WorkspaceSessionHolder holder, ILogger<WorkspaceStatusTool> logger)
     {
         using var _ = ToolDiagnostics.TimeToolCall(logger, "workspace-status");
 
