@@ -1,0 +1,21 @@
+{
+  "solution": {
+    "path": "Parlance.sln",
+    "projects": [
+      "src/Parlance.Abstractions/Parlance.Abstractions.csproj",
+      "src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj",
+      "src/Parlance.Cli/Parlance.Cli.csproj",
+      "src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj",
+      "src/Parlance.CSharp.Workspace/Parlance.CSharp.Workspace.csproj",
+      "src/Parlance.CSharp/Parlance.CSharp.csproj",
+      "src/Parlance.Mcp/Parlance.Mcp.csproj",
+      "tests/Parlance.Analyzers.Upstream.Tests/Parlance.Analyzers.Upstream.Tests.csproj",
+      "tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj",
+      "tests/Parlance.CSharp.Tests/Parlance.CSharp.Tests.csproj",
+      "tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj",
+      "tests/Parlance.Mcp.Tests/Parlance.Mcp.Tests.csproj",
+      "tests/Parlance.Package.Tests/Parlance.Package.Tests.csproj",
+      "tools/Parlance.ManifestGenerator/Parlance.ManifestGenerator.csproj"
+    ]
+  }
+}
