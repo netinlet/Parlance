@@ -96,6 +96,66 @@ public sealed class FileWatcherTests
     }
 
     [Fact]
+    public async Task IgnoresCsFilesInObjSubdirectory()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");
+        var objDir = Path.Combine(dir, "obj", "Debug", "net10.0");
+        Directory.CreateDirectory(objDir);
+        try
+        {
+            var generatedFile = Path.Combine(objDir, "AssemblyInfo.cs");
+            await File.WriteAllTextAsync(generatedFile, "// generated");
+
+            var callbackFired = false;
+            await using var watcher = new WorkspaceFileWatcher(
+                [dir],
+                [generatedFile], // Explicitly in watched files — watcher should still reject
+                _ => { callbackFired = true; return Task.CompletedTask; },
+                NullLoggerFactory.Instance);
+
+            await Task.Delay(200);
+            await File.WriteAllTextAsync(generatedFile, "// regenerated");
+
+            await Task.Delay(1000);
+            Assert.False(callbackFired);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public async Task IgnoresCsFilesInBinSubdirectory()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");
+        var binDir = Path.Combine(dir, "bin", "Debug", "net10.0");
+        Directory.CreateDirectory(binDir);
+        try
+        {
+            var generatedFile = Path.Combine(binDir, "SomeGenerated.cs");
+            await File.WriteAllTextAsync(generatedFile, "// generated");
+
+            var callbackFired = false;
+            await using var watcher = new WorkspaceFileWatcher(
+                [dir],
+                [generatedFile],
+                _ => { callbackFired = true; return Task.CompletedTask; },
+                NullLoggerFactory.Instance);
+
+            await Task.Delay(200);
+            await File.WriteAllTextAsync(generatedFile, "// regenerated");
+
+            await Task.Delay(1000);
+            Assert.False(callbackFired);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public async Task DisposeStopsWatching()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");

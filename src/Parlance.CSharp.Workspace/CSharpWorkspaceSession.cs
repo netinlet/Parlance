@@ -321,6 +321,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 .SelectMany(p => p.Documents)
                 .Select(d => d.FilePath)
                 .OfType<string>()
+                .Where(p => !WorkspaceFileWatcher.IsBuildOutputPath(p)) // #59: MSBuildWorkspace includes generated .cs in obj/ as Documents
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
