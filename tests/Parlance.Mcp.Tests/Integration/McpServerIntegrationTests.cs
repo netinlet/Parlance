@@ -20,10 +20,9 @@ public sealed class McpServerIntegrationTests
         var result = await client.CallToolAsync("workspace-status");
 
         Assert.True(result.IsError is not true);
-        var json = Assert.Single(result.Content);
-        Assert.Equal("text", json.Type);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
 
-        using var doc = JsonDocument.Parse(((TextContentBlock)json).Text!);
+        using var doc = JsonDocument.Parse(textBlock.Text!);
         var root = doc.RootElement;
 
         var status = root.GetProperty("status").GetString();
@@ -50,9 +49,9 @@ public sealed class McpServerIntegrationTests
         var result = await client.CallToolAsync("workspace-status");
 
         Assert.True(result.IsError is not true);
-        var json = Assert.Single(result.Content);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
 
-        using var doc = JsonDocument.Parse(((TextContentBlock)json).Text!);
+        using var doc = JsonDocument.Parse(textBlock.Text!);
         var root = doc.RootElement;
 
         Assert.Equal("Failed", root.GetProperty("status").GetString());

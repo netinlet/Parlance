@@ -32,8 +32,14 @@ public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel Mini
     {
         for (var i = 0; i < args.Length - 1; i++)
         {
-            if (args[i] is "--log-level" && Enum.TryParse<LogLevel>(args[i + 1], ignoreCase: true, out var level))
-                return level;
+            if (args[i] is "--log-level")
+            {
+                if (Enum.TryParse<LogLevel>(args[i + 1], ignoreCase: true, out var level))
+                    return level;
+
+                throw new InvalidOperationException(
+                    $"Invalid log level '{args[i + 1]}'. Valid values: {string.Join(", ", Enum.GetNames<LogLevel>())}");
+            }
         }
 
         return LogLevel.Information;

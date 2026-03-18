@@ -37,9 +37,21 @@ public sealed class ParlanceMcpConfigurationTests
     [Fact]
     public void FromArgs_NonexistentFile_AcceptsPath()
     {
-        var config = ParlanceMcpConfiguration.FromArgs(["--solution-path", "/nonexistent/path.sln"]);
+        var bogusPath = Path.Combine(Path.GetTempPath(), "nonexistent", "path.sln");
+        var config = ParlanceMcpConfiguration.FromArgs(["--solution-path", bogusPath]);
 
-        Assert.Equal("/nonexistent/path.sln", config.SolutionPath);
+        Assert.Equal(Path.GetFullPath(bogusPath), config.SolutionPath);
+    }
+
+    [Fact]
+    public void FromArgs_InvalidLogLevel_ThrowsDescriptiveError()
+    {
+        var solutionPath = GetSolutionPath();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParlanceMcpConfiguration.FromArgs(["--solution-path", solutionPath, "--log-level", "Deubg"]));
+
+        Assert.Contains("Invalid log level", ex.Message);
+        Assert.Contains("Deubg", ex.Message);
     }
 
     [Fact]
