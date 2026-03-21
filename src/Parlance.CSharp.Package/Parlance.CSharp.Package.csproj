@@ -7,7 +7,6 @@
     <PackageTags>analyzers;roslyn;csharp;code-quality;idiomatic;bundle</PackageTags>
     <IncludeBuildOutput>false</IncludeBuildOutput>
     <NoPackageAnalysis>true</NoPackageAnalysis>
-    <NoBuild>true</NoBuild>
     <NoDefaultExcludes>true</NoDefaultExcludes>
   </PropertyGroup>
 
@@ -23,6 +22,12 @@
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <!-- Pack-only metapackage: override SDK Build target to no-op so `dotnet build Parlance.sln`
+       works. The SDK's default Build target throws NETSDK1085 when NoBuild=true is set.
+       Removing NoBuild and overriding Build achieves the same pack-time behaviour without
+       breaking solution-level builds. -->
+  <Target Name="Build" />
 
   <!-- Pack build props/targets -->
   <ItemGroup>
