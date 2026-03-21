@@ -33,6 +33,10 @@ internal sealed class WorkspaceSessionLifecycle(
                 "Workspace loaded in {ElapsedMs:F0}ms: {Status}, {Count} project(s)",
                 elapsed.TotalMilliseconds, session.Health.Status, session.Projects.Count);
         }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
