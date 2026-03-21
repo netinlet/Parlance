@@ -488,3 +488,6 @@ src/Parlance.Analyzers.Upstream/analyzer-dlls/
 
 # Git worktrees
 .worktrees/
+
+# Local MCP server config (contains machine-specific paths)
+.mcp.json
