@@ -17,7 +17,7 @@ internal static class ToolDiagnostics
         public void Dispose()
         {
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
-            logger.LogInformation("Tool call completed: {ToolName} in {ElapsedMs:F1}ms",
+            logger.LogDebug("Tool call completed: {ToolName} in {ElapsedMs:F1}ms",
                 toolName, elapsed.TotalMilliseconds);
         }
     }
