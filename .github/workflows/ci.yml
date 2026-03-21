@@ -40,13 +40,13 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Restore dependencies
-        run: dotnet restore Parlance.CI.slnf
+        run: dotnet restore Parlance.sln
 
       - name: Verify code formatting
-        run: dotnet format Parlance.CI.slnf --verify-no-changes --verbosity diagnostic
+        run: dotnet format Parlance.sln --verify-no-changes --verbosity diagnostic
 
       - name: Build solution
-        run: dotnet build Parlance.CI.slnf --configuration Release --no-restore
+        run: dotnet build Parlance.sln --configuration Release --no-restore
 
       - name: Prepare test results directory
         run: |
@@ -55,7 +55,7 @@ jobs:
 
       - name: Run tests
         run: >
-          dotnet test Parlance.CI.slnf
+          dotnet test Parlance.sln
           --configuration Release
           --no-build
           --collect:"XPlat Code Coverage"
