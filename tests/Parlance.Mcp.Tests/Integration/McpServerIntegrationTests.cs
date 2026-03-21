@@ -63,7 +63,7 @@ public sealed class McpServerIntegrationTests
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Command = "dotnet",
-            Arguments = ["run", "--project",
+            Arguments = ["run", "--no-build", "--project",
                 Path.Combine(FindRepoRoot(), "src", "Parlance.Mcp", "Parlance.Mcp.csproj"),
                 "--", "--solution-path", solutionPath],
             Name = "parlance-test"

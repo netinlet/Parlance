@@ -12,8 +12,11 @@ Parlance exposes its workspace analysis capabilities via the [Model Context Prot
 ### Via `dotnet run`
 
 ```bash
-dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/YourSolution.sln
+dotnet build src/Parlance.Mcp
+dotnet run --no-build --project src/Parlance.Mcp -- --solution-path /path/to/YourSolution.sln
 ```
+
+> **Important:** Always build first and use `--no-build`. Without it, `dotnet run` may write restore/build output to stdout, which corrupts the MCP stdio framing.
 
 ### Via built executable
 
