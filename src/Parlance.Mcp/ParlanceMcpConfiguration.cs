@@ -14,10 +14,15 @@ public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel Mini
 
     private static string GetSolutionPath(string[] args)
     {
-        for (var i = 0; i < args.Length - 1; i++)
+        for (var i = 0; i < args.Length; i++)
         {
-            if (args[i] is "--solution-path")
-                return args[i + 1];
+            if (args[i] is not "--solution-path")
+                continue;
+
+            if (i + 1 >= args.Length)
+                throw new InvalidOperationException("--solution-path requires a value.");
+
+            return args[i + 1];
         }
 
         var envValue = Environment.GetEnvironmentVariable("PARLANCE_SOLUTION_PATH");
@@ -30,16 +35,19 @@ public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel Mini
 
     private static LogLevel GetLogLevel(string[] args)
     {
-        for (var i = 0; i < args.Length - 1; i++)
+        for (var i = 0; i < args.Length; i++)
         {
-            if (args[i] is "--log-level")
-            {
-                if (Enum.TryParse<LogLevel>(args[i + 1], ignoreCase: true, out var level))
-                    return level;
+            if (args[i] is not "--log-level")
+                continue;
 
-                throw new InvalidOperationException(
-                    $"Invalid log level '{args[i + 1]}'. Valid values: {string.Join(", ", Enum.GetNames<LogLevel>())}");
-            }
+            if (i + 1 >= args.Length)
+                throw new InvalidOperationException("--log-level requires a value.");
+
+            if (Enum.TryParse<LogLevel>(args[i + 1], ignoreCase: true, out var level))
+                return level;
+
+            throw new InvalidOperationException(
+                $"Invalid log level '{args[i + 1]}'. Valid values: {string.Join(", ", Enum.GetNames<LogLevel>())}");
         }
 
         return LogLevel.Information;

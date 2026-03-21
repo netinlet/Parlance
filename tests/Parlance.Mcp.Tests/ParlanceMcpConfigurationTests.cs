@@ -63,6 +63,25 @@ public sealed class ParlanceMcpConfigurationTests
         Assert.True(Path.IsPathRooted(config.SolutionPath));
     }
 
+    [Fact]
+    public void FromArgs_SolutionPathFlagWithoutValue_ThrowsDescriptiveError()
+    {
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParlanceMcpConfiguration.FromArgs(["--solution-path"]));
+
+        Assert.Contains("--solution-path requires a value", ex.Message);
+    }
+
+    [Fact]
+    public void FromArgs_LogLevelFlagWithoutValue_ThrowsDescriptiveError()
+    {
+        var solutionPath = GetSolutionPath();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParlanceMcpConfiguration.FromArgs(["--solution-path", solutionPath, "--log-level"]));
+
+        Assert.Contains("--log-level requires a value", ex.Message);
+    }
+
     private static string GetSolutionPath()
     {
         var dir = Directory.GetCurrentDirectory();
