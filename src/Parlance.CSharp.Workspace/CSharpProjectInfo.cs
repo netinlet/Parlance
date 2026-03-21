@@ -10,4 +10,5 @@ public sealed record CSharpProjectInfo(
     string? ActiveTargetFramework,
     string? LangVersion,
     ProjectLoadStatus Status,
-    ImmutableList<WorkspaceDiagnostic> Diagnostics);
+    ImmutableList<WorkspaceDiagnostic> Diagnostics,
+    ImmutableList<string> ProjectReferences);

@@ -26,14 +26,8 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
         Directory.CreateDirectory(_artifactsDir);
         Directory.CreateDirectory(_tempDir);
 
-        // Pack both packages into the local feed
-        var analyzersCsproj = Path.Combine(_repoRoot, "src", "Parlance.CSharp.Analyzers", "Parlance.CSharp.Analyzers.csproj");
-        var bundleCsproj = Path.Combine(_repoRoot, "src", "Parlance.CSharp.Package", "Parlance.CSharp.Package.csproj");
-
-        await RunDotnet($"pack \"{analyzersCsproj}\" -c Release --output \"{_artifactsDir}\"");
-        await RunDotnet($"pack \"{bundleCsproj}\" -c Release --output \"{_artifactsDir}\"");
-
         // Create a NuGet.config pointing to local feed + nuget.org
+        // Must exist before packing the bundle, which needs to restore Parlance.CSharp.Analyzers from the local feed
         _nugetConfigPath = Path.Combine(_tempDir, "NuGet.config");
         var nugetConfig = $"""
             <?xml version="1.0" encoding="utf-8"?>
@@ -46,6 +40,13 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             </configuration>
             """;
         await File.WriteAllTextAsync(_nugetConfigPath, nugetConfig);
+
+        // Pack both packages into the local feed
+        var analyzersCsproj = Path.Combine(_repoRoot, "src", "Parlance.CSharp.Analyzers", "Parlance.CSharp.Analyzers.csproj");
+        var bundleCsproj = Path.Combine(_repoRoot, "src", "Parlance.CSharp.Package", "Parlance.CSharp.Package.csproj");
+
+        await RunDotnet($"pack \"{analyzersCsproj}\" -c Release --output \"{_artifactsDir}\"");
+        await RunDotnet($"pack \"{bundleCsproj}\" -c Release --output \"{_artifactsDir}\" --configfile \"{_nugetConfigPath}\"");
     }
 
     public Task DisposeAsync()

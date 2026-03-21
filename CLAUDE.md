@@ -14,6 +14,12 @@ do not attribute commits
 # Build (exclude Package project which is pack-only)
 dotnet build src/Parlance.Cli/Parlance.Cli.csproj
 
+# Build MCP server
+dotnet build src/Parlance.Mcp/Parlance.Mcp.csproj
+
+# Run MCP server (stdio)
+dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln
+
 # Run all tests
 dotnet test Parlance.sln
 
@@ -43,6 +49,10 @@ Parlance.CSharp                (analysis engine — CompilationFactory, Diagnost
 Parlance.Analyzers.Upstream    (loads NetAnalyzers + Roslynator via reflection)
     ↑
 Parlance.Cli                   (System.CommandLine 2.0.3 — analyze/fix/rules commands)
+
+Parlance.CSharp.Workspace      (MSBuildWorkspace engine — session, health, file watching)
+    ↑
+Parlance.Mcp                   (MCP server — stdio transport, workspace-status tool)
 ```
 
 **NuGet packages** (under `src/`):
