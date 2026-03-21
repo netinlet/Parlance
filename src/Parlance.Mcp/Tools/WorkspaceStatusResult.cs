@@ -40,10 +40,10 @@ public sealed record WorkspaceStatusResult(
             Projects: [],
             Diagnostics: [new DiagnosticEntry("LoadFailure", failure.Message, "Error")]);
 
-    public static WorkspaceStatusResult Loading() =>
+    public static WorkspaceStatusResult Loading(string solutionPath) =>
         new(
             Status: "Loading",
-            SolutionPath: "",
+            SolutionPath: solutionPath,
             SnapshotVersion: 0,
             ProjectCount: 0,
             Projects: [],

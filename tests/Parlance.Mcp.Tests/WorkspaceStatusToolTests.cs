@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.Mcp.Tools;
 
@@ -5,6 +6,9 @@ namespace Parlance.Mcp.Tests;
 
 public sealed class WorkspaceStatusToolTests
 {
+    private static readonly ParlanceMcpConfiguration DefaultConfig =
+        new("/path/to/Solution.sln", LogLevel.Information);
+
     [Fact]
     public void GetStatus_LoadFailure_ReturnsFailedStatus()
     {
@@ -12,7 +16,7 @@ public sealed class WorkspaceStatusToolTests
         holder.SetLoadFailure(new WorkspaceLoadFailure("Something went wrong", "/path/to/Solution.sln"));
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
 
         Assert.Equal("Failed", result.Status);
         Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
@@ -28,9 +32,10 @@ public sealed class WorkspaceStatusToolTests
         var holder = new WorkspaceSessionHolder();
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
 
         Assert.Equal("Loading", result.Status);
+        Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
         Assert.Equal(0, result.SnapshotVersion);
         Assert.Empty(result.Projects);
         Assert.Empty(result.Diagnostics);
@@ -43,7 +48,7 @@ public sealed class WorkspaceStatusToolTests
         holder.SetLoadFailure(new WorkspaceLoadFailure("Failed", "/path.sln"));
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
 
         Assert.Equal("Failed", result.Status);
     }
