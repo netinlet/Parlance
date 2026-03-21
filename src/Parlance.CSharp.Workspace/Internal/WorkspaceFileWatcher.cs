@@ -50,7 +50,7 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
 
     private void OnFileChanged(object sender, FileSystemEventArgs e)
     {
-        if (_disposed || !_watchedFiles.Contains(e.FullPath))
+        if (_disposed || IsBuildOutputPath(e.FullPath) || !_watchedFiles.Contains(e.FullPath))
             return;
 
         _pendingChanges.Add(e.FullPath);
@@ -98,6 +98,13 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
         {
             _processingLock.Release();
         }
+    }
+
+    internal static bool IsBuildOutputPath(string path)
+    {
+        var sep = Path.DirectorySeparatorChar;
+        return path.Contains($"{sep}bin{sep}", StringComparison.OrdinalIgnoreCase)
+            || path.Contains($"{sep}obj{sep}", StringComparison.OrdinalIgnoreCase);
     }
 
     public async ValueTask DisposeAsync()

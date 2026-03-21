@@ -1,0 +1,13 @@
+ {                                                                                                                                                                                  
+    "mcpServers": {                                                                                                                                                                  
+      "parlance": {                                                                                                                                                                  
+        "command": "dotnet",
+        "args": [
+          "run",
+          "--project", "/mnt/wsl/PHYSICALDRIVE0p1/doug/devroot/netinlet/parlance/src/Parlance.Mcp",
+          "--",
+          "--solution-path", "/mnt/wsl/PHYSICALDRIVE0p1/doug/devroot/netinlet/FormApps/FormApps.sln"
+        ]
+      }
+    }
+  }

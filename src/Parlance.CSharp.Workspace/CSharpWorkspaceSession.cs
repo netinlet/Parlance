@@ -14,6 +14,8 @@ namespace Parlance.CSharp.Workspace;
 
 public sealed class CSharpWorkspaceSession : IAsyncDisposable
 {
+    // Load-only after LoadAsync completes. Never use _workspace.CurrentSolution as a
+    // source of truth — it is not updated after the initial load. Use CurrentSolution instead.
     private readonly MSBuildWorkspace _workspace;
     private readonly IProjectCompilationCache _cache;
     private readonly ILogger<CSharpWorkspaceSession> _logger;
@@ -21,21 +23,28 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
     private readonly ILoggerFactory _loggerFactory;
     private WorkspaceFileWatcher? _watcher;
     private long _snapshotVersion = 1;
+    private volatile Solution _currentSolution;
+    private readonly SemaphoreSlim _solutionLock = new(1, 1);
 
     private CSharpWorkspaceSession(
         string workspacePath,
         MSBuildWorkspace workspace,
+        Solution initialSolution,
         CSharpWorkspaceHealth health,
         ImmutableList<CSharpProjectInfo> projects,
-        IProjectCompilationCache cache,
         WorkspaceMode mode,
         ILoggerFactory loggerFactory)
     {
         WorkspacePath = workspacePath;
         _workspace = workspace;
+        _currentSolution = initialSolution;   // must precede _cache initialisation
+        _cache = mode switch
+        {
+            WorkspaceMode.Server => new ServerCompilationCache(() => _currentSolution),
+            _ => new ReportCompilationCache()
+        };
         Health = health;
         Projects = projects;
-        _cache = cache;
         _mode = mode;
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<CSharpWorkspaceSession>();
@@ -49,6 +58,13 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
     public ImmutableList<CSharpProjectInfo> Projects { get; }
 
+    /// <summary>
+    /// The live in-memory solution snapshot. Always use this — never <c>_workspace.CurrentSolution</c>.
+    /// When calling <see cref="IProjectCompilationCache.GetAsync"/>, source the <c>Project</c>
+    /// argument from this snapshot so compilation reflects the latest file changes.
+    /// </summary>
+    internal Solution CurrentSolution => _currentSolution;
+
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key) =>
         Projects.FirstOrDefault(p => p.Key == key);
 
@@ -61,53 +77,51 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         if (_mode is WorkspaceMode.Report)
             throw new InvalidOperationException("RefreshAsync is not supported in Report mode");
 
-        var solution = _workspace.CurrentSolution;
-        var affectedProjects = new HashSet<ProjectId>();
-
-        foreach (var project in solution.Projects)
+        await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            foreach (var document in project.Documents)
+            var solution = _currentSolution;
+            var affectedProjects = new HashSet<ProjectId>();
+
+            foreach (var project in solution.Projects)
             {
-                if (document.FilePath is null || !File.Exists(document.FilePath))
-                    continue;
+                foreach (var document in project.Documents)
+                {
+                    if (document.FilePath is null || !File.Exists(document.FilePath))
+                        continue;
 
-                var currentText = await document.GetTextAsync(ct);
-                var diskContent = await File.ReadAllTextAsync(document.FilePath, ct);
+                    var currentText = await document.GetTextAsync(ct);
+                    var diskContent = await File.ReadAllTextAsync(document.FilePath, ct);
 
-                if (currentText.ToString() == diskContent)
-                    continue;
+                    if (currentText.ToString() == diskContent)
+                        continue;
 
-                var newText = SourceText.From(diskContent, currentText.Encoding);
-                solution = solution.WithDocumentText(document.Id, newText);
-                affectedProjects.Add(project.Id);
+                    var newText = SourceText.From(diskContent, currentText.Encoding);
+                    solution = solution.WithDocumentText(document.Id, newText);
+                    affectedProjects.Add(project.Id);
+                }
             }
-        }
 
-        if (affectedProjects.Count == 0)
+            if (affectedProjects.Count == 0)
+            {
+                _logger.LogDebug("RefreshAsync: no changes detected");
+                return;
+            }
+
+            _currentSolution = solution;
+
+            foreach (var projectId in affectedProjects)
+                _cache.MarkDirty(projectId);
+
+            Interlocked.Increment(ref _snapshotVersion);
+            _logger.LogInformation(
+                "RefreshAsync: {Count} project(s) updated, SnapshotVersion={Version}",
+                affectedProjects.Count, SnapshotVersion);
+        }
+        finally
         {
-            _logger.LogDebug("RefreshAsync: no changes detected");
-            return;
+            _solutionLock.Release();
         }
-
-        // MSBuildWorkspace.TryApplyChanges writes to disk, which is the opposite of what we want.
-        // Instead, apply the solution snapshot directly — this updates the in-memory workspace
-        // without touching the filesystem.
-        if (!_workspace.TryApplyChanges(solution))
-        {
-            // TryApplyChanges may fail on MSBuildWorkspace for text-only changes.
-            // Fall through and mark dirty anyway — the workspace's CurrentSolution
-            // already reflects file contents on the next GetCompilationAsync call
-            // since Roslyn re-reads from the TextLoader.
-            _logger.LogDebug("RefreshAsync: TryApplyChanges returned false, marking dirty anyway");
-        }
-
-        foreach (var projectId in affectedProjects)
-            _cache.MarkDirty(projectId);
-
-        Interlocked.Increment(ref _snapshotVersion);
-        _logger.LogInformation(
-            "RefreshAsync: {Count} project(s) updated, SnapshotVersion={Version}",
-            affectedProjects.Count, SnapshotVersion);
     }
 
     internal void StartFileWatching(
@@ -123,45 +137,48 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
     private async Task OnFileChanges(IReadOnlyList<string> changedPaths)
     {
-        var solution = _workspace.CurrentSolution;
-        var affectedProjects = new HashSet<ProjectId>();
-        var hasChanges = false;
-
-        foreach (var filePath in changedPaths)
+        await _solutionLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            var docIds = solution.GetDocumentIdsWithFilePath(filePath);
-            if (docIds.IsEmpty) continue;
+            var solution = _currentSolution;
+            var affectedProjects = new HashSet<ProjectId>();
+            var hasChanges = false;
 
-            string content;
-            try
+            foreach (var filePath in changedPaths)
             {
-                content = await File.ReadAllTextAsync(filePath);
-            }
-            catch (IOException ex)
-            {
-                _logger.LogWarning(ex, "Could not read changed file: {Path}", filePath);
-                continue;
+                var docIds = solution.GetDocumentIdsWithFilePath(filePath);
+                if (docIds.IsEmpty) continue;
+
+                string content;
+                try
+                {
+                    content = await File.ReadAllTextAsync(filePath);
+                }
+                catch (IOException ex)
+                {
+                    _logger.LogWarning(ex, "Could not read changed file: {Path}", filePath);
+                    continue;
+                }
+
+                var existingDoc = solution.GetDocument(docIds[0]);
+                var encoding = existingDoc is not null
+                    ? (await existingDoc.GetTextAsync()).Encoding
+                    : Encoding.UTF8;
+                var newText = SourceText.From(content, encoding);
+                foreach (var docId in docIds)
+                {
+                    solution = solution.WithDocumentText(docId, newText);
+                    var projectId = solution.GetDocument(docId)?.Project.Id;
+                    if (projectId is not null)
+                        affectedProjects.Add(projectId);
+                    hasChanges = true;
+                }
             }
 
-            var existingDoc = solution.GetDocument(docIds[0]);
-            var encoding = existingDoc is not null
-                ? (await existingDoc.GetTextAsync()).Encoding
-                : Encoding.UTF8;
-            var newText = SourceText.From(content, encoding);
-            foreach (var docId in docIds)
-            {
-                solution = solution.WithDocumentText(docId, newText);
-                var projectId = solution.GetDocument(docId)?.Project.Id;
-                if (projectId is not null)
-                    affectedProjects.Add(projectId);
-                hasChanges = true;
-            }
-        }
+            if (!hasChanges) return;
 
-        if (!hasChanges) return;
+            _currentSolution = solution;
 
-        if (_workspace.TryApplyChanges(solution))
-        {
             foreach (var projectId in affectedProjects)
                 _cache.MarkDirty(projectId);
 
@@ -170,9 +187,9 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 "File changes applied: {Count} file(s), SnapshotVersion={Version}",
                 changedPaths.Count, SnapshotVersion);
         }
-        else
+        finally
         {
-            _logger.LogWarning("Failed to apply file changes — concurrent modification");
+            _solutionLock.Release();
         }
     }
 
@@ -219,6 +236,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
         if (_watcher is not null)
             await _watcher.DisposeAsync();
 
+        _solutionLock.Dispose();
         _workspace.Dispose();
         _logger.LogInformation("Workspace session disposed: {Path}", WorkspacePath);
     }
@@ -290,23 +308,14 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
             }
         }
 
-        if (!workspace.TryApplyChanges(solution))
-            logger.LogDebug("Initial text caching: TryApplyChanges returned false");
-
-        var projects = MapProjects(workspace.CurrentSolution, logger);
+        var projects = MapProjects(solution, logger);
         var health = CSharpWorkspaceHealth.FromProjects(projects, diagnosticsSnapshot);
-
-        IProjectCompilationCache cache = options.Mode switch
-        {
-            WorkspaceMode.Server => new ServerCompilationCache(() => workspace.CurrentSolution),
-            _ => new ReportCompilationCache()
-        };
 
         logger.LogInformation(
             "Workspace loaded: {Status}, {Count} project(s)", health.Status, projects.Count);
 
         var session = new CSharpWorkspaceSession(
-            workspacePath, workspace, health, projects, cache, options.Mode, loggerFactory);
+            workspacePath, workspace, solution, health, projects, options.Mode, loggerFactory);
 
         if (options.FileWatchingEnabled)
         {
@@ -321,6 +330,7 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 .SelectMany(p => p.Documents)
                 .Select(d => d.FilePath)
                 .OfType<string>()
+                .Where(p => !WorkspaceFileWatcher.IsBuildOutputPath(p)) // #59: MSBuildWorkspace includes generated .cs in obj/ as Documents
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -342,6 +352,11 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                 var langVersion = (project.ParseOptions as CSharpParseOptions)
                     ?.LanguageVersion.ToDisplayString();
 
+                var projectRefs = project.ProjectReferences
+                    .Select(r => solution.GetProject(r.ProjectId)?.Name)
+                    .OfType<string>()
+                    .ToImmutableList();
+
                 projects.Add(new CSharpProjectInfo(
                     Key: new WorkspaceProjectKey(project.Id.Id),
                     Name: project.Name,
@@ -350,7 +365,8 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     ActiveTargetFramework: activeTfm,
                     LangVersion: langVersion,
                     Status: ProjectLoadStatus.Loaded,
-                    Diagnostics: []));
+                    Diagnostics: [],
+                    ProjectReferences: projectRefs));
 
                 logger.LogDebug(
                     "Loaded project: {Name} ({TFM})", project.Name, activeTfm ?? "unknown");
@@ -369,7 +385,8 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
                     [
                         new WorkspaceDiagnostic(
                             "MapError", ex.Message, WorkspaceDiagnosticSeverity.Error)
-                    ]));
+                    ],
+                    ProjectReferences: []));
 
                 logger.LogError(ex, "Failed to map project: {Name}", project.Name);
             }
