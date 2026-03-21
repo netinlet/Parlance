@@ -63,13 +63,22 @@ public sealed class McpServerIntegrationTests
         var transport = new StdioClientTransport(new StdioClientTransportOptions
         {
             Command = "dotnet",
-            Arguments = ["run", "--no-build", "--project",
+            Arguments = ["run", "--no-build", "--configuration", GetConfiguration(), "--project",
                 Path.Combine(FindRepoRoot(), "src", "Parlance.Mcp", "Parlance.Mcp.csproj"),
                 "--", "--solution-path", solutionPath],
             Name = "parlance-test"
         });
 
         return await McpClient.CreateAsync(transport);
+    }
+
+    private static string GetConfiguration()
+    {
+        var baseDir = AppContext.BaseDirectory;
+        return baseDir.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Release"
+            : "Debug";
     }
 
     private static string FindSolutionPath()
