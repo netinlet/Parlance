@@ -14,6 +14,8 @@ namespace Parlance.CSharp.Workspace;
 
 public sealed class CSharpWorkspaceSession : IAsyncDisposable
 {
+    // Load-only after LoadAsync completes. Never use _workspace.CurrentSolution as a
+    // source of truth — it is not updated after the initial load. Use CurrentSolution instead.
     private readonly MSBuildWorkspace _workspace;
     private readonly IProjectCompilationCache _cache;
     private readonly ILogger<CSharpWorkspaceSession> _logger;
@@ -56,6 +58,11 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
 
     public ImmutableList<CSharpProjectInfo> Projects { get; }
 
+    /// <summary>
+    /// The live in-memory solution snapshot. Always use this — never <c>_workspace.CurrentSolution</c>.
+    /// When calling <see cref="IProjectCompilationCache.GetAsync"/>, source the <c>Project</c>
+    /// argument from this snapshot so compilation reflects the latest file changes.
+    /// </summary>
     internal Solution CurrentSolution => _currentSolution;
 
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key) =>
