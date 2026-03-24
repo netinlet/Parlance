@@ -29,6 +29,7 @@ builder.Services
     .WithTools<WorkspaceStatusTool>()
     .WithTools<DescribeTypeTool>()
     .WithTools<FindImplementationsTool>()
-    .WithTools<FindReferencesTool>();
+    .WithTools<FindReferencesTool>()
+    .WithTools<GetTypeAtTool>();
 
 await builder.Build().RunAsync();
