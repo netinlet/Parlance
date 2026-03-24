@@ -31,6 +31,7 @@ builder.Services
     .WithTools<FindImplementationsTool>()
     .WithTools<FindReferencesTool>()
     .WithTools<GetTypeAtTool>()
-    .WithTools<OutlineFileTool>();
+    .WithTools<OutlineFileTool>()
+    .WithTools<GetSymbolDocsTool>();
 
 await builder.Build().RunAsync();
