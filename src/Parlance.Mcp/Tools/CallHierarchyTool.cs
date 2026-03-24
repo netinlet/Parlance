@@ -74,7 +74,7 @@ public sealed class CallHierarchyTool
         var calleesBuilder = ImmutableList.CreateBuilder<HierarchyEntry>();
 
         var targetLocation = targetSymbol!.Locations.FirstOrDefault();
-        if (targetLocation?.IsInSource == true && targetLocation.SourceTree is not null)
+        if (targetLocation is { IsInSource: true, SourceTree: not null })
         {
             var tree = targetLocation.SourceTree;
             var semanticModel = await query.GetSemanticModelAsync(tree.FilePath, ct);

@@ -79,8 +79,8 @@ public sealed class GetTypeAtTool
             // Fall back to GetSymbolInfo / GetDeclaredSymbol
             var symbolInfo = semanticModel.GetSymbolInfo(node, ct);
             var symbol = symbolInfo.Symbol
-                ?? symbolInfo.CandidateSymbols.FirstOrDefault()
-                ?? semanticModel.GetDeclaredSymbol(node, ct);
+                         ?? symbolInfo.CandidateSymbols.FirstOrDefault()
+                         ?? semanticModel.GetDeclaredSymbol(node, ct);
 
             if (symbol is ITypeSymbol ts) typeSymbol = ts;
             else if (symbol is not null)
@@ -128,13 +128,21 @@ public sealed class GetTypeAtTool
 }
 
 public sealed record GetTypeAtResult(
-    string Status, string? TypeName, string? FullyQualifiedName,
-    string? Kind, bool IsInferred, string? SourceText, string? Message)
+    string Status,
+    string? TypeName,
+    string? FullyQualifiedName,
+    string? Kind,
+    bool IsInferred,
+    string? SourceText,
+    string? Message)
 {
     public static GetTypeAtResult NotFound(string filePath) => new(
-        "not_found", null, null, null, false, null, $"File '{filePath}' not found in workspace or position out of range");
+        "not_found", null, null, null, false, null,
+        $"File '{filePath}' not found in workspace or position out of range");
+
     public static GetTypeAtResult NotLoaded() => new(
         "not_loaded", null, null, null, false, null, "Workspace is still loading");
+
     public static GetTypeAtResult LoadFailed(string message) => new(
         "load_failed", null, null, null, false, null, message);
 }
