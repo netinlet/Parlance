@@ -33,6 +33,8 @@ builder.Services
     .WithTools<GetTypeAtTool>()
     .WithTools<OutlineFileTool>()
     .WithTools<GetSymbolDocsTool>()
-    .WithTools<CallHierarchyTool>();
+    .WithTools<CallHierarchyTool>()
+    .WithTools<GetTypeDependenciesTool>()
+    .WithTools<SafeToDeleteTool>();
 
 await builder.Build().RunAsync();
