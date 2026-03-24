@@ -115,15 +115,19 @@ public sealed record ResolvedSymbol(ISymbol Symbol, Project Project);
 /// Lightweight view for presenting ambiguous candidates to callers.
 public sealed record SymbolCandidate(
     string DisplayName, string FullyQualifiedName, string Kind,
-    string ProjectName, string? FilePath, int? Line);
-
-public static class SymbolExtensions
+    string ProjectName, string? FilePath, int? Line)
 {
-    public static SymbolCandidate ToCandidate(this ResolvedSymbol resolved) => new(
+    public static SymbolCandidate From(ResolvedSymbol resolved) => new(
         resolved.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
         resolved.Symbol.ToDisplayString(), resolved.Symbol.Kind.ToString(), resolved.Project.Name,
         resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().Path,
         resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line);
+}
+
+public static class SymbolExtensions
+{
+    public static SymbolCandidate ToCandidate(this ResolvedSymbol resolved) =>
+        SymbolCandidate.From(resolved);
 }
 ```
 
