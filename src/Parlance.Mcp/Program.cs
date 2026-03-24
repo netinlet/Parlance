@@ -30,6 +30,7 @@ builder.Services
     .WithTools<DescribeTypeTool>()
     .WithTools<FindImplementationsTool>()
     .WithTools<FindReferencesTool>()
-    .WithTools<GetTypeAtTool>();
+    .WithTools<GetTypeAtTool>()
+    .WithTools<OutlineFileTool>();
 
 await builder.Build().RunAsync();
