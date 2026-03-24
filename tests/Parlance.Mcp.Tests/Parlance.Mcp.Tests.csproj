@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Parlance.Mcp\Parlance.Mcp.csproj" />
+    <ProjectReference Include="..\..\tests\Parlance.CSharp.Workspace.Tests\Parlance.CSharp.Workspace.Tests.csproj" />
   </ItemGroup>
 
 </Project>
