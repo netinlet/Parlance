@@ -35,6 +35,7 @@ builder.Services
     .WithTools<GetSymbolDocsTool>()
     .WithTools<CallHierarchyTool>()
     .WithTools<GetTypeDependenciesTool>()
-    .WithTools<SafeToDeleteTool>();
+    .WithTools<SafeToDeleteTool>()
+    .WithTools<DecompileTypeTool>();
 
 await builder.Build().RunAsync();
