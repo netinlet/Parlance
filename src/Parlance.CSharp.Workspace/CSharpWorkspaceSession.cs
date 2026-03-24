@@ -65,6 +65,9 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
     /// </summary>
     internal Solution CurrentSolution => _currentSolution;
 
+    internal Task<ProjectCompilationState> GetCompilationStateAsync(Project project, CancellationToken ct = default) =>
+        _cache.GetAsync(project, ct);
+
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key) =>
         Projects.FirstOrDefault(p => p.Key == key);
 
