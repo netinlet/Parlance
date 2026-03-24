@@ -32,6 +32,7 @@ builder.Services
     .WithTools<FindReferencesTool>()
     .WithTools<GetTypeAtTool>()
     .WithTools<OutlineFileTool>()
-    .WithTools<GetSymbolDocsTool>();
+    .WithTools<GetSymbolDocsTool>()
+    .WithTools<CallHierarchyTool>();
 
 await builder.Build().RunAsync();
