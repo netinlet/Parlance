@@ -21,10 +21,12 @@ builder.Logging.AddConsole(options =>
 builder.Services.AddSingleton(configuration);
 builder.Services.AddSingleton<WorkspaceSessionHolder>();
 builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
+builder.Services.AddSingleton<WorkspaceQueryService>();
 
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<WorkspaceStatusTool>();
+    .WithTools<WorkspaceStatusTool>()
+    .WithTools<DescribeTypeTool>();
 
 await builder.Build().RunAsync();
