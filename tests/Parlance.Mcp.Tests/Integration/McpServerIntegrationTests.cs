@@ -6,7 +6,8 @@ namespace Parlance.Mcp.Tests.Integration;
 
 public sealed class McpServerIntegrationTests
 {
-    private static readonly string SolutionPath = FindSolutionPath();
+    private static readonly string RepoRoot = FindRepoRoot();
+    private static readonly string SolutionPath = Path.Combine(RepoRoot, "Parlance.sln");
 
     [Fact]
     public async Task WorkspaceStatus_ReturnsLoadedProjects()
@@ -102,6 +103,7 @@ public sealed class McpServerIntegrationTests
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
         Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+        Assert.True(doc.RootElement.GetProperty("count").GetInt32() > 0);
     }
 
     [Fact]
@@ -115,14 +117,14 @@ public sealed class McpServerIntegrationTests
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
         Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+        Assert.True(doc.RootElement.GetProperty("totalCount").GetInt32() > 0);
     }
 
     [Fact]
     public async Task OutlineFile_ReturnsTypes()
     {
         await using var client = await CreateClientAsync(SolutionPath);
-        var repoRoot = FindRepoRoot();
-        var filePath = Path.Combine(repoRoot, "src", "Parlance.Abstractions", "IAnalysisEngine.cs");
+        var filePath = Path.Combine(RepoRoot, "src", "Parlance.Abstractions", "IAnalysisEngine.cs");
         var result = await client.CallToolAsync("outline-file",
             new Dictionary<string, object?> { ["filePath"] = filePath });
 
@@ -144,6 +146,7 @@ public sealed class McpServerIntegrationTests
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
         Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+        Assert.True(doc.RootElement.GetProperty("referenceCount").GetInt32() > 0);
     }
 
     private static async Task<McpClient> CreateClientAsync(string solutionPath)
@@ -152,7 +155,7 @@ public sealed class McpServerIntegrationTests
         {
             Command = "dotnet",
             Arguments = ["run", "--no-build", "--configuration", GetConfiguration(), "--project",
-                Path.Combine(FindRepoRoot(), "src", "Parlance.Mcp", "Parlance.Mcp.csproj"),
+                Path.Combine(RepoRoot, "src", "Parlance.Mcp", "Parlance.Mcp.csproj"),
                 "--", "--solution-path", solutionPath],
             Name = "parlance-test"
         });
@@ -167,12 +170,6 @@ public sealed class McpServerIntegrationTests
             StringComparison.OrdinalIgnoreCase)
             ? "Release"
             : "Debug";
-    }
-
-    private static string FindSolutionPath()
-    {
-        var root = FindRepoRoot();
-        return Path.Combine(root, "Parlance.sln");
     }
 
     private static string FindRepoRoot()
