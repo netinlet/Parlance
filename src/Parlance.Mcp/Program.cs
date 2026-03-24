@@ -27,6 +27,8 @@ builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
     .WithTools<WorkspaceStatusTool>()
-    .WithTools<DescribeTypeTool>();
+    .WithTools<DescribeTypeTool>()
+    .WithTools<FindImplementationsTool>()
+    .WithTools<FindReferencesTool>();
 
 await builder.Build().RunAsync();
