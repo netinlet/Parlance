@@ -58,6 +58,94 @@ public sealed class McpServerIntegrationTests
         Assert.True(root.GetProperty("diagnostics").GetArrayLength() > 0);
     }
 
+    [Fact]
+    public async Task ListTools_ReturnsAllSemanticTools()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var tools = await client.ListToolsAsync();
+        var toolNames = tools.Select(t => t.Name).ToHashSet();
+
+        Assert.Contains("workspace-status", toolNames);
+        Assert.Contains("describe-type", toolNames);
+        Assert.Contains("find-implementations", toolNames);
+        Assert.Contains("find-references", toolNames);
+        Assert.Contains("get-type-at", toolNames);
+        Assert.Contains("outline-file", toolNames);
+        Assert.Contains("get-symbol-docs", toolNames);
+        Assert.Contains("call-hierarchy", toolNames);
+        Assert.Contains("get-type-dependencies", toolNames);
+        Assert.Contains("safe-to-delete", toolNames);
+        Assert.Contains("decompile-type", toolNames);
+    }
+
+    [Fact]
+    public async Task DescribeType_ReturnsTypeInfo()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var result = await client.CallToolAsync("describe-type",
+            new Dictionary<string, object?> { ["typeName"] = "CSharpWorkspaceSession" });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task FindImplementations_ReturnsResults()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var result = await client.CallToolAsync("find-implementations",
+            new Dictionary<string, object?> { ["typeName"] = "IAnalysisEngine" });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task FindReferences_ReturnsResults()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var result = await client.CallToolAsync("find-references",
+            new Dictionary<string, object?> { ["symbolName"] = "IAnalysisEngine" });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public async Task OutlineFile_ReturnsTypes()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var repoRoot = FindRepoRoot();
+        var filePath = Path.Combine(repoRoot, "src", "Parlance.Abstractions", "IAnalysisEngine.cs");
+        var result = await client.CallToolAsync("outline-file",
+            new Dictionary<string, object?> { ["filePath"] = filePath });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+        Assert.True(doc.RootElement.GetProperty("types").GetArrayLength() > 0);
+    }
+
+    [Fact]
+    public async Task SafeToDelete_ReturnsResult()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        var result = await client.CallToolAsync("safe-to-delete",
+            new Dictionary<string, object?> { ["symbolName"] = "IAnalysisEngine" });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+    }
+
     private static async Task<McpClient> CreateClientAsync(string solutionPath)
     {
         var transport = new StdioClientTransport(new StdioClientTransportOptions
