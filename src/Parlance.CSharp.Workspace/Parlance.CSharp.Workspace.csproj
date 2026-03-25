@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Parlance.CSharp.Workspace.Tests" />
-    <InternalsVisibleTo Include="Parlance.Mcp" />
     <InternalsVisibleTo Include="Parlance.Mcp.Tests" />
   </ItemGroup>
 
