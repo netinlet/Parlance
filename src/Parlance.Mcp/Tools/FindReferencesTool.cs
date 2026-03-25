@@ -27,6 +27,9 @@ public sealed class FindReferencesTool
         if (symbols.IsEmpty)
             return FindReferencesResult.NotFound(symbolName);
 
+        if (symbols.Count > 1 && !symbolName.Contains('.'))
+            return FindReferencesResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var targetSymbol = symbols[0].Symbol;
         var referencedSymbols = await query.FindReferencesAsync(targetSymbol, ct);
 
@@ -72,20 +75,26 @@ public sealed class FindReferencesTool
             SymbolName: targetSymbol.ToDisplayString(),
             TotalCount: totalCount,
             FileGroups: fileGroups,
+            Candidates: [],
             Message: null);
     }
 }
 
 public sealed record FindReferencesResult(
     string Status, string? SymbolName, int TotalCount,
-    ImmutableList<ReferenceFileGroup> FileGroups, string? Message)
+    ImmutableList<ReferenceFileGroup> FileGroups,
+    ImmutableList<SymbolCandidate> Candidates,
+    string? Message)
 {
     public static FindReferencesResult NotFound(string symbolName) => new(
-        "not_found", symbolName, 0, [], $"Symbol '{symbolName}' not found in the workspace");
+        "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace");
     public static FindReferencesResult NotLoaded() => new(
-        "not_loaded", null, 0, [], "Workspace is still loading");
+        "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindReferencesResult LoadFailed(string message) => new(
-        "load_failed", null, 0, [], message);
+        "load_failed", null, 0, [], [], message);
+    public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", symbolName, 0, [], candidates,
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record ReferenceFileGroup(string FilePath, ImmutableList<ReferenceLocation> Locations);

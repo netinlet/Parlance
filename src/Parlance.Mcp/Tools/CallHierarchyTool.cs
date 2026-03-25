@@ -31,6 +31,9 @@ public sealed class CallHierarchyTool
         if (methodSymbols.IsEmpty)
             return CallHierarchyResult.NotFound(methodName);
 
+        if (methodSymbols.Count > 1 && !methodName.Contains('.'))
+            return CallHierarchyResult.Ambiguous(methodName, methodSymbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var targetSymbol = methodSymbols[0].Symbol as IMethodSymbol;
 
         // === CALLERS (incoming) ===
@@ -116,20 +119,24 @@ public sealed class CallHierarchyTool
             TargetMethod: targetSymbol.ToDisplayString(),
             Callers: callersBuilder.ToImmutable(),
             Callees: calleesBuilder.ToImmutable(),
+            Candidates: [],
             Message: null);
     }
 }
 
 public sealed record CallHierarchyResult(
     string Status, string? TargetMethod, ImmutableList<HierarchyEntry> Callers,
-    ImmutableList<HierarchyEntry> Callees, string? Message)
+    ImmutableList<HierarchyEntry> Callees, ImmutableList<SymbolCandidate> Candidates, string? Message)
 {
     public static CallHierarchyResult NotFound(string methodName) => new(
-        "not_found", methodName, [], [], $"Method '{methodName}' not found");
+        "not_found", methodName, [], [], [], $"Method '{methodName}' not found");
     public static CallHierarchyResult NotLoaded() => new(
-        "not_loaded", null, [], [], "Workspace is still loading");
+        "not_loaded", null, [], [], [], "Workspace is still loading");
     public static CallHierarchyResult LoadFailed(string message) => new(
-        "load_failed", null, [], [], message);
+        "load_failed", null, [], [], [], message);
+    public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", methodName, [], [], candidates,
+        $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record HierarchyEntry(

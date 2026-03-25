@@ -29,6 +29,9 @@ public sealed class GetSymbolDocsTool
         if (symbols.IsEmpty)
             return GetSymbolDocsResult.NotFound(symbolName);
 
+        if (symbols.Count > 1 && !symbolName.Contains('.'))
+            return GetSymbolDocsResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var symbol = symbols[0].Symbol;
         var docs = GetDocs(symbol);
 
@@ -44,6 +47,7 @@ public sealed class GetSymbolDocsTool
             Params: docs.Params,
             TypeParams: docs.TypeParams,
             Exceptions: docs.Exceptions,
+            Candidates: [],
             Message: null);
     }
 
@@ -168,16 +172,19 @@ public sealed class GetSymbolDocsTool
 public sealed record GetSymbolDocsResult(
     string Status, string? SymbolName, string? Summary, string? Returns,
     string? Remarks, ImmutableList<DocParam> Params, ImmutableList<DocParam> TypeParams,
-    ImmutableList<DocParam> Exceptions, string? Message)
+    ImmutableList<DocParam> Exceptions, ImmutableList<SymbolCandidate> Candidates, string? Message)
 {
     public static GetSymbolDocsResult NotFound(string symbolName) => new(
-        "not_found", symbolName, null, null, null, [], [], [], $"Symbol '{symbolName}' not found");
+        "not_found", symbolName, null, null, null, [], [], [], [], $"Symbol '{symbolName}' not found");
     public static GetSymbolDocsResult NotLoaded() => new(
-        "not_loaded", null, null, null, null, [], [], [], "Workspace is still loading");
+        "not_loaded", null, null, null, null, [], [], [], [], "Workspace is still loading");
     public static GetSymbolDocsResult LoadFailed(string message) => new(
-        "load_failed", null, null, null, null, [], [], [], message);
+        "load_failed", null, null, null, null, [], [], [], [], message);
     public static GetSymbolDocsResult NoDocs(string symbolName) => new(
-        "no_docs", symbolName, null, null, null, [], [], [], $"No documentation found for '{symbolName}'");
+        "no_docs", symbolName, null, null, null, [], [], [], [], $"No documentation found for '{symbolName}'");
+    public static GetSymbolDocsResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", symbolName, null, null, null, [], [], [], candidates,
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record DocParam(string Name, string Description);

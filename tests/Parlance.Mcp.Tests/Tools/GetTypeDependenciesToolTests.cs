@@ -31,8 +31,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
             "WorkspaceQueryService", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
-        Assert.NotNull(result.TypeName);
-        Assert.Contains("WorkspaceQueryService", result.TypeName);
+        Assert.Equal("Parlance.CSharp.Workspace.WorkspaceQueryService", result.TypeName);
         // WorkspaceQueryService has a parameter of type WorkspaceSessionHolder
         Assert.Contains(result.Dependencies, d => d.Name == "WorkspaceSessionHolder");
     }

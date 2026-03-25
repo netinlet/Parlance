@@ -27,6 +27,9 @@ public sealed class FindImplementationsTool
         if (symbols.IsEmpty)
             return FindImplementationsResult.NotFound(typeName);
 
+        if (symbols.Count > 1 && !typeName.Contains('.'))
+            return FindImplementationsResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var targetSymbol = symbols[0].Symbol;
         var implementations = await query.FindImplementationsAsync(targetSymbol, ct);
 
@@ -36,7 +39,7 @@ public sealed class FindImplementationsTool
                 s.ToDisplayString(),
                 s.Kind.ToString(),
                 s.Locations.FirstOrDefault()?.GetLineSpan().Path,
-                s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line))
+                s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1))
             .ToImmutableList();
 
         return new FindImplementationsResult(
@@ -44,20 +47,26 @@ public sealed class FindImplementationsTool
             TargetType: targetSymbol.ToDisplayString(),
             Count: entries.Count,
             Implementations: entries,
+            Candidates: [],
             Message: null);
     }
 }
 
 public sealed record FindImplementationsResult(
     string Status, string? TargetType, int Count,
-    ImmutableList<ImplementationEntry> Implementations, string? Message)
+    ImmutableList<ImplementationEntry> Implementations,
+    ImmutableList<SymbolCandidate> Candidates,
+    string? Message)
 {
     public static FindImplementationsResult NotFound(string typeName) => new(
-        "not_found", typeName, 0, [], $"Type '{typeName}' not found in the workspace");
+        "not_found", typeName, 0, [], [], $"Type '{typeName}' not found in the workspace");
     public static FindImplementationsResult NotLoaded() => new(
-        "not_loaded", null, 0, [], "Workspace is still loading");
+        "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindImplementationsResult LoadFailed(string message) => new(
-        "load_failed", null, 0, [], message);
+        "load_failed", null, 0, [], [], message);
+    public static FindImplementationsResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", typeName, 0, [], candidates,
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record ImplementationEntry(

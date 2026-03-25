@@ -37,16 +37,16 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GetSymbolDocs_TypeWithDocs_ReturnsParams()
+    public async Task GetSymbolDocs_AmbiguousMethod_ReturnsAmbiguous()
     {
-        // AnalyzeSourceAsync has <param> docs
+        // AnalyzeSourceAsync exists on both IAnalysisEngine and its implementations,
+        // so unqualified lookup should surface the ambiguity rather than silently picking one.
         var result = await GetSymbolDocsTool.GetSymbolDocs(
             _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
             "AnalyzeSourceAsync", CancellationToken.None);
 
-        Assert.Equal("found", result.Status);
-        Assert.NotEmpty(result.Params);
-        Assert.Contains(result.Params, p => p.Name == "sourceCode");
+        Assert.Equal("ambiguous", result.Status);
+        Assert.NotEmpty(result.Candidates);
     }
 
     [Fact]

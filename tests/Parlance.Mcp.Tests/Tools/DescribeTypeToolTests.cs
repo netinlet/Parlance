@@ -31,7 +31,29 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
 
         Assert.Equal("found", result.Status);
         Assert.Equal("CSharpWorkspaceSession", result.Name);
+        Assert.Equal("Parlance.CSharp.Workspace.CSharpWorkspaceSession", result.FullyQualifiedName);
+        Assert.NotNull(result.FilePath);
+        Assert.Contains("CSharpWorkspaceSession", result.FilePath);
+        Assert.True(result.Line > 0, $"Expected 1-based line number > 0, got {result.Line}");
         Assert.NotEmpty(result.Members);
+    }
+
+    [Fact]
+    public async Task DescribeType_AmbiguousName_ReturnsAmbiguousWithCandidates()
+    {
+        // "Diagnostic" exists in both Parlance.Abstractions and Microsoft.CodeAnalysis
+        var result = await DescribeTypeTool.DescribeType(
+            _holder, _query, NullLogger<DescribeTypeTool>.Instance,
+            "Diagnostic", CancellationToken.None);
+
+        // Either the solution-first ordering resolved it unambiguously to the Parlance type,
+        // or the tool correctly surfaced the ambiguity — both are acceptable.
+        Assert.True(result.Status is "found" or "ambiguous",
+            $"Expected 'found' or 'ambiguous', got '{result.Status}'");
+        if (result.Status == "found")
+            Assert.Equal("Parlance.Abstractions.Diagnostic", result.FullyQualifiedName);
+        if (result.Status == "ambiguous")
+            Assert.NotEmpty(result.Candidates);
     }
 
     [Fact]

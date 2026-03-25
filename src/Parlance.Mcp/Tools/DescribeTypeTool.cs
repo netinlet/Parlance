@@ -68,7 +68,7 @@ public sealed class DescribeTypeTool
             IsStatic: type.IsStatic,
             ProjectName: resolved.Project.Name,
             FilePath: type.Locations.FirstOrDefault()?.GetLineSpan().Path,
-            Line: type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line,
+            Line: type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
             BaseTypes: [.. baseTypes],
             Interfaces: interfaces,
             Members: members,

@@ -11,5 +11,5 @@ public sealed record SymbolCandidate(
         resolved.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
         resolved.Symbol.ToDisplayString(), resolved.Symbol.Kind.ToString(), resolved.Project.Name,
         resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().Path,
-        resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line);
+        resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1);
 }

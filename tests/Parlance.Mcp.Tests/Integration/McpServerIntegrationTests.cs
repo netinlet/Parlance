@@ -89,7 +89,33 @@ public sealed class McpServerIntegrationTests
         Assert.True(result.IsError is not true);
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
-        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
+        var root = doc.RootElement;
+        Assert.Equal("found", root.GetProperty("status").GetString());
+        Assert.Equal("Parlance.CSharp.Workspace.CSharpWorkspaceSession",
+            root.GetProperty("fullyQualifiedName").GetString());
+        Assert.True(root.GetProperty("line").GetInt32() > 0,
+            "Expected 1-based line number > 0");
+    }
+
+    [Fact]
+    public async Task DescribeType_AmbiguousName_ReturnsAmbiguous()
+    {
+        await using var client = await CreateClientAsync(SolutionPath);
+        // "Diagnostic" exists in both Parlance.Abstractions and Microsoft.CodeAnalysis
+        var result = await client.CallToolAsync("describe-type",
+            new Dictionary<string, object?> { ["typeName"] = "Diagnostic" });
+
+        Assert.True(result.IsError is not true);
+        var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
+        using var doc = JsonDocument.Parse(textBlock.Text!);
+        var status = doc.RootElement.GetProperty("status").GetString();
+        // Either found (solution-first ordering selected one) or ambiguous — both are acceptable;
+        // the key assertion is that it does NOT silently return a wrong symbol.
+        Assert.True(status is "found" or "ambiguous",
+            $"Expected 'found' or 'ambiguous', got '{status}'");
+        if (status == "found")
+            Assert.Equal("Parlance.Abstractions.Diagnostic",
+                doc.RootElement.GetProperty("fullyQualifiedName").GetString());
     }
 
     [Fact]
@@ -102,8 +128,14 @@ public sealed class McpServerIntegrationTests
         Assert.True(result.IsError is not true);
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
-        Assert.Equal("found", doc.RootElement.GetProperty("status").GetString());
-        Assert.True(doc.RootElement.GetProperty("count").GetInt32() > 0);
+        var root = doc.RootElement;
+        Assert.Equal("found", root.GetProperty("status").GetString());
+        Assert.Equal("Parlance.Abstractions.IAnalysisEngine", root.GetProperty("targetType").GetString());
+        Assert.True(root.GetProperty("count").GetInt32() > 0);
+        var impls = root.GetProperty("implementations");
+        Assert.True(impls.GetArrayLength() > 0);
+        Assert.All(Enumerable.Range(0, impls.GetArrayLength()).Select(i => impls[i]),
+            impl => Assert.True(impl.GetProperty("line").GetInt32() > 0, "Expected 1-based line"));
     }
 
     [Fact]

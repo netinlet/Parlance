@@ -28,6 +28,9 @@ public sealed class SafeToDeleteTool
         if (symbols.IsEmpty)
             return SafeToDeleteResult.NotFound(symbolName);
 
+        if (symbols.Count > 1 && !symbolName.Contains('.'))
+            return SafeToDeleteResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var symbol = symbols[0].Symbol;
         var references = await query.FindReferencesAsync(symbol, ct);
 
@@ -55,20 +58,26 @@ public sealed class SafeToDeleteTool
             Safe: totalCount == 0,
             ReferenceCount: totalCount,
             SampleLocations: [.. locations],
+            Candidates: [],
             Message: null);
     }
 }
 
 public sealed record SafeToDeleteResult(
     string Status, string? SymbolName, bool Safe, int ReferenceCount,
-    ImmutableList<DeleteReferenceLocation> SampleLocations, string? Message)
+    ImmutableList<DeleteReferenceLocation> SampleLocations,
+    ImmutableList<SymbolCandidate> Candidates,
+    string? Message)
 {
     public static SafeToDeleteResult NotFound(string symbolName) => new(
-        "not_found", symbolName, false, 0, [], $"Symbol '{symbolName}' not found");
+        "not_found", symbolName, false, 0, [], [], $"Symbol '{symbolName}' not found");
     public static SafeToDeleteResult NotLoaded() => new(
-        "not_loaded", null, false, 0, [], "Workspace is still loading");
+        "not_loaded", null, false, 0, [], [], "Workspace is still loading");
     public static SafeToDeleteResult LoadFailed(string message) => new(
-        "load_failed", null, false, 0, [], message);
+        "load_failed", null, false, 0, [], [], message);
+    public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", symbolName, false, 0, [], candidates,
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record DeleteReferenceLocation(string? FilePath, int Line);

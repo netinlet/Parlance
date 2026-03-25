@@ -28,6 +28,9 @@ public sealed class GetTypeDependenciesTool
         if (symbols.IsEmpty)
             return GetTypeDependenciesResult.NotFound(typeName);
 
+        if (symbols.Count > 1 && !typeName.Contains('.'))
+            return GetTypeDependenciesResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+
         var resolved = symbols[0];
         if (resolved.Symbol is not INamedTypeSymbol typeSymbol)
             return GetTypeDependenciesResult.NotFound(typeName);
@@ -148,6 +151,7 @@ public sealed class GetTypeDependenciesTool
             TypeName: typeSymbol.ToDisplayString(),
             Dependencies: depsBuilder.ToImmutable(),
             Dependents: dependentsBuilder.ToImmutable(),
+            Candidates: [],
             Message: null);
     }
 }
@@ -156,14 +160,18 @@ public sealed record GetTypeDependenciesResult(
     string Status, string? TypeName,
     ImmutableList<TypeDependencyEntry> Dependencies,
     ImmutableList<TypeDependencyEntry> Dependents,
+    ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
     public static GetTypeDependenciesResult NotFound(string typeName) => new(
-        "not_found", typeName, [], [], $"Type '{typeName}' not found");
+        "not_found", typeName, [], [], [], $"Type '{typeName}' not found");
     public static GetTypeDependenciesResult NotLoaded() => new(
-        "not_loaded", null, [], [], "Workspace is still loading");
+        "not_loaded", null, [], [], [], "Workspace is still loading");
     public static GetTypeDependenciesResult LoadFailed(string message) => new(
-        "load_failed", null, [], [], message);
+        "load_failed", null, [], [], [], message);
+    public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+        "ambiguous", typeName, [], [], candidates,
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
 }
 
 public sealed record TypeDependencyEntry(string Name, string FullyQualifiedName, string Relationship);
