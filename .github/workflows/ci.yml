@@ -39,6 +39,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nuget-
 
+      - name: Pack analyzers into local feed
+        run: |
+          dotnet pack src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj \
+            --output /tmp/parlance-local-feed \
+            --configuration Release
+          dotnet nuget add source /tmp/parlance-local-feed --name parlance-local
+
       - name: Restore dependencies
         run: dotnet restore Parlance.sln
 
