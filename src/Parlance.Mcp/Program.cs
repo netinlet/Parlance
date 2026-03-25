@@ -19,6 +19,9 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(configuration);
+builder.Services.AddSingleton(new WorkspaceLifecycleOptions(
+    configuration.SolutionPath,
+    new WorkspaceOpenOptions(Mode: WorkspaceMode.Server, EnableFileWatching: true)));
 builder.Services.AddSingleton<WorkspaceSessionHolder>();
 builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
 builder.Services.AddSingleton<WorkspaceQueryService>();
