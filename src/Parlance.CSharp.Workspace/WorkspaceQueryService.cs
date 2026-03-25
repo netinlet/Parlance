@@ -20,15 +20,23 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var solutionAssemblyNames = Session.CurrentSolution.Projects
             .Select(p => p.AssemblyName).ToHashSet();
 
+        // FindDeclarationsAsync matches by simple (unqualified) name only.
+        // If the caller supplied a qualified name (e.g. "Parlance.Abstractions.Diagnostic"),
+        // search by the last segment and post-filter by display string.
+        var isQualified = name.Contains('.');
+        var simpleName = isQualified ? name[(name.LastIndexOf('.') + 1)..] : name;
+
         var results = new List<ResolvedSymbol>();
         await foreach (var (project, _) in GetCompilationsAsync(ct))
         {
-            var declarations = await SymbolFinder.FindDeclarationsAsync(project, name, ignoreCase, filter, ct);
+            var declarations = await SymbolFinder.FindDeclarationsAsync(project, simpleName, ignoreCase, filter, ct);
             results.AddRange(declarations.Select(s => new ResolvedSymbol(s, project)));
         }
 
+        var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         return results
             .DistinctBy(r => r.Symbol.ToDisplayString())
+            .Where(r => !isQualified || r.Symbol.ToDisplayString().EndsWith(name, comparison))
             .OrderByDescending(r => solutionAssemblyNames.Contains(r.Symbol.ContainingAssembly?.Name ?? "") ? 1 : 0)
             .ToImmutableList();
     }
@@ -98,6 +106,9 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         if (semanticModel is null) return null;
 
         var text = await semanticModel.SyntaxTree.GetTextAsync(ct);
+        if (line < 0 || line >= text.Lines.Count) return null;
+        var lineLength = text.Lines[line].Span.Length;
+        if (column < 0 || column > lineLength) return null;
         var position = text.Lines.GetPosition(new LinePosition(line, column));
         var root = await semanticModel.SyntaxTree.GetRootAsync(ct);
         var node = root.FindToken(position).Parent;

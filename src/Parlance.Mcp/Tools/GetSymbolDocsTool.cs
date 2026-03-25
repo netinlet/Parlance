@@ -33,7 +33,7 @@ public sealed class GetSymbolDocsTool
             return GetSymbolDocsResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
 
         var symbol = symbols[0].Symbol;
-        var docs = GetDocs(symbol);
+        var docs = GetDocs(symbol, logger);
 
         if (docs is null)
             return GetSymbolDocsResult.NoDocs(symbolName);
@@ -51,7 +51,7 @@ public sealed class GetSymbolDocsTool
             Message: null);
     }
 
-    private static ParsedDocs? GetDocs(ISymbol symbol)
+    private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)
     {
         var xml = symbol.GetDocumentationCommentXml();
         if (string.IsNullOrWhiteSpace(xml))
@@ -66,32 +66,33 @@ public sealed class GetSymbolDocsTool
             // Handle inheritdoc — try to get base symbol's docs
             if (root.Element("inheritdoc") is not null)
             {
-                var baseDocs = GetInheritedDocs(symbol);
+                var baseDocs = GetInheritedDocs(symbol, logger);
                 if (baseDocs is not null) return baseDocs;
                 // Fall through and try to parse what we have
             }
 
             return ParseDocs(root);
         }
-        catch
+        catch (Exception ex)
         {
+            logger?.LogDebug(ex, "Failed to parse XML docs for {Symbol}", symbol.ToDisplayString());
             return null;
         }
     }
 
-    private static ParsedDocs? GetInheritedDocs(ISymbol symbol)
+    private static ParsedDocs? GetInheritedDocs(ISymbol symbol, ILogger? logger = null)
     {
         if (symbol is IMethodSymbol method)
         {
             var overridden = method.OverriddenMethod;
             if (overridden is not null)
             {
-                var docs = GetDocs(overridden);
+                var docs = GetDocs(overridden, logger);
                 if (docs is not null) return docs;
             }
             foreach (var iface in method.ExplicitInterfaceImplementations)
             {
-                var docs = GetDocs(iface);
+                var docs = GetDocs(iface, logger);
                 if (docs is not null) return docs;
             }
             // Check implicit interface implementations
@@ -102,7 +103,7 @@ public sealed class GetSymbolDocsTool
                     if (method.ContainingType.FindImplementationForInterfaceMember(member) is IMethodSymbol impl &&
                         SymbolEqualityComparer.Default.Equals(impl, method))
                     {
-                        var docs = GetDocs(member);
+                        var docs = GetDocs(member, logger);
                         if (docs is not null) return docs;
                     }
                 }
@@ -112,7 +113,7 @@ public sealed class GetSymbolDocsTool
         {
             if (type.BaseType is not null)
             {
-                var docs = GetDocs(type.BaseType);
+                var docs = GetDocs(type.BaseType, logger);
                 if (docs is not null) return docs;
             }
         }

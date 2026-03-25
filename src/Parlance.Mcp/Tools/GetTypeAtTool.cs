@@ -39,7 +39,9 @@ public sealed class GetTypeAtTool
         if (zeroLine < 0 || zeroLine >= text.Lines.Count)
             return GetTypeAtResult.NotFound(filePath);
 
-        var position = text.Lines.GetPosition(new LinePosition(zeroLine, Math.Max(0, zeroCol)));
+        var lineLength = text.Lines[zeroLine].Span.Length;
+        var safeCol = Math.Clamp(zeroCol, 0, lineLength);
+        var position = text.Lines.GetPosition(new LinePosition(zeroLine, safeCol));
         var root = await semanticModel.SyntaxTree.GetRootAsync(ct);
         var token = root.FindToken(position);
         var node = token.Parent;
