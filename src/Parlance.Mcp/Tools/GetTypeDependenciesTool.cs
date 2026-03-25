@@ -112,24 +112,26 @@ public sealed class GetTypeDependenciesTool
         var references = await query.FindReferencesAsync(typeSymbol, ct);
         var seenDependents = new HashSet<string>();
 
-        foreach (var refSymbol in references)
-        {
-            foreach (var location in refSymbol.Locations)
-            {
-                if (!location.Location.IsInSource) continue;
-                var tree = location.Location.SourceTree;
-                if (tree is null) continue;
+        // Group by tree so each file's root and semantic model are fetched once.
+        var locationsByTree = references
+            .SelectMany(r => r.Locations)
+            .Where(l => l.Location.IsInSource && l.Location.SourceTree is not null)
+            .GroupBy(l => l.Location.SourceTree!);
 
-                var root = await tree.GetRootAsync(ct);
+        foreach (var treeGroup in locationsByTree)
+        {
+            var tree = treeGroup.Key;
+            var root = await tree.GetRootAsync(ct);
+            var semanticModel = await query.GetSemanticModelAsync(tree.FilePath, ct);
+            if (semanticModel is null) continue;
+
+            foreach (var location in treeGroup)
+            {
                 var node = root.FindNode(location.Location.SourceSpan);
                 var containingTypeDecl = node.Ancestors()
                     .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>()
                     .FirstOrDefault();
-
                 if (containingTypeDecl is null) continue;
-
-                var semanticModel = await query.GetSemanticModelAsync(tree.FilePath, ct);
-                if (semanticModel is null) continue;
 
                 var containingTypeSymbol = semanticModel.GetDeclaredSymbol(containingTypeDecl, ct) as INamedTypeSymbol;
                 if (containingTypeSymbol is null) continue;

@@ -34,6 +34,7 @@ public sealed class FindReferencesTool
         var referencedSymbols = await query.FindReferencesAsync(targetSymbol, ct);
 
         var locationsByFile = new Dictionary<string, List<ReferenceLocation>>();
+        var textCache = new Dictionary<SyntaxTree, Microsoft.CodeAnalysis.Text.SourceText>();
         var totalCount = 0;
 
         foreach (var refSymbol in referencedSymbols)
@@ -51,7 +52,11 @@ public sealed class FindReferencesTool
                 var tree = location.Location.SourceTree;
                 if (tree is not null)
                 {
-                    var text = await tree.GetTextAsync(ct);
+                    if (!textCache.TryGetValue(tree, out var text))
+                    {
+                        text = await tree.GetTextAsync(ct);
+                        textCache[tree] = text;
+                    }
                     var line = span.StartLinePosition.Line;
                     if (line >= 0 && line < text.Lines.Count)
                         snippet = text.Lines[line].ToString().Trim();

@@ -36,9 +36,29 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var comparison = ignoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         return results
             .DistinctBy(r => r.Symbol.ToDisplayString())
-            .Where(r => !isQualified || r.Symbol.ToDisplayString().EndsWith(name, comparison))
+            .Where(r => !isQualified || MatchesQualifiedName(r.Symbol, name, comparison))
             .OrderByDescending(r => solutionAssemblyNames.Contains(r.Symbol.ContainingAssembly?.Name ?? "") ? 1 : 0)
             .ToImmutableList();
+    }
+
+    // ToDisplayString() includes parameter lists for methods, so "Ns.Type.Method" won't
+    // EndsWith-match "Ns.Type.Method(int, string)". Build the parameter-free path as a fallback.
+    private static bool MatchesQualifiedName(ISymbol symbol, string qualifiedName, StringComparison comparison)
+    {
+        if (symbol.ToDisplayString().EndsWith(qualifiedName, comparison))
+            return true;
+
+        var parts = new List<string> { symbol.Name };
+        var containingType = symbol.ContainingType;
+        while (containingType is not null)
+        {
+            parts.Insert(0, containingType.Name);
+            containingType = containingType.ContainingType;
+        }
+        var ns = symbol.ContainingNamespace;
+        if (ns is not null && !ns.IsGlobalNamespace)
+            parts.Insert(0, ns.ToDisplayString());
+        return string.Join(".", parts).EndsWith(qualifiedName, comparison);
     }
 
     public async Task<Compilation?> GetCompilationAsync(string projectName, CancellationToken ct = default)

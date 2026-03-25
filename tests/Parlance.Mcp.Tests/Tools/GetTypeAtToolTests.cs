@@ -32,6 +32,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
         Assert.True(classLine >= 0, "Could not find class declaration");
 
         var classCol = lines[classLine].IndexOf("CSharpWorkspaceSession", StringComparison.Ordinal);
+        Assert.True(classCol >= 0, $"Could not find 'CSharpWorkspaceSession' on line: {lines[classLine]}");
 
         // Tool takes 1-based line/column
         var result = await GetTypeAtTool.GetTypeAt(
