@@ -48,13 +48,19 @@ public sealed class DecompileTypeTool
                     var fullTypeName = new FullTypeName(typeSymbol.ToDisplayString());
                     var decompiledCode = decompiler.DecompileTypeAsString(fullTypeName);
 
+                    const int maxLines = 500;
+                    var lines = decompiledCode.Split('\n');
+                    var truncated = lines.Length > maxLines;
+                    if (truncated)
+                        decompiledCode = string.Join('\n', lines[..maxLines]);
+
                     return new DecompileTypeResult(
                         Status: "found",
                         TypeName: typeSymbol.ToDisplayString(),
                         AssemblyName: assemblySymbol.Name,
                         AssemblyPath: metaRef.FilePath,
                         DecompiledSource: decompiledCode,
-                        Message: null);
+                        Message: truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null);
                 }
                 catch (Exception ex)
                 {
@@ -74,8 +80,9 @@ public sealed class DecompileTypeTool
 
         foreach (var part in parts[..^1])
         {
-            current = current.GetMembers(part).OfType<INamespaceOrTypeSymbol>().FirstOrDefault()!;
-            if (current is null) return null;
+            if (current.GetMembers(part).OfType<INamespaceOrTypeSymbol>().FirstOrDefault() is not { } next)
+                return null;
+            current = next;
         }
 
         return current.GetMembers(parts[^1]).OfType<INamedTypeSymbol>().FirstOrDefault();
