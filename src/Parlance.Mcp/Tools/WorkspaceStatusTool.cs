@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
 

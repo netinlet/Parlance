@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Parlance.CSharp.Workspace;
 using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests;

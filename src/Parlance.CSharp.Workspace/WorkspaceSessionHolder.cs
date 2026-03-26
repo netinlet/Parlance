@@ -1,6 +1,4 @@
-using Parlance.CSharp.Workspace;
-
-namespace Parlance.Mcp;
+namespace Parlance.CSharp.Workspace;
 
 public sealed class WorkspaceSessionHolder : IAsyncDisposable
 {
@@ -11,11 +9,9 @@ public sealed class WorkspaceSessionHolder : IAsyncDisposable
         _session ?? throw new InvalidOperationException("Workspace session is not yet loaded");
 
     public bool IsLoaded => _session is not null;
-
     public WorkspaceLoadFailure? LoadFailure => _loadFailure;
 
     internal void SetSession(CSharpWorkspaceSession session) => _session = session;
-
     internal void SetLoadFailure(WorkspaceLoadFailure failure) => _loadFailure = failure;
 
     public async ValueTask DisposeAsync()
