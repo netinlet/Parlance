@@ -63,7 +63,10 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
     /// When calling <see cref="IProjectCompilationCache.GetAsync"/>, source the <c>Project</c>
     /// argument from this snapshot so compilation reflects the latest file changes.
     /// </summary>
-    internal Solution CurrentSolution => _currentSolution;
+    public Solution CurrentSolution => _currentSolution;
+
+    internal Task<ProjectCompilationState> GetCompilationStateAsync(Project project, CancellationToken ct = default) =>
+        _cache.GetAsync(project, ct);
 
     public CSharpProjectInfo? GetProject(WorkspaceProjectKey key) =>
         Projects.FirstOrDefault(p => p.Key == key);

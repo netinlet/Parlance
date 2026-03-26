@@ -1,6 +1,6 @@
 namespace Parlance.CSharp.Workspace.Tests.Integration;
 
-internal static class TestPaths
+public static class TestPaths
 {
     public static string FindSolutionPath()
     {

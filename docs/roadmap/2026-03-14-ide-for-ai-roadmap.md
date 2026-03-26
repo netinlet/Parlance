@@ -94,11 +94,13 @@ Same engine, same analyzers, different lifecycle. Mode is selected via `Workspac
 Milestone 1 (C# Workspace Engine)
   └── Milestone 2 (MCP Server + host/engine boundary design)
         ├── Milestone 3 (Semantic Navigation) ← priority: helps build everything after
-        └── Milestone 4 (Diagnostics over MCP)
+        │     └── Milestone 6 (Code Actions) ← read-write tools, depends on semantic nav
+        ├── Milestone 4 (Diagnostics over MCP)
+        └── Milestone 7 (Test & Verification) ← closes the feedback loop
   Milestone 5 (CLI Pivot) ← last, uses same engine
 ```
 
-Milestones 3 and 4 are parallel branches off the MCP server. Semantic navigation is prioritized because those tools help Claude build the diagnostic layer more effectively. Milestone 5 depends on Milestone 1 (workspace engine) and Milestone 4 (diagnostic model) but is last priority.
+Milestones 3 and 4 are parallel branches off the MCP server. Semantic navigation is prioritized because those tools help Claude build the diagnostic layer more effectively. Milestone 6 (Code Actions) builds on the workspace navigation from M3 to apply source transformations. Milestone 7 (Test & Verification) closes the feedback loop — Claude can verify changes compile, pass tests, and maintain coverage. Milestone 5 depends on Milestone 1 (workspace engine) and Milestone 4 (diagnostic model) but is last priority.
 
 ## Curation Sets
 
@@ -394,6 +396,72 @@ Ensure all semantic tool outputs are compact, structured, and actionable for an 
 - No tool response exceeds reasonable context budget for its query
 - Format is consistent across all semantic tools
 
+#### 16. Implement `outline-file` tool
+
+Given a file path, return the type/member skeleton: types, methods, properties, fields with accessibility and signatures. No method bodies — skeleton only. Lets Claude understand a large file's shape without reading every line.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `outline-file src/Parlance.CSharp/CSharpAnalysisEngine.cs` returns type names and member signatures
+- Output is compact — no method bodies, no trivial auto-property implementations
+- Handles files with multiple types
+
+#### 17. Implement `get-symbol-docs` tool
+
+Given a fully qualified symbol name, return its XML documentation comments. Resolves inherited docs and `<see cref>` references. Returns structured output (summary, params, returns, remarks) not raw XML. Lets Claude understand APIs without reading source.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `get-symbol-docs Parlance.Abstractions.IAnalysisEngine` returns summary and member docs
+- Structured output: summary, params, returns, remarks
+- Graceful fallback when no docs exist
+
+#### 18. Implement `call-hierarchy` tool
+
+Given a method name, return its callers (incoming) and callees (outgoing) one level deep. Structured as a tree, not a flat list. Helps Claude understand impact before modifying a method. Companion to `find-references` — where that returns all symbol usages, this returns the call graph shape.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `call-hierarchy CSharpAnalysisEngine.AnalyzeAsync` returns all direct callers with file/line
+- Outgoing calls (what this method calls) also returned
+- Handles overloads — caller specifies which or gets all
+
+#### 19. Implement `get-type-dependencies` tool
+
+Given a type name, return what it depends on (base types, interfaces, field types, method parameter/return types) and what depends on it (types that reference it). One level of the dependency graph. Helps Claude understand blast radius before modifying a type.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `get-type-dependencies CSharpWorkspaceSession` returns dependencies and dependents grouped by relationship kind
+- Dependents: types that have fields/parameters/returns of this type
+- Scoped to the solution — does not enumerate framework types
+
+#### 20. Implement `safe-to-delete` tool
+
+Predicate: is this symbol referenced anywhere in the solution? Returns boolean + reference count + representative sample locations. Essentially `find-references` with a structured summary for the "is this dead?" question. Lets Claude verify a symbol is unused before removing it.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `safe-to-delete CompilationFactory` returns false with reference list
+- `safe-to-delete` on an unused private method returns true
+- Works for types, methods, properties, fields
+
+#### 21. Implement `decompile-type` tool
+
+Given an external type name (from a referenced assembly), decompile and return its C# source using ICSharpCode.Decompiler. Lets Claude understand external APIs without source access — the single most uniquely valuable capability an AI agent cannot replicate via CLI.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `decompile-type Microsoft.CodeAnalysis.Project` returns readable decompiled C#
+- Output is valid C# (not IL)
+- Graceful failure when type not found in any referenced assembly
+
 ---
 
 ## Milestone 4: Diagnostics over MCP
@@ -402,7 +470,7 @@ Run analyzers against workspace compilations, return curated diagnostics.
 
 ### Issues
 
-#### 16. Unify analyzer loading
+#### 22. Unify analyzer loading
 
 All analyzers (PARL stub + NetAnalyzers + Roslynator + future packages) loaded through one path. No special-casing for PARL. Trim PARL rules to 1 stub to keep the project alive.
 
@@ -413,7 +481,7 @@ All analyzers (PARL stub + NetAnalyzers + Roslynator + future packages) loaded t
 - PARL has 1 stub rule
 - Loader reports what it found
 
-#### 17. Wire analyzers into workspace compilation
+#### 23. Wire analyzers into workspace compilation
 
 Run loaded analyzers against real workspace compilations via `WithAnalyzers()`. Map Roslyn diagnostics to Parlance output model.
 
@@ -424,9 +492,9 @@ Run loaded analyzers against real workspace compilations via `WithAnalyzers()`. 
 - Diagnostics mapped to Parlance types with metadata
 - Analyzer failure doesn't crash the engine
 
-#### 18. Implement `analyze` tool
+#### 24. Implement `analyze` tool
 
-MCP tool: run diagnostics on a file, project, or solution scope. Returns curated diagnostics with fix classification (auto-fixable / needs-review / info-only).
+MCP tool: run diagnostics on a file, project, or solution scope. Returns curated diagnostics with fix classification (auto-fixable / needs-review / info-only). Dead code (IDE0051, IDE0052, RCS1213, etc.) and duplicate code are diagnostic rule categories that flow through this tool — not separate tools. Curation sets control which categories are active.
 
 **Labels:** `mcp`, `tools`
 
@@ -435,7 +503,7 @@ MCP tool: run diagnostics on a file, project, or solution scope. Returns curated
 - Each diagnostic includes: rule ID, severity, message, location, fix classification
 - Scoping works: file, project, solution
 
-#### 19. Diagnostic output model for LLMs
+#### 25. Diagnostic output model for LLMs
 
 Design the diagnostic response format: structured, compact, actionable. Rationale, fix suggestions, severity, source rule. This is the shared contract for MCP and future CLI.
 
@@ -454,7 +522,7 @@ CLI becomes a thin client over the workspace engine. Report mode for CI and qual
 
 ### Issues
 
-#### 20. Refactor CLI to use workspace engine
+#### 26. Refactor CLI to use workspace engine
 
 Replace synthetic compilation with `CSharpWorkspaceSession` from Milestone 1. `analyze`, `fix`, `rules` commands all use the new engine with `WorkspaceMode.Report`.
 
@@ -465,7 +533,7 @@ Replace synthetic compilation with `CSharpWorkspaceSession` from Milestone 1. `a
 - Output is equivalent or better than current
 - Existing CLI tests pass (updated as needed)
 
-#### 21. Report mode: one-shot analysis
+#### 27. Report mode: one-shot analysis
 
 Load workspace, run analysis, output, exit. Optimized for CI — no file watching, no hot workspace. Fast startup, clean exit with appropriate exit code.
 
@@ -476,7 +544,7 @@ Load workspace, run analysis, output, exit. Optimized for CI — no file watchin
 - Exit code reflects pass/fail threshold
 - Works in CI without a long-running process
 
-#### 22. Machine-readable output formats
+#### 28. Machine-readable output formats
 
 JSON output (already exists, update for new model). Consider SARIF for CI tool integration. Human-readable text output updated.
 
@@ -486,6 +554,81 @@ JSON output (already exists, update for new model). Consider SARIF for CI tool i
 - JSON output matches new diagnostic model
 - Text output is clean and useful
 - SARIF output parseable by standard CI tools (if implemented)
+
+---
+
+## Milestone 6: Code Actions
+
+Apply workspace-level source transformations via MCP. These are read-write tools — the engine validates safety before applying. All actions support a preview mode that returns proposed changes without writing files.
+
+### Issues
+
+#### 29. Implement `rename-symbol` action
+
+Solution-wide rename via Roslyn's `Renamer.RenameSymbolAsync`. Validates the new name doesn't conflict, previews the changeset, applies across all files. Avoids Claude doing manual find/replace across N files with inevitable misses.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `rename-symbol CompilationFactory NewName` renames across all files in the solution
+- Preview mode returns proposed file changes without applying
+- Conflict detection: reports if new name collides in scope
+- Works for types, methods, properties, fields, parameters
+
+#### 30. Implement `extract-method` action
+
+Given a file, start line, and end line, extract the selected statements into a new method. Uses Roslyn's Extract Method code action. Correctly infers parameters, return type, and placement.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- Extracts a code block into a named method with correct signature
+- Preview mode available
+- Reports failure clearly when selection is not extractable (e.g., multiple return paths)
+
+#### 31. Implement `inline-symbol` action
+
+Inline a variable or field — replace all usages with the definition and remove the declaration. Validates no side effects before inlining.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- Inlines a single-use variable correctly
+- Refuses to inline when side effects are detected
+- Preview mode available
+
+---
+
+## Milestone 7: Test & Verification
+
+Close the feedback loop. Claude can verify its changes compile, pass tests, and maintain coverage — without leaving the MCP interface.
+
+### Issues
+
+#### 32. Implement `run-tests` tool
+
+Discover test projects from the workspace (by framework reference: xUnit, NUnit, MSTest), run selected or all tests, return structured results. Uses `dotnet test` under the hood but is workspace-aware — Claude doesn't need to know project paths.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- `run-tests` discovers and runs all test projects
+- `run-tests --project Parlance.CSharp.Tests` runs one project
+- `run-tests --filter "Analyze_SingleFile"` runs matching tests
+- Structured results: pass/fail/skip counts, failed test names, failure messages, duration
+- Coverage output via Coverlet: line coverage percentage per file
+
+#### 33. Implement `resolve-stacktrace` tool
+
+Given raw .NET stack trace text (from a test failure, exception log, or crash), resolve each frame to source file + line number using workspace symbol information. Returns structured frames Claude can navigate to directly.
+
+**Labels:** `tools`
+
+**Acceptance:**
+- Paste a .NET stack trace, get back `[{ method, file, line, column }]`
+- Handles async stack traces (unwraps state machine generated frames)
+- Graceful fallback for frames from external assemblies (marks as unresolvable, includes assembly name)
+- Works with both exception stack traces and test failure output
 
 ---
 

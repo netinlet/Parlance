@@ -1,30 +1,25 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Parlance.CSharp.Workspace;
 
-namespace Parlance.Mcp;
+namespace Parlance.CSharp.Workspace;
 
-internal sealed class WorkspaceSessionLifecycle(
+public sealed class WorkspaceSessionLifecycle(
     WorkspaceSessionHolder holder,
-    ParlanceMcpConfiguration configuration,
+    WorkspaceLifecycleOptions options,
     ILoggerFactory loggerFactory,
     ILogger<WorkspaceSessionLifecycle> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        logger.LogInformation("Loading workspace: {SolutionPath}", configuration.SolutionPath);
+        logger.LogInformation("Loading workspace: {SolutionPath}", options.SolutionPath);
         var startTimestamp = Stopwatch.GetTimestamp();
 
         try
         {
+            var openOptions = options.OpenOptions with { LoggerFactory = loggerFactory };
             var session = await CSharpWorkspaceSession.OpenSolutionAsync(
-                configuration.SolutionPath,
-                new WorkspaceOpenOptions(
-                    Mode: WorkspaceMode.Server,
-                    EnableFileWatching: true,
-                    LoggerFactory: loggerFactory),
-                cancellationToken);
+                options.SolutionPath, openOptions, cancellationToken);
 
             holder.SetSession(session);
 
@@ -42,9 +37,9 @@ internal sealed class WorkspaceSessionLifecycle(
             var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
             logger.LogError(ex,
                 "Workspace load failed after {ElapsedMs:F0}ms: {SolutionPath}",
-                elapsed.TotalMilliseconds, configuration.SolutionPath);
+                elapsed.TotalMilliseconds, options.SolutionPath);
 
-            holder.SetLoadFailure(new WorkspaceLoadFailure(ex.Message, configuration.SolutionPath));
+            holder.SetLoadFailure(new WorkspaceLoadFailure(ex.Message, options.SolutionPath));
         }
     }
 

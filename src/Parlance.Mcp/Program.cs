@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using ModelContextProtocol;
+using Parlance.CSharp.Workspace;
 using Parlance.Mcp;
 using Parlance.Mcp.Tools;
 
@@ -18,12 +19,26 @@ builder.Logging.AddConsole(options =>
 });
 
 builder.Services.AddSingleton(configuration);
+builder.Services.AddSingleton(new WorkspaceLifecycleOptions(
+    configuration.SolutionPath,
+    new WorkspaceOpenOptions(Mode: WorkspaceMode.Server, EnableFileWatching: true)));
 builder.Services.AddSingleton<WorkspaceSessionHolder>();
 builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
+builder.Services.AddSingleton<WorkspaceQueryService>();
 
 builder.Services
     .AddMcpServer()
     .WithStdioServerTransport()
-    .WithTools<WorkspaceStatusTool>();
+    .WithTools<WorkspaceStatusTool>()
+    .WithTools<DescribeTypeTool>()
+    .WithTools<FindImplementationsTool>()
+    .WithTools<FindReferencesTool>()
+    .WithTools<GetTypeAtTool>()
+    .WithTools<OutlineFileTool>()
+    .WithTools<GetSymbolDocsTool>()
+    .WithTools<CallHierarchyTool>()
+    .WithTools<GetTypeDependenciesTool>()
+    .WithTools<SafeToDeleteTool>()
+    .WithTools<DecompileTypeTool>();
 
 await builder.Build().RunAsync();
