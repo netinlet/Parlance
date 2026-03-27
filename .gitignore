@@ -491,3 +491,4 @@ src/Parlance.Analyzers.Upstream/analyzer-dlls/
 
 # Local MCP server config (contains machine-specific paths)
 .mcp.json
+analyzers_research/
