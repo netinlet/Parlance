@@ -110,7 +110,7 @@ public sealed class IdiomaticScoreCalculatorTests
     {
         ImmutableList<Diagnostic> diagnostics =
         [
-            new("PARL0001", "Modernization", DiagnosticSeverity.Silent,
+            new("PARL9003", "Modernization", DiagnosticSeverity.Silent,
                 "test", DummyLocation)
         ];
 
