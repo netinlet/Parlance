@@ -142,6 +142,14 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             """;
         File.WriteAllText(Path.Combine(projectDir, "Test.csproj"), csproj);
 
+        // Elevate PARL9003 to warning so it appears in dotnet build output
+        // (default severity is Info, which dotnet build suppresses)
+        var editorConfig = """
+            is_global = true
+            dotnet_diagnostic.PARL9003.severity = warning
+            """;
+        File.WriteAllText(Path.Combine(projectDir, ".editorconfig"), editorConfig);
+
         return projectDir;
     }
 
