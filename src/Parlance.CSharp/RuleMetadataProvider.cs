@@ -2,12 +2,12 @@ using System.Collections.Frozen;
 
 namespace Parlance.CSharp;
 
-internal sealed record RuleMetadata(
+public sealed record RuleMetadata(
     string Category,
     string? Rationale,
     string? SuggestedFix);
 
-internal static class RuleMetadataProvider
+public static class RuleMetadataProvider
 {
     private static readonly FrozenDictionary<string, RuleMetadata> CuratedMetadata =
         new Dictionary<string, RuleMetadata>

@@ -6,7 +6,7 @@ using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Parlance.Analyzers.Upstream;
 
-internal static class AnalyzerLoader
+public static class AnalyzerLoader
 {
     private static readonly HashSet<string> SupportedFrameworks = ["net8.0", "net10.0"];
 

@@ -7,7 +7,7 @@ using RoslynDiagnostic = Microsoft.CodeAnalysis.Diagnostic;
 
 namespace Parlance.CSharp;
 
-internal static class DiagnosticEnricher
+public static class DiagnosticEnricher
 {
     public static ImmutableList<ParlanceDiagnostic> ToParlanceDiagnostics(this IEnumerable<RoslynDiagnostic> diagnostics)
     {
