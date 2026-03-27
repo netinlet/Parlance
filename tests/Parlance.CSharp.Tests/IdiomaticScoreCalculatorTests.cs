@@ -25,7 +25,7 @@ public sealed class IdiomaticScoreCalculatorTests
     {
         ImmutableList<Diagnostic> diagnostics =
         [
-            new("PARL0001", "Modernization", DiagnosticSeverity.Error,
+            new("PARL9003", "Modernization", DiagnosticSeverity.Error,
                 "test", DummyLocation)
         ];
 
@@ -41,7 +41,7 @@ public sealed class IdiomaticScoreCalculatorTests
     {
         ImmutableList<Diagnostic> diagnostics =
         [
-            new("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
+            new("TEST0001", "PatternMatching", DiagnosticSeverity.Warning,
                 "test", DummyLocation)
         ];
 
@@ -56,7 +56,7 @@ public sealed class IdiomaticScoreCalculatorTests
     {
         ImmutableList<Diagnostic> diagnostics =
         [
-            new("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
+            new("TEST0002", "PatternMatching", DiagnosticSeverity.Suggestion,
                 "test", DummyLocation)
         ];
 
@@ -71,11 +71,11 @@ public sealed class IdiomaticScoreCalculatorTests
     {
         ImmutableList<Diagnostic> diagnostics =
         [
-            new("PARL0001", "Modernization", DiagnosticSeverity.Error,
+            new("PARL9003", "Modernization", DiagnosticSeverity.Error,
                 "test", DummyLocation),
-            new("PARL0004", "PatternMatching", DiagnosticSeverity.Warning,
+            new("TEST0001", "PatternMatching", DiagnosticSeverity.Warning,
                 "test", DummyLocation),
-            new("PARL0005", "PatternMatching", DiagnosticSeverity.Suggestion,
+            new("TEST0002", "PatternMatching", DiagnosticSeverity.Suggestion,
                 "test", DummyLocation),
         ];
 

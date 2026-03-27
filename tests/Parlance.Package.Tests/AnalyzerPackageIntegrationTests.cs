@@ -67,7 +67,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnalyzerPackage_ReportsParl0004_WhenIsFollowedByCast()
+    public async Task AnalyzerPackage_ReportsParl9003_WhenDefaultExpressionUsed()
     {
         var projectDir = CreateTestProject("AnalyzerTest", "Parlance.CSharp.Analyzers", "0.1.0");
         WriteViolationCode(projectDir);
@@ -77,7 +77,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             allowFailure: true,
             restoreFirst: projectDir);
 
-        Assert.Contains("PARL0004", output);
+        Assert.Contains("PARL9003", output);
     }
 
     [Fact]
@@ -91,7 +91,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             allowFailure: true,
             restoreFirst: projectDir);
 
-        Assert.Contains("PARL0004", output);
+        Assert.Contains("PARL9003", output);
     }
 
     [Fact]
@@ -147,20 +147,15 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
 
     private static void WriteViolationCode(string projectDir)
     {
-        // Code that triggers PARL0004: is-followed-by-cast pattern
+        // Code that triggers PARL9003: default(T) instead of default literal
         var code = """
             namespace TestApp;
 
             public class Example
             {
-                public string Describe(object obj)
+                public int GetDefault()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                        return s;
-                    }
-                    return string.Empty;
+                    return default(int);
                 }
             }
             """;

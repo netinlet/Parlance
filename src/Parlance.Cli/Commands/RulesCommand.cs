@@ -112,7 +112,7 @@ internal static class RulesCommand
 
     private static HashSet<string> DiscoverFixableIds()
     {
-        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
+        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL9003_UseDefaultLiteral).Assembly;
         return parlAssembly.DiscoverInstances<CodeFixProvider>()
             .SelectMany(fp => fp.FixableDiagnosticIds)
             .ToHashSet();

@@ -22,7 +22,7 @@ internal static class AnalyzerLoader
         var analyzers = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
 
         // Discover PARL analyzers from the Parlance.CSharp.Analyzers assembly
-        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL0001_PreferPrimaryConstructors).Assembly;
+        var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL9003_UseDefaultLiteral).Assembly;
         analyzers.AddRange(parlAssembly.DiscoverInstances<DiagnosticAnalyzer>());
 
         // Load upstream analyzer DLLs

@@ -14,7 +14,7 @@ public sealed class TextFormatterTests
                 new FileDiagnostic(
                     "src/Example.cs",
                     new Diagnostic(
-                        "PARL0001", "Naming", DiagnosticSeverity.Warning,
+                        "PARL9003", "Naming", DiagnosticSeverity.Warning,
                         "Use PascalCase for public members",
                         new Location(10, 5, 10, 15),
                         Rationale: "C# conventions require PascalCase",
@@ -27,7 +27,7 @@ public sealed class TextFormatterTests
         var result = formatter.Format(output);
 
         Assert.Contains("src/Example.cs(10,5)", result);
-        Assert.Contains("warning PARL0001", result);
+        Assert.Contains("warning PARL9003", result);
         Assert.Contains("Use PascalCase for public members", result);
         Assert.Contains("Rationale: C# conventions require PascalCase", result);
         Assert.Contains("Suggested: Rename to PascalCase", result);

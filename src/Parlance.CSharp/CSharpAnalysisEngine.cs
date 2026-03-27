@@ -14,13 +14,6 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
 
     private static readonly DiagnosticAnalyzer[] Analyzers =
     [
-        new PARL0001_PreferPrimaryConstructors(),
-        new PARL0002_PreferCollectionExpressions(),
-        new PARL0003_PreferRequiredProperties(),
-        new PARL0004_UsePatternMatchingOverIsCast(),
-        new PARL0005_UseSwitchExpression(),
-        new PARL9001_UseSimpleUsingDeclaration(),
-        new PARL9002_UseImplicitObjectCreation(),
         new PARL9003_UseDefaultLiteral(),
     ];
 
@@ -37,14 +30,22 @@ public sealed class CSharpAnalysisEngine : IAnalysisEngine
 
         var analyzersToRun = Analyzers.ExceptSuppressed(options.SuppressRules);
 
-        var compilationWithAnalyzers = compilation.WithAnalyzers(analyzersToRun);
+        ImmutableList<Diagnostic> enriched;
+        if (analyzersToRun.IsEmpty)
+        {
+            enriched = [];
+        }
+        else
+        {
+            var compilationWithAnalyzers = compilation.WithAnalyzers(analyzersToRun);
 
-        var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
+            var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
-        // Filter out suppressed rules (belt and suspenders)
-        var enriched = roslynDiagnostics
-            .Where(d => !options.SuppressRules.Contains(d.Id))
-            .ToParlanceDiagnostics();
+            // Filter out suppressed rules (belt and suspenders)
+            enriched = roslynDiagnostics
+                .Where(d => !options.SuppressRules.Contains(d.Id))
+                .ToParlanceDiagnostics();
+        }
 
         // Score reflects all diagnostics so the score represents true code quality
         var summary = IdiomaticScoreCalculator.Calculate(enriched);

@@ -15,7 +15,7 @@ public sealed class JsonFormatterTests
                 new FileDiagnostic(
                     "src/Example.cs",
                     new Diagnostic(
-                        "PARL0001", "Naming", DiagnosticSeverity.Warning,
+                        "PARL9003", "Naming", DiagnosticSeverity.Warning,
                         "Use PascalCase",
                         new Location(10, 5, 10, 15)))
             ],
@@ -30,7 +30,7 @@ public sealed class JsonFormatterTests
 
         Assert.Equal(JsonValueKind.Array, root.GetProperty("diagnostics").ValueKind);
         Assert.Equal(1, root.GetProperty("diagnostics").GetArrayLength());
-        Assert.Equal("PARL0001", root.GetProperty("diagnostics")[0].GetProperty("ruleId").GetString());
+        Assert.Equal("PARL9003", root.GetProperty("diagnostics")[0].GetProperty("ruleId").GetString());
         Assert.Equal(95.0, root.GetProperty("summary").GetProperty("idiomaticScore").GetDouble());
         Assert.Equal(3, root.GetProperty("summary").GetProperty("filesAnalyzed").GetInt32());
     }
@@ -43,7 +43,7 @@ public sealed class JsonFormatterTests
                 new FileDiagnostic(
                     "src/Example.cs",
                     new Diagnostic(
-                        "PARL0001", "Naming", DiagnosticSeverity.Error,
+                        "PARL9003", "Naming", DiagnosticSeverity.Error,
                         "Test message",
                         new Location(1, 1, 1, 10),
                         SuggestedFix: "Fix it"))
