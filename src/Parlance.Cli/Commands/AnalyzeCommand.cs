@@ -36,17 +36,17 @@ internal static class AnalyzeCommand
             var maxDiag = parseResult.GetValue(maxDiagOption);
             var curationSet = parseResult.GetValue(curationSetOption);
 
-            if (!File.Exists(path))
+            if (!path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) &&
+                !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             {
-                await Console.Error.WriteLineAsync($"File not found: {path}");
+                await Console.Error.WriteLineAsync("Path must point to a .sln or .csproj file.");
                 Environment.ExitCode = 2;
                 return;
             }
 
-            if (!path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) &&
-                !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            if (!File.Exists(path))
             {
-                await Console.Error.WriteLineAsync("Path must be a .sln or .csproj file.");
+                await Console.Error.WriteLineAsync($"File not found: {path}");
                 Environment.ExitCode = 2;
                 return;
             }
