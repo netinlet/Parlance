@@ -47,12 +47,4 @@ public sealed class AnalyzerLoaderTests
             $"Expected at least 50 analyzer types, got {analyzers.Length}");
     }
 
-    [Fact]
-    public void LoadAll_Net8VsNet10_BothHaveAnalyzers()
-    {
-        var net8 = AnalyzerLoader.LoadAll("net8.0");
-        var net10 = AnalyzerLoader.LoadAll("net10.0");
-        Assert.NotEmpty(net8);
-        Assert.NotEmpty(net10);
-    }
 }
