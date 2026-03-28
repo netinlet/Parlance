@@ -25,12 +25,9 @@ public sealed class WorkspaceAnalyzerTests : IDisposable
         File.WriteAllText(file, """
             class C
             {
-                void M(object obj)
+                int M()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                    }
+                    return default(int);
                 }
             }
             """);
@@ -38,7 +35,7 @@ public sealed class WorkspaceAnalyzerTests : IDisposable
         var result = await WorkspaceAnalyzer.AnalyzeAsync([file]);
 
         Assert.True(result.Diagnostics.Count > 0);
-        Assert.Contains(result.Diagnostics, d => d.Diagnostic.RuleId == "PARL0004");
+        Assert.Contains(result.Diagnostics, d => d.Diagnostic.RuleId == "PARL9003");
         Assert.Equal(1, result.FilesAnalyzed);
     }
 
@@ -67,18 +64,15 @@ public sealed class WorkspaceAnalyzerTests : IDisposable
         File.WriteAllText(file, """
             class C
             {
-                void M(object obj)
+                int M()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                    }
+                    return default(int);
                 }
             }
             """);
 
-        var result = await WorkspaceAnalyzer.AnalyzeAsync([file], suppressRules: ["PARL0004"]);
+        var result = await WorkspaceAnalyzer.AnalyzeAsync([file], suppressRules: ["PARL9003"]);
 
-        Assert.DoesNotContain(result.Diagnostics, d => d.Diagnostic.RuleId == "PARL0004");
+        Assert.DoesNotContain(result.Diagnostics, d => d.Diagnostic.RuleId == "PARL9003");
     }
 }

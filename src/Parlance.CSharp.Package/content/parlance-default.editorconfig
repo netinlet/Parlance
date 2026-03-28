@@ -7,13 +7,6 @@ root = true
 [*.cs]
 
 # === Parlance Custom Rules (PARL) ===
-dotnet_diagnostic.PARL0001.severity = suggestion
-dotnet_diagnostic.PARL0002.severity = suggestion
-dotnet_diagnostic.PARL0003.severity = suggestion
-dotnet_diagnostic.PARL0004.severity = warning
-dotnet_diagnostic.PARL0005.severity = suggestion
-dotnet_diagnostic.PARL9001.severity = suggestion
-dotnet_diagnostic.PARL9002.severity = suggestion
 dotnet_diagnostic.PARL9003.severity = suggestion
 
 # === Key CA Rule Overrides ===

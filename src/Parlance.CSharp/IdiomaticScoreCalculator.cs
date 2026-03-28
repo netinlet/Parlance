@@ -3,7 +3,7 @@ using Parlance.Abstractions;
 
 namespace Parlance.CSharp;
 
-internal static class IdiomaticScoreCalculator
+public static class IdiomaticScoreCalculator
 {
     public static AnalysisSummary Calculate(ImmutableList<Diagnostic> diagnostics)
     {

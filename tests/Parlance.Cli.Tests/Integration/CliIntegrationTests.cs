@@ -79,12 +79,9 @@ public sealed class CliIntegrationTests : IDisposable
         File.WriteAllText(file, """
             class C
             {
-                void M(object obj)
+                int M()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                    }
+                    return default(int);
                 }
             }
             """);
@@ -92,7 +89,7 @@ public sealed class CliIntegrationTests : IDisposable
         var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL0004", stdout);
+        Assert.Contains("PARL9003", stdout);
         Assert.Contains("Idiomatic score:", stdout);
     }
 
@@ -116,9 +113,9 @@ public sealed class CliIntegrationTests : IDisposable
         File.WriteAllText(file, """
             class C
             {
-                void M(object obj)
+                int M()
                 {
-                    if (obj is string) { var s = (string)obj; }
+                    return default(int);
                 }
             }
             """);
@@ -142,76 +139,26 @@ public sealed class CliIntegrationTests : IDisposable
     {
         var file = Path.Combine(_tempDir, "Test.cs");
         var original = """
-            using System;
-            using System.IO;
             class C
             {
-                void M()
-                {
-                    using (var stream = new MemoryStream())
-                    {
-                        stream.WriteByte(1);
-                    }
-                }
+                void M() { }
             }
             """;
         File.WriteAllText(file, original);
 
-        var (exitCode, stdout, _) = await RunCliAsync("fix", file);
+        var (exitCode, _, _) = await RunCliAsync("fix", file);
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("would be modified", stdout);
         Assert.Equal(original, File.ReadAllText(file));
     }
 
     [Fact]
-    public async Task Fix_Apply_ModifiesFile()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, """
-            using System;
-            using System.IO;
-            class C
-            {
-                void M()
-                {
-                    using (var stream = new MemoryStream())
-                    {
-                        stream.WriteByte(1);
-                    }
-                }
-            }
-            """);
-
-        var (exitCode, stdout, _) = await RunCliAsync("fix", file, "--apply");
-
-        Assert.Equal(0, exitCode);
-        Assert.Contains("Applied fixes", stdout);
-
-        var modified = File.ReadAllText(file);
-        Assert.Contains("using var stream", modified);
-    }
-
-    [Fact]
-    public async Task Rules_ShowsAllRules()
+    public async Task Rules_ShowsRules()
     {
         var (exitCode, stdout, _) = await RunCliAsync("rules");
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL0001", stdout);
-        Assert.Contains("PARL0004", stdout);
-        Assert.Contains("PARL9001", stdout);
-    }
-
-    [Fact]
-    public async Task Rules_Fixable_ShowsOnlyFixableRules()
-    {
-        var (exitCode, stdout, _) = await RunCliAsync("rules", "--fixable");
-
-        Assert.Equal(0, exitCode);
-        Assert.Contains("PARL0004", stdout);
-        Assert.Contains("PARL9001", stdout);
-        Assert.DoesNotContain("PARL0001", stdout);
+        Assert.Contains("PARL9003", stdout);
     }
 
     [Fact]
@@ -220,7 +167,7 @@ public sealed class CliIntegrationTests : IDisposable
         var (exitCode, stdout, _) = await RunCliAsync("rules");
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL0001", stdout);
+        Assert.Contains("PARL9003", stdout);
         Assert.Matches("(CA|IDE|RCS)", stdout);
     }
 
@@ -230,7 +177,7 @@ public sealed class CliIntegrationTests : IDisposable
         var (exitCode, stdout, _) = await RunCliAsync("rules", "--target-framework", "net8.0");
 
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL0001", stdout);
+        Assert.Contains("PARL9003", stdout);
     }
 
     [Fact]
@@ -249,17 +196,9 @@ public sealed class CliIntegrationTests : IDisposable
     {
         var file = Path.Combine(_tempDir, "Test.cs");
         File.WriteAllText(file, """
-            using System;
-            using System.IO;
             class C
             {
-                void M()
-                {
-                    using (var stream = new MemoryStream())
-                    {
-                        stream.WriteByte(1);
-                    }
-                }
+                void M() { }
             }
             """);
 
@@ -318,16 +257,13 @@ public sealed class CliIntegrationTests : IDisposable
     public async Task Analyze_ParlAndUpstreamDiagnostics_CoexistInOutput()
     {
         var file = Path.Combine(_tempDir, "Test.cs");
-        // Code that triggers both PARL0004 (pattern matching) and upstream diagnostics
+        // Code that triggers PARL9003 (default literal) and upstream diagnostics
         File.WriteAllText(file, """
             public class C
             {
-                public void M(object obj)
+                public int M()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                    }
+                    return default(int);
                 }
             }
             """);
@@ -336,7 +272,7 @@ public sealed class CliIntegrationTests : IDisposable
 
         Assert.Equal(0, exitCode);
         // PARL diagnostics still fire
-        Assert.Contains("PARL0004", stdout);
+        Assert.Contains("PARL9003", stdout);
         // Upstream diagnostics also fire alongside PARL ones
         Assert.Matches("(CA|IDE|RCS)", stdout);
     }
@@ -387,67 +323,5 @@ public sealed class CliIntegrationTests : IDisposable
         Assert.Equal(0, exitCode);
         Assert.DoesNotContain("No .cs files found", stderr);
         Assert.Contains("Idiomatic score:", stdout);
-    }
-
-    // fix --apply should preserve original file encoding and BOM
-    [Fact]
-    public async Task Fix_Apply_PreservesBom()
-    {
-        var file = Path.Combine(_tempDir, "BomTest.cs");
-        var bom = new byte[] { 0xEF, 0xBB, 0xBF };
-        var content = """
-            using System;
-            using System.IO;
-            class C
-            {
-                void M()
-                {
-                    using (var stream = new MemoryStream())
-                    {
-                        stream.WriteByte(1);
-                    }
-                }
-            }
-            """u8;
-
-        using (var fs = File.Create(file))
-        {
-            fs.Write(bom);
-            fs.Write(content);
-        }
-
-        var (exitCode, _, _) = await RunCliAsync("fix", file, "--apply");
-        Assert.Equal(0, exitCode);
-
-        var bytes = File.ReadAllBytes(file);
-        Assert.True(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
-            "UTF-8 BOM should be preserved after fix --apply");
-    }
-
-    [Fact]
-    public async Task Fix_Apply_DoesNotAddBomWhenNoneExisted()
-    {
-        var file = Path.Combine(_tempDir, "NoBomTest.cs");
-        File.WriteAllText(file, """
-            using System;
-            using System.IO;
-            class C
-            {
-                void M()
-                {
-                    using (var stream = new MemoryStream())
-                    {
-                        stream.WriteByte(1);
-                    }
-                }
-            }
-            """);
-
-        var (exitCode, _, _) = await RunCliAsync("fix", file, "--apply");
-        Assert.Equal(0, exitCode);
-
-        var bytes = File.ReadAllBytes(file);
-        Assert.False(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF,
-            "No BOM should be added when original file had none");
     }
 }

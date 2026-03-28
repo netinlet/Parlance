@@ -8,19 +8,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Parlance.Abstractions\Parlance.Abstractions.csproj" />
+    <ProjectReference Include="..\Parlance.CSharp.Workspace\Parlance.CSharp.Workspace.csproj" />
+    <ProjectReference Include="..\Parlance.CSharp\Parlance.CSharp.csproj" />
+    <ProjectReference Include="..\Parlance.Analyzers.Upstream\Parlance.Analyzers.Upstream.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Build.Locator" Version="1.7.8" />
-    <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Parlance.CSharp.Workspace.Tests" />
-    <InternalsVisibleTo Include="Parlance.Mcp.Tests" />
     <InternalsVisibleTo Include="Parlance.Analysis.Tests" />
   </ItemGroup>
 
