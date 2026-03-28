@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
-using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.CodeFixes;
 
 namespace Parlance.Analyzers.Upstream;
 
-public static class AnalyzerLoader
+public static class FixProviderLoader
 {
-    public static ImmutableArray<DiagnosticAnalyzer> LoadAll(string targetFramework)
+    public static ImmutableArray<CodeFixProvider> LoadAll(string targetFramework)
     {
         if (!AnalyzerDllScanner.SupportedFrameworks.Contains(targetFramework))
             throw new ArgumentException(
@@ -13,7 +13,7 @@ public static class AnalyzerLoader
                 nameof(targetFramework));
 
         return AnalyzerDllScanner.ScanAssemblies(targetFramework)
-            .SelectMany(a => a.DiscoverInstances<DiagnosticAnalyzer>())
+            .SelectMany(a => a.DiscoverInstances<CodeFixProvider>())
             .ToImmutableArray();
     }
 }

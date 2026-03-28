@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.0.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
@@ -54,13 +55,6 @@
   </Target>
 
   <ItemGroup>
-    <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Content Include="profiles/**/*.editorconfig">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="analyzer-dlls/**/*.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>analyzer-dlls/%(RecursiveDir)%(Filename)%(Extension)</Link>

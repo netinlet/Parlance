@@ -19,19 +19,6 @@ public sealed class AnalyzerLoaderTests
     }
 
     [Fact]
-    public void LoadAll_Net10_IncludesParlAnalyzers()
-    {
-        var analyzers = AnalyzerLoader.LoadAll("net10.0");
-        var parlIds = analyzers
-            .SelectMany(a => a.SupportedDiagnostics)
-            .Select(d => d.Id)
-            .Where(id => id.StartsWith("PARL"))
-            .ToList();
-
-        Assert.Contains("PARL9003", parlIds);
-    }
-
-    [Fact]
     public void LoadAll_Net10_IncludesUpstreamAnalyzers()
     {
         var analyzers = AnalyzerLoader.LoadAll("net10.0");
