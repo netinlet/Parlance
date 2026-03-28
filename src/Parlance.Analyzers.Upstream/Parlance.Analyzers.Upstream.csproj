@@ -34,6 +34,12 @@
                       GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0"
                       GeneratePathProperty="true" ExcludeAssets="all" />
+    <!-- CodeStyle fix providers reference Microsoft.Bcl.AsyncInterfaces 9.0.0 as a transitive dep.
+         That version is not in the NuGet cache; we ship 10.0.0 instead. The custom AssemblyLoadContext
+         Resolving handler returns it regardless of the requested version, which works because all
+         types are type-forwarded to System.Runtime on net10.0. -->
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0"
+                      GeneratePathProperty="true" ExcludeAssets="all" />
   </ItemGroup>
 
   <Target Name="CopyAnalyzerDlls" AfterTargets="Build"
@@ -46,10 +52,14 @@
       <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/cs/**/*.dll" />
       <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/roslyn*/cs/**/*.dll" />
       <_RoslynatorDlls Include="$(PkgRoslynator_Analyzers)/analyzers/dotnet/*.dll" />
+      <!-- Shim: CodeStyle fix providers declare a ref to Microsoft.Bcl.AsyncInterfaces 9.0.0.
+           Ship a compatible version so the custom ALC resolver can find it by name. -->
+      <_BclShimDlls Include="$(PkgMicrosoft_Bcl_AsyncInterfaces)/lib/netstandard2.0/*.dll"
+                    Condition="'$(PkgMicrosoft_Bcl_AsyncInterfaces)' != ''" />
     </ItemGroup>
 
     <MakeDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
-    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls)"
+    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls);@(_BclShimDlls)"
           DestinationFolder="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)"
           SkipUnchangedFiles="true" />
   </Target>

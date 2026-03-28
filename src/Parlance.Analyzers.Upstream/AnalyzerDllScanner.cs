@@ -24,7 +24,16 @@ internal static class AnalyzerDllScanner
             {
                 var loadContext = new AssemblyLoadContext(Path.GetFileName(dllPath), isCollectible: false);
                 loadContext.Resolving += (alc, assemblyName) =>
-                    ResolveFromDirectory(alc, assemblyName, analyzerDir);
+                {
+                    var local = ResolveFromDirectory(alc, assemblyName, analyzerDir);
+                    if (local is not null) return local;
+
+                    // Fall back to the default ALC for BCL/runtime assemblies.
+                    // On net10.0 the BCL shims (e.g. Microsoft.Bcl.AsyncInterfaces) are built-in,
+                    // so the default ALC will resolve them regardless of the requested version.
+                    try { return AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName); }
+                    catch { return null; }
+                };
                 assembly = loadContext.LoadFromAssemblyPath(dllPath);
             }
             catch (Exception ex)
