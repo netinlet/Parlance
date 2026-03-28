@@ -3,6 +3,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using ModelContextProtocol;
+using Parlance.Analysis;
+using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
 using Parlance.Mcp;
 using Parlance.Mcp.Tools;
@@ -25,6 +27,8 @@ builder.Services.AddSingleton(new WorkspaceLifecycleOptions(
 builder.Services.AddSingleton<WorkspaceSessionHolder>();
 builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
 builder.Services.AddSingleton<WorkspaceQueryService>();
+builder.Services.AddSingleton<CurationSetProvider>();
+builder.Services.AddSingleton<AnalysisService>();
 
 builder.Services
     .AddMcpServer()
@@ -39,6 +43,7 @@ builder.Services
     .WithTools<CallHierarchyTool>()
     .WithTools<GetTypeDependenciesTool>()
     .WithTools<SafeToDeleteTool>()
-    .WithTools<DecompileTypeTool>();
+    .WithTools<DecompileTypeTool>()
+    .WithTools<AnalyzeTool>();
 
 await builder.Build().RunAsync();

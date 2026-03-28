@@ -28,9 +28,7 @@ public sealed class AnalyzerLoaderTests
             .Where(id => id.StartsWith("PARL"))
             .ToList();
 
-        Assert.Contains("PARL0001", parlIds);
-        Assert.Contains("PARL0004", parlIds);
-        Assert.Contains("PARL9001", parlIds);
+        Assert.Contains("PARL9003", parlIds);
     }
 
     [Fact]

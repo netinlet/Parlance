@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Parlance.Analysis\Parlance.Analysis.csproj" />
     <ProjectReference Include="..\Parlance.CSharp.Workspace\Parlance.CSharp.Workspace.csproj" />
   </ItemGroup>
 
