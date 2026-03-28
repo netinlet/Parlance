@@ -11,8 +11,8 @@ public sealed class WorkspaceSessionHolder : IAsyncDisposable
     public bool IsLoaded => _session is not null;
     public WorkspaceLoadFailure? LoadFailure => _loadFailure;
 
-    internal void SetSession(CSharpWorkspaceSession session) => _session = session;
-    internal void SetLoadFailure(WorkspaceLoadFailure failure) => _loadFailure = failure;
+    public void SetSession(CSharpWorkspaceSession session) => _session = session;
+    public void SetLoadFailure(WorkspaceLoadFailure failure) => _loadFailure = failure;
 
     public async ValueTask DisposeAsync()
     {
