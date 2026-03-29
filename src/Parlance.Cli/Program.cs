@@ -9,6 +9,7 @@ using Parlance.CSharp.Workspace;
 var services = new ServiceCollection()
     .AddLogging(b => b.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace).SetMinimumLevel(LogLevel.Warning))
     .AddSingleton<CurationSetProvider>()
+    .AddSingleton<WorkspaceSessionHolder>()
     .AddSingleton<WorkspaceQueryService>()
     .AddSingleton<AnalysisService>();
 

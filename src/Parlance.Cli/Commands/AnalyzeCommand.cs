@@ -51,6 +51,7 @@ internal static class AnalyzeCommand
                 return;
             }
 
+            var holder = services.GetRequiredService<WorkspaceSessionHolder>();
             var analysis = services.GetRequiredService<AnalysisService>();
             var loggerFactory = services.GetRequiredService<ILoggerFactory>();
             var openOptions = new WorkspaceOpenOptions(Mode: WorkspaceMode.Report, LoggerFactory: loggerFactory);
@@ -69,46 +70,46 @@ internal static class AnalyzeCommand
                 return;
             }
 
-            await using (session)
+            // Holder takes ownership; it disposes the session when the DI container disposes.
+            holder.SetSession(session);
+
+            var allFiles = session.CurrentSolution.Projects
+                .SelectMany(p => p.Documents)
+                .Select(d => d.FilePath)
+                .OfType<string>()
+                .Where(p => File.Exists(p) &&
+                            !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
+                .ToImmutableList();
+
+            FileAnalysisResult result;
+            try
             {
-                var allFiles = session.CurrentSolution.Projects
-                    .SelectMany(p => p.Documents)
-                    .Select(d => d.FilePath)
-                    .OfType<string>()
-                    .Where(p => File.Exists(p) &&
-                                !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-                    .ToImmutableList();
+                result = await analysis.AnalyzeFilesAsync(allFiles, new AnalyzeOptions(curationSet, maxDiag), ct);
+            }
+            catch (ArgumentException ex)
+            {
+                await Console.Error.WriteLineAsync(ex.Message);
+                Environment.ExitCode = 2;
+                return;
+            }
 
-                FileAnalysisResult result;
-                try
+            // Post-filter for --suppress (score already reflects all diagnostics)
+            if (suppress.Length > 0)
+                result = result with
                 {
-                    result = await analysis.AnalyzeFilesAsync(allFiles, new AnalyzeOptions(curationSet, maxDiag), ct);
-                }
-                catch (ArgumentException ex)
-                {
-                    await Console.Error.WriteLineAsync(ex.Message);
-                    Environment.ExitCode = 2;
-                    return;
-                }
-
-                // Post-filter for --suppress (score already reflects all diagnostics)
-                if (suppress.Length > 0)
-                    result = result with
-                    {
-                        Diagnostics = result.Diagnostics
-                            .Where(d => !suppress.Contains(d.RuleId))
-                            .ToImmutableList()
-                    };
-
-                IOutputFormatter formatter = format.ToLowerInvariant() switch
-                {
-                    "text" => new TextFormatter(),
-                    "json" => new JsonFormatter(),
-                    _ => throw new InvalidOperationException($"Unknown format: {format}"),
+                    Diagnostics = result.Diagnostics
+                        .Where(d => !suppress.Contains(d.RuleId))
+                        .ToImmutableList()
                 };
 
-                Console.Write(formatter.Format(result));
-            }
+            IOutputFormatter formatter = format.ToLowerInvariant() switch
+            {
+                "text" => new TextFormatter(),
+                "json" => new JsonFormatter(),
+                _ => throw new InvalidOperationException($"Unknown format: {format}"),
+            };
+
+            Console.Write(formatter.Format(result));
         });
 
         return command;
