@@ -27,11 +27,11 @@ public sealed class FindImplementationsToolTests : IAsyncLifetime
     {
         var result = await FindImplementationsTool.FindImplementations(
             _holder, _query, NullLogger<FindImplementationsTool>.Instance,
-            "IAnalysisEngine", CancellationToken.None);
+            "IOutputFormatter", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.NotNull(result.TargetType);
-        Assert.Contains("IAnalysisEngine", result.TargetType);
+        Assert.Contains("IOutputFormatter", result.TargetType);
         Assert.NotEmpty(result.Implementations);
         Assert.All(result.Implementations, entry => Assert.NotNull(entry.FullyQualifiedName));
     }
