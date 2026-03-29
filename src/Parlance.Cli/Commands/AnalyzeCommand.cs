@@ -51,7 +51,6 @@ internal static class AnalyzeCommand
                 return;
             }
 
-            var holder = services.GetRequiredService<WorkspaceSessionHolder>();
             var analysis = services.GetRequiredService<AnalysisService>();
             var loggerFactory = services.GetRequiredService<ILoggerFactory>();
             var openOptions = new WorkspaceOpenOptions(Mode: WorkspaceMode.Report, LoggerFactory: loggerFactory);
@@ -72,8 +71,6 @@ internal static class AnalyzeCommand
 
             await using (session)
             {
-                holder.SetSession(session);
-
                 var allFiles = session.CurrentSolution.Projects
                     .SelectMany(p => p.Documents)
                     .Select(d => d.FilePath)

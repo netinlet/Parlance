@@ -1,15 +1,14 @@
+using System.CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.Cli.Commands;
 using Parlance.CSharp.Workspace;
-using System.CommandLine;
 
 var services = new ServiceCollection()
     .AddLogging(b => b.AddConsole(o => o.LogToStandardErrorThreshold = LogLevel.Trace).SetMinimumLevel(LogLevel.Warning))
     .AddSingleton<CurationSetProvider>()
-    .AddSingleton<WorkspaceSessionHolder>()
     .AddSingleton<WorkspaceQueryService>()
     .AddSingleton<AnalysisService>();
 
