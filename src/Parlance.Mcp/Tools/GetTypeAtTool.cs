@@ -100,15 +100,9 @@ public sealed class GetTypeAtTool
 
                 if (typeSymbol is null)
                 {
-                    // Return info about the non-type symbol itself
-                    return new GetTypeAtResult(
-                        Status: "found",
-                        TypeName: symbol.Name,
-                        FullyQualifiedName: symbol.ToDisplayString(),
-                        Kind: symbol.Kind.ToString(),
-                        IsInferred: false,
-                        SourceText: text.Lines[zeroLine].ToString().Trim(),
-                        Message: null);
+                    return GetTypeAtResult.Found(
+                        symbol.Name, symbol.ToDisplayString(), symbol.Kind.ToString(),
+                        false, text.Lines[zeroLine].ToString().Trim());
                 }
             }
         }
@@ -118,14 +112,9 @@ public sealed class GetTypeAtTool
 
         var sourceLine = zeroLine < text.Lines.Count ? text.Lines[zeroLine].ToString().Trim() : null;
 
-        return new GetTypeAtResult(
-            Status: "found",
-            TypeName: typeSymbol.Name,
-            FullyQualifiedName: typeSymbol.ToDisplayString(),
-            Kind: typeSymbol.TypeKind.ToString(),
-            IsInferred: isInferred,
-            SourceText: sourceLine,
-            Message: null);
+        return GetTypeAtResult.Found(
+            typeSymbol.Name, typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
+            isInferred, sourceLine);
     }
 }
 
@@ -147,4 +136,8 @@ public sealed record GetTypeAtResult(
 
     public static GetTypeAtResult LoadFailed(string message) => new(
         "load_failed", null, null, null, false, null, message);
+    public static GetTypeAtResult Found(
+        string typeName, string fullyQualifiedName, string kind,
+        bool isInferred, string? sourceText) => new(
+        "found", typeName, fullyQualifiedName, kind, isInferred, sourceText, null);
 }

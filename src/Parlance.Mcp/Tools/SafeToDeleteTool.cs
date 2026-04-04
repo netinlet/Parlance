@@ -52,14 +52,8 @@ public sealed class SafeToDeleteTool
             }
         }
 
-        return new SafeToDeleteResult(
-            Status: "found",
-            SymbolName: symbol.ToDisplayString(),
-            Safe: totalCount == 0,
-            ReferenceCount: totalCount,
-            SampleLocations: [.. locations],
-            Candidates: [],
-            Message: null);
+        return SafeToDeleteResult.Found(
+            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations]);
     }
 }
 
@@ -78,6 +72,10 @@ public sealed record SafeToDeleteResult(
     public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, false, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+    public static SafeToDeleteResult Found(
+        string symbolName, bool safe, int referenceCount,
+        ImmutableList<DeleteReferenceLocation> sampleLocations) => new(
+        "found", symbolName, safe, referenceCount, sampleLocations, [], null);
 }
 
 public sealed record DeleteReferenceLocation(string? FilePath, int Line);

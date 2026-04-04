@@ -49,8 +49,11 @@ public sealed class GotoDefinitionTool
 
         if (hasPosition)
         {
-            var zeroLine = line!.Value - 1;
-            var zeroCol = column!.Value - 1;
+            if (line!.Value < 1 || column!.Value < 1)
+                return GotoDefinitionResult.Error("line and column must be >= 1 (1-based).");
+
+            var zeroLine = line.Value - 1;
+            var zeroCol = column.Value - 1;
             targetSymbol = await query.GetSymbolAtPositionAsync(filePath!, zeroLine, zeroCol, ct);
 
             if (targetSymbol is null)
@@ -62,9 +65,9 @@ public sealed class GotoDefinitionTool
             if (symbols.IsEmpty)
                 return GotoDefinitionResult.NotFound(symbolName!);
 
-            if (symbols.Count > 1 && !symbolName!.Contains('.'))
+            if (symbols.Count > 1)
             {
-                return GotoDefinitionResult.Ambiguous(symbolName,
+                return GotoDefinitionResult.Ambiguous(symbolName!,
                     [.. symbols.Select(s => s.ToCandidate())]);
             }
 

@@ -38,17 +38,9 @@ public sealed class GetSymbolDocsTool
         if (docs is null)
             return GetSymbolDocsResult.NoDocs(symbolName);
 
-        return new GetSymbolDocsResult(
-            Status: "found",
-            SymbolName: symbol.ToDisplayString(),
-            Summary: docs.Summary,
-            Returns: docs.Returns,
-            Remarks: docs.Remarks,
-            Params: docs.Params,
-            TypeParams: docs.TypeParams,
-            Exceptions: docs.Exceptions,
-            Candidates: [],
-            Message: null);
+        return GetSymbolDocsResult.Found(
+            symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,
+            docs.Params, docs.TypeParams, docs.Exceptions);
     }
 
     private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)
@@ -186,6 +178,11 @@ public sealed record GetSymbolDocsResult(
     public static GetSymbolDocsResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, null, null, null, [], [], [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+    public static GetSymbolDocsResult Found(
+        string symbolName, string? summary, string? returns, string? remarks,
+        ImmutableList<DocParam> parms, ImmutableList<DocParam> typeParams,
+        ImmutableList<DocParam> exceptions) => new(
+        "found", symbolName, summary, returns, remarks, parms, typeParams, exceptions, [], null);
 }
 
 public sealed record DocParam(string Name, string Description);

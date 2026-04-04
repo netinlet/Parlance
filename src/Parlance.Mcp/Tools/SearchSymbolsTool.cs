@@ -32,6 +32,11 @@ public sealed class SearchSymbolsTool
         if (!holder.IsLoaded)
             return SearchSymbolsResult.NotLoaded();
 
+        if (string.IsNullOrWhiteSpace(searchQuery))
+            return SearchSymbolsResult.Error("searchQuery must not be blank.");
+        if (maxResults < 1)
+            return SearchSymbolsResult.Error("maxResults must be >= 1.");
+
         var parsed = kind is not null ? ParseKind(kind) : null;
         if (kind is not null && parsed is null)
             return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
@@ -39,19 +44,13 @@ public sealed class SearchSymbolsTool
         // Request more than maxResults so we can report accurate TotalMatches after post-filtering
         var (results, _) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, maxResults * 10, ct);
 
-        // Post-filter by specific kind (e.g., "class" not just "Type")
-        if (parsed is { TypeKind: { } typeKind })
+        results = parsed switch
         {
-            results = results
-                .Where(r => r.Symbol is INamedTypeSymbol nts && nts.TypeKind == typeKind)
-                .ToImmutableList();
-        }
-        else if (parsed is { MemberKind: { } memberKind })
-        {
-            results = results
-                .Where(r => r.Symbol.Kind == memberKind)
-                .ToImmutableList();
-        }
+            // Post-filter by specific kind (e.g., "class" not just "Type")
+            { TypeKind: { } typeKind } => [.. results.Where(r => r.Symbol is INamedTypeSymbol nts && nts.TypeKind == typeKind)],
+            { MemberKind: { } memberKind } => [.. results.Where(r => r.Symbol.Kind == memberKind)],
+            _ => results
+        };
 
         if (results.IsEmpty)
             return SearchSymbolsResult.NoMatches(searchQuery);

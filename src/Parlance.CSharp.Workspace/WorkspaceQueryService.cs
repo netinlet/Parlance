@@ -27,7 +27,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var simpleName = isQualified ? name[(name.LastIndexOf('.') + 1)..] : name;
 
         var results = new List<ResolvedSymbol>();
-        await foreach (var (project, _) in GetCompilationsAsync(ct))
+        foreach (var project in Session.CurrentSolution.Projects)
         {
             var declarations = await SymbolFinder.FindDeclarationsAsync(project, simpleName, ignoreCase, filter, ct);
             results.AddRange(declarations.Select(s => new ResolvedSymbol(s, project)));
@@ -68,7 +68,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         logger.LogDebug("SearchSymbols: {Query}, Kind: {Kind}, Max: {Max}", query, kindFilter, maxResults);
 
         var results = new List<ResolvedSymbol>();
-        await foreach (var (project, _) in GetCompilationsAsync(ct))
+        foreach (var project in Session.CurrentSolution.Projects)
         {
             var declarations = await SymbolFinder.FindDeclarationsAsync(
                 project, query, ignoreCase: true, filter: kindFilter ?? SymbolFilter.All, ct);
