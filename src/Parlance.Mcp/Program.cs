@@ -37,6 +37,7 @@ builder.Services
     .WithTools<DescribeTypeTool>()
     .WithTools<FindImplementationsTool>()
     .WithTools<FindReferencesTool>()
+    .WithTools<GotoDefinitionTool>()
     .WithTools<GetTypeAtTool>()
     .WithTools<OutlineFileTool>()
     .WithTools<GetSymbolDocsTool>()
