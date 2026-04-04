@@ -36,7 +36,8 @@ public sealed class GetTypeDependenciesTool
             return GetTypeDependenciesResult.NotFound(typeName);
 
         // Get all solution assembly names to filter out framework types
-        var solutionAssemblies = holder.Session.CurrentSolution.Projects
+        var solution = holder.Session.CurrentSolution;
+        var solutionAssemblies = solution.Projects
             .Select(p => p.AssemblyName)
             .ToHashSet();
 

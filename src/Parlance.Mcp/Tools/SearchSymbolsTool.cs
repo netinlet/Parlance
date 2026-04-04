@@ -41,8 +41,9 @@ public sealed class SearchSymbolsTool
         if (kind is not null && parsed is null)
             return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
 
-        // Request more than maxResults so we can report accurate TotalMatches after post-filtering
-        var (results, _) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, maxResults * 10, ct);
+        // Request more than maxResults so we can post-filter by specific kind
+        var requestLimit = maxResults * 10;
+        var (results, _) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, requestLimit, ct);
 
         results = parsed switch
         {
@@ -56,6 +57,7 @@ public sealed class SearchSymbolsTool
             return SearchSymbolsResult.NoMatches(searchQuery);
 
         var totalMatches = results.Count;
+        var isTruncated = totalMatches >= requestLimit;
 
         var matches = results.Take(maxResults).Select(r =>
         {
@@ -70,7 +72,7 @@ public sealed class SearchSymbolsTool
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
-        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches);
+        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated);
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
@@ -92,18 +94,20 @@ public sealed record SearchSymbolsResult(
     string Status, string? Query,
     ImmutableList<SymbolMatch> Matches,
     int TotalMatches,
+    bool IsTruncated,
     string? Message)
 {
-    public static SearchSymbolsResult Found(string searchQuery, ImmutableList<SymbolMatch> matches, int totalMatches) => new(
-        "found", searchQuery, matches, totalMatches, null);
+    public static SearchSymbolsResult Found(string searchQuery, ImmutableList<SymbolMatch> matches,
+        int totalMatches, bool isTruncated) => new(
+        "found", searchQuery, matches, totalMatches, isTruncated, null);
     public static SearchSymbolsResult NoMatches(string searchQuery) => new(
-        "no_matches", searchQuery, [], 0, $"No symbols matching '{searchQuery}' found in the workspace");
+        "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace");
     public static SearchSymbolsResult NotLoaded() => new(
-        "not_loaded", null, [], 0, "Workspace is still loading");
+        "not_loaded", null, [], 0, false, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(
-        "load_failed", null, [], 0, message);
+        "load_failed", null, [], 0, false, message);
     public static SearchSymbolsResult Error(string message) => new(
-        "error", null, [], 0, message);
+        "error", null, [], 0, false, message);
 }
 
 public sealed record SymbolMatch(

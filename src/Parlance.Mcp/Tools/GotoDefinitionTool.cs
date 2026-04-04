@@ -65,9 +65,9 @@ public sealed class GotoDefinitionTool
             if (symbols.IsEmpty)
                 return GotoDefinitionResult.NotFound(symbolName!);
 
-            if (symbols.Count > 1)
+            if (symbols.Count > 1 && !symbolName!.Contains('.'))
             {
-                return GotoDefinitionResult.Ambiguous(symbolName!,
+                return GotoDefinitionResult.Ambiguous(symbolName,
                     [.. symbols.Select(s => s.ToCandidate())]);
             }
 

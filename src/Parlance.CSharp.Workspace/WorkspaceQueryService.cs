@@ -17,7 +17,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     {
         logger.LogDebug("FindSymbols: {Name}, Filter: {Filter}, IgnoreCase: {IgnoreCase}", name, filter, ignoreCase);
 
-        var solutionAssemblyNames = Session.CurrentSolution.Projects
+        var solution = Session.CurrentSolution;
+        var solutionAssemblyNames = solution.Projects
             .Select(p => p.AssemblyName).ToHashSet();
 
         // FindDeclarationsAsync matches by simple (unqualified) name only.
@@ -27,7 +28,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var simpleName = isQualified ? name[(name.LastIndexOf('.') + 1)..] : name;
 
         var results = new List<ResolvedSymbol>();
-        foreach (var project in Session.CurrentSolution.Projects)
+        foreach (var project in solution.Projects)
         {
             var declarations = await SymbolFinder.FindDeclarationsAsync(project, simpleName, ignoreCase, filter, ct);
             results.AddRange(declarations.Select(s => new ResolvedSymbol(s, project)));
@@ -67,8 +68,9 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     {
         logger.LogDebug("SearchSymbols: {Query}, Kind: {Kind}, Max: {Max}", query, kindFilter, maxResults);
 
+        var solution = Session.CurrentSolution;
         var results = new List<ResolvedSymbol>();
-        foreach (var project in Session.CurrentSolution.Projects)
+        foreach (var project in solution.Projects)
         {
             var declarations = await SymbolFinder.FindDeclarationsAsync(
                 project, query, ignoreCase: true, filter: kindFilter ?? SymbolFilter.All, ct);
@@ -77,6 +79,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
         var deduplicated = results
             .DistinctBy(r => r.Symbol.ToDisplayString())
+            .Where(r => r.Symbol.CanBeReferencedByName)
             .ToList();
 
         var totalCount = deduplicated.Count;
@@ -86,7 +89,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
     public async Task<Compilation?> GetCompilationAsync(string projectName, CancellationToken ct = default)
     {
-        var project = Session.CurrentSolution.Projects.FirstOrDefault(p => p.Name == projectName);
+        var solution = Session.CurrentSolution;
+        var project = solution.Projects.FirstOrDefault(p => p.Name == projectName);
         return project is null ? null : await GetCompilationAsync(project, ct);
     }
 
@@ -99,7 +103,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     public async IAsyncEnumerable<(Project Project, Compilation Compilation)> GetCompilationsAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        foreach (var project in Session.CurrentSolution.Projects)
+        var solution = Session.CurrentSolution;
+        foreach (var project in solution.Projects)
         {
             Compilation compilation;
             try
@@ -118,10 +123,11 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
     public async Task<SemanticModel?> GetSemanticModelAsync(string filePath, CancellationToken ct = default)
     {
-        var docId = Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+        var solution = Session.CurrentSolution;
+        var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
         if (docId is null) return null;
 
-        var document = Session.CurrentSolution.GetDocument(docId);
+        var document = solution.GetDocument(docId);
         if (document is null) return null;
 
         var compilation = await GetCompilationAsync(document.Project, ct);
