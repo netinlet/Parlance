@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
@@ -10,33 +11,36 @@ namespace Parlance.Mcp.Tools;
 [McpServerToolType]
 public sealed class SearchSymbolsTool
 {
-    private static readonly Dictionary<string, SymbolFilter> KindMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["class"] = SymbolFilter.Type,
-        ["struct"] = SymbolFilter.Type,
-        ["interface"] = SymbolFilter.Type,
-        ["enum"] = SymbolFilter.Type,
-        ["method"] = SymbolFilter.Member,
-        ["property"] = SymbolFilter.Member,
-        ["field"] = SymbolFilter.Member,
-        ["event"] = SymbolFilter.Member,
-    };
+    private static readonly FrozenDictionary<string, SymbolFilter> KindMap =
+        new Dictionary<string, SymbolFilter>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["class"] = SymbolFilter.Type,
+            ["struct"] = SymbolFilter.Type,
+            ["interface"] = SymbolFilter.Type,
+            ["enum"] = SymbolFilter.Type,
+            ["method"] = SymbolFilter.Member,
+            ["property"] = SymbolFilter.Member,
+            ["field"] = SymbolFilter.Member,
+            ["event"] = SymbolFilter.Member,
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, TypeKind> TypeKindMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["class"] = TypeKind.Class,
-        ["struct"] = TypeKind.Struct,
-        ["interface"] = TypeKind.Interface,
-        ["enum"] = TypeKind.Enum,
-    };
+    private static readonly FrozenDictionary<string, TypeKind> TypeKindMap =
+        new Dictionary<string, TypeKind>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["class"] = TypeKind.Class,
+            ["struct"] = TypeKind.Struct,
+            ["interface"] = TypeKind.Interface,
+            ["enum"] = TypeKind.Enum,
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
-    private static readonly Dictionary<string, SymbolKind> MemberKindMap = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["method"] = SymbolKind.Method,
-        ["property"] = SymbolKind.Property,
-        ["field"] = SymbolKind.Field,
-        ["event"] = SymbolKind.Event,
-    };
+    private static readonly FrozenDictionary<string, SymbolKind> MemberKindMap =
+        new Dictionary<string, SymbolKind>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["method"] = SymbolKind.Method,
+            ["property"] = SymbolKind.Property,
+            ["field"] = SymbolKind.Field,
+            ["event"] = SymbolKind.Event,
+        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
 
     [McpServerTool(Name = "search-symbols", ReadOnly = true)]
     [Description("Fuzzy search for symbols by name across the workspace. " +
@@ -61,8 +65,12 @@ public sealed class SearchSymbolsTool
             return SearchSymbolsResult.NotLoaded();
 
         SymbolFilter? symbolFilter = null;
-        if (kind is not null && KindMap.TryGetValue(kind, out var filter))
+        if (kind is not null)
+        {
+            if (!KindMap.TryGetValue(kind, out var filter))
+                return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
             symbolFilter = filter;
+        }
 
         // Request more than maxResults so we can report accurate TotalMatches after post-filtering
         var (results, _) = await query.SearchSymbolsAsync(searchQuery, symbolFilter, maxResults * 10, ct);
@@ -120,6 +128,8 @@ public sealed record SearchSymbolsResult(
         "not_loaded", null, [], 0, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(
         "load_failed", null, [], 0, message);
+    public static SearchSymbolsResult Error(string message) => new(
+        "error", null, [], 0, message);
 }
 
 public sealed record SymbolMatch(

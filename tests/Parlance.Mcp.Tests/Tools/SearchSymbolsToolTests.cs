@@ -82,6 +82,19 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task SearchSymbols_InvalidKind_ReturnsError()
+    {
+        var result = await SearchSymbolsTool.SearchSymbols(
+            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            searchQuery: "Workspace", kind: "delegate", maxResults: 25,
+            CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.Contains("Unknown kind", result.Message);
+        Assert.Contains("delegate", result.Message);
+    }
+
+    [Fact]
     public void SearchSymbols_NotLoaded_ReturnsNotLoaded()
     {
         var holder = new WorkspaceSessionHolder();
