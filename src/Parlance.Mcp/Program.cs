@@ -44,6 +44,7 @@ builder.Services
     .WithTools<CallHierarchyTool>()
     .WithTools<GetTypeDependenciesTool>()
     .WithTools<SafeToDeleteTool>()
+    .WithTools<SearchSymbolsTool>()
     .WithTools<DecompileTypeTool>()
     .WithTools<AnalyzeTool>();
 
