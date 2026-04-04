@@ -40,12 +40,12 @@ public sealed class GotoDefinitionTool
 
         if (!hasPosition && !hasName)
         {
-            if (hasPartialPosition)
-                return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.");
-            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
+            return GotoDefinitionResult.Error(hasPartialPosition
+                ? "Position-based lookup requires filePath, line, and column."
+                : "Provide either symbolName or filePath + line + column.");
         }
 
-        ISymbol? targetSymbol = null;
+        ISymbol? targetSymbol;
 
         if (hasPosition)
         {
@@ -63,7 +63,10 @@ public sealed class GotoDefinitionTool
                 return GotoDefinitionResult.NotFound(symbolName!);
 
             if (symbols.Count > 1 && !symbolName!.Contains('.'))
-                return GotoDefinitionResult.Ambiguous(symbolName!, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            {
+                return GotoDefinitionResult.Ambiguous(symbolName,
+                    [.. symbols.Select(s => s.ToCandidate())]);
+            }
 
             targetSymbol = symbols[0].Symbol;
         }
@@ -111,8 +114,11 @@ public sealed class GotoDefinitionTool
 }
 
 public sealed record GotoDefinitionResult(
-    string Status, string? SymbolName, string? Kind,
-    bool IsMetadata, string? AssemblyName,
+    string Status,
+    string? SymbolName,
+    string? Kind,
+    bool IsMetadata,
+    string? AssemblyName,
     ImmutableList<DefinitionLocation> Locations,
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
@@ -120,18 +126,25 @@ public sealed record GotoDefinitionResult(
     public static GotoDefinitionResult NotFound(string identifier) => new(
         "not_found", null, null, false, null, [], [],
         $"Symbol '{identifier}' not found in the workspace");
+
     public static GotoDefinitionResult NotLoaded() => new(
         "not_loaded", null, null, false, null, [], [],
         "Workspace is still loading");
+
     public static GotoDefinitionResult LoadFailed(string message) => new(
         "load_failed", null, null, false, null, [], [], message);
+
     public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, null, false, null, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+
     public static GotoDefinitionResult Error(string message) => new(
         "error", null, null, false, null, [], [], message);
-    public static GotoDefinitionResult Found(string symbolName, string kind, ImmutableList<DefinitionLocation> locations) => new(
+
+    public static GotoDefinitionResult Found(string symbolName, string kind,
+        ImmutableList<DefinitionLocation> locations) => new(
         "found", symbolName, kind, false, null, locations, [], null);
+
     public static GotoDefinitionResult Metadata(string symbolName, string kind, string? assemblyName) => new(
         "found", symbolName, kind, true, assemblyName, [], [],
         $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
