@@ -61,6 +61,29 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         return string.Join(".", parts).EndsWith(qualifiedName, comparison);
     }
 
+    public async Task<(ImmutableList<ResolvedSymbol> Results, int TotalCount)> SearchSymbolsAsync(
+        string query, SymbolFilter? kindFilter = null, int maxResults = 25,
+        CancellationToken ct = default)
+    {
+        logger.LogDebug("SearchSymbols: {Query}, Kind: {Kind}, Max: {Max}", query, kindFilter, maxResults);
+
+        var results = new List<ResolvedSymbol>();
+        await foreach (var (project, _) in GetCompilationsAsync(ct))
+        {
+            var declarations = await SymbolFinder.FindDeclarationsAsync(
+                project, query, ignoreCase: true, filter: kindFilter ?? SymbolFilter.All, ct);
+            results.AddRange(declarations.Select(s => new ResolvedSymbol(s, project)));
+        }
+
+        var deduplicated = results
+            .DistinctBy(r => r.Symbol.ToDisplayString())
+            .ToList();
+
+        var totalCount = deduplicated.Count;
+        var capped = deduplicated.Take(maxResults).ToImmutableList();
+        return (capped, totalCount);
+    }
+
     public async Task<Compilation?> GetCompilationAsync(string projectName, CancellationToken ct = default)
     {
         var project = Session.CurrentSolution.Projects.FirstOrDefault(p => p.Name == projectName);
