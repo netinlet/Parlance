@@ -1,4 +1,3 @@
-using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
@@ -11,37 +10,6 @@ namespace Parlance.Mcp.Tools;
 [McpServerToolType]
 public sealed class SearchSymbolsTool
 {
-    private static readonly FrozenDictionary<string, SymbolFilter> KindMap =
-        new Dictionary<string, SymbolFilter>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["class"] = SymbolFilter.Type,
-            ["struct"] = SymbolFilter.Type,
-            ["interface"] = SymbolFilter.Type,
-            ["enum"] = SymbolFilter.Type,
-            ["method"] = SymbolFilter.Member,
-            ["property"] = SymbolFilter.Member,
-            ["field"] = SymbolFilter.Member,
-            ["event"] = SymbolFilter.Member,
-        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly FrozenDictionary<string, TypeKind> TypeKindMap =
-        new Dictionary<string, TypeKind>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["class"] = TypeKind.Class,
-            ["struct"] = TypeKind.Struct,
-            ["interface"] = TypeKind.Interface,
-            ["enum"] = TypeKind.Enum,
-        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-
-    private static readonly FrozenDictionary<string, SymbolKind> MemberKindMap =
-        new Dictionary<string, SymbolKind>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["method"] = SymbolKind.Method,
-            ["property"] = SymbolKind.Property,
-            ["field"] = SymbolKind.Field,
-            ["event"] = SymbolKind.Event,
-        }.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
-
     [McpServerTool(Name = "search-symbols", ReadOnly = true)]
     [Description("Fuzzy search for symbols by name across the workspace. " +
                  "Returns matching types, methods, properties, and other symbols. " +
@@ -64,32 +32,25 @@ public sealed class SearchSymbolsTool
         if (!holder.IsLoaded)
             return SearchSymbolsResult.NotLoaded();
 
-        SymbolFilter? symbolFilter = null;
-        if (kind is not null)
-        {
-            if (!KindMap.TryGetValue(kind, out var filter))
-                return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
-            symbolFilter = filter;
-        }
+        var parsed = kind is not null ? ParseKind(kind) : null;
+        if (kind is not null && parsed is null)
+            return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
 
         // Request more than maxResults so we can report accurate TotalMatches after post-filtering
-        var (results, _) = await query.SearchSymbolsAsync(searchQuery, symbolFilter, maxResults * 10, ct);
+        var (results, _) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, maxResults * 10, ct);
 
         // Post-filter by specific kind (e.g., "class" not just "Type")
-        if (kind is not null)
+        if (parsed is { TypeKind: { } typeKind })
         {
-            if (TypeKindMap.TryGetValue(kind, out var typeKind))
-            {
-                results = results
-                    .Where(r => r.Symbol is INamedTypeSymbol nts && nts.TypeKind == typeKind)
-                    .ToImmutableList();
-            }
-            else if (MemberKindMap.TryGetValue(kind, out var memberKind))
-            {
-                results = results
-                    .Where(r => r.Symbol.Kind == memberKind)
-                    .ToImmutableList();
-            }
+            results = results
+                .Where(r => r.Symbol is INamedTypeSymbol nts && nts.TypeKind == typeKind)
+                .ToImmutableList();
+        }
+        else if (parsed is { MemberKind: { } memberKind })
+        {
+            results = results
+                .Where(r => r.Symbol.Kind == memberKind)
+                .ToImmutableList();
         }
 
         if (results.IsEmpty)
@@ -112,6 +73,20 @@ public sealed class SearchSymbolsTool
 
         return SearchSymbolsResult.Found(searchQuery, matches, totalMatches);
     }
+
+    private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
+        kind.ToLowerInvariant() switch
+        {
+            "class" => (SymbolFilter.Type, TypeKind.Class, null),
+            "struct" => (SymbolFilter.Type, TypeKind.Struct, null),
+            "interface" => (SymbolFilter.Type, TypeKind.Interface, null),
+            "enum" => (SymbolFilter.Type, TypeKind.Enum, null),
+            "method" => (SymbolFilter.Member, null, SymbolKind.Method),
+            "property" => (SymbolFilter.Member, null, SymbolKind.Property),
+            "field" => (SymbolFilter.Member, null, SymbolKind.Field),
+            "event" => (SymbolFilter.Member, null, SymbolKind.Event),
+            _ => null
+        };
 }
 
 public sealed record SearchSymbolsResult(
