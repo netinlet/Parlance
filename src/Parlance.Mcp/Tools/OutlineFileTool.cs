@@ -80,8 +80,7 @@ public sealed class OutlineFileTool
     }
 }
 
-public sealed record OutlineFileResult(
-    string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
+public sealed record OutlineFileResult(string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
 {
     public static OutlineFileResult NotFound(string filePath) => new(
         "not_found", filePath, [], $"File '{filePath}' not found in workspace");
