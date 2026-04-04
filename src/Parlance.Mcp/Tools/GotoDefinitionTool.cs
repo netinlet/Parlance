@@ -35,10 +35,15 @@ public sealed class GotoDefinitionTool
             return GotoDefinitionResult.NotLoaded();
 
         var hasPosition = filePath is not null && line is not null && column is not null;
+        var hasPartialPosition = filePath is not null && (line is null || column is null);
         var hasName = symbolName is not null;
 
         if (!hasPosition && !hasName)
+        {
+            if (hasPartialPosition)
+                return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.");
             return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
+        }
 
         ISymbol? targetSymbol = null;
 
@@ -63,6 +68,7 @@ public sealed class GotoDefinitionTool
             targetSymbol = symbols[0].Symbol;
         }
 
+        // Navigate to the original/unbound definition (e.g., List<T> instead of List<string>)
         targetSymbol = targetSymbol.OriginalDefinition;
 
         var sourceLocations = targetSymbol.Locations

@@ -143,6 +143,19 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GotoDefinition_PartialPosition_ReturnsError()
+    {
+        var result = await GotoDefinitionTool.GotoDefinition(
+            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            symbolName: null,
+            filePath: "/some/file.cs", line: 10, column: null,
+            CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.Contains("filePath, line, and column", result.Message);
+    }
+
+    [Fact]
     public void GotoDefinition_NotLoaded_ReturnsNotLoaded()
     {
         var holder = new WorkspaceSessionHolder();
