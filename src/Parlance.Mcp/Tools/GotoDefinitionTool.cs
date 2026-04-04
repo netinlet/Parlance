@@ -77,16 +77,10 @@ public sealed class GotoDefinitionTool
 
         if (sourceLocations.Count == 0)
         {
-            var assemblyName = targetSymbol.ContainingAssembly?.Name;
-            return new GotoDefinitionResult(
-                Status: "found",
-                SymbolName: targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-                Kind: targetSymbol.Kind.ToString(),
-                IsMetadata: true,
-                AssemblyName: assemblyName,
-                Locations: [],
-                Candidates: [],
-                Message: $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
+            return GotoDefinitionResult.Metadata(
+                targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+                targetSymbol.Kind.ToString(),
+                targetSymbol.ContainingAssembly?.Name);
         }
 
         var locations = new List<DefinitionLocation>();
@@ -109,15 +103,10 @@ public sealed class GotoDefinitionTool
                 snippet));
         }
 
-        return new GotoDefinitionResult(
-            Status: "found",
-            SymbolName: targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
-            Kind: targetSymbol.Kind.ToString(),
-            IsMetadata: false,
-            AssemblyName: null,
-            Locations: [.. locations],
-            Candidates: [],
-            Message: null);
+        return GotoDefinitionResult.Found(
+            targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
+            targetSymbol.Kind.ToString(),
+            [.. locations]);
     }
 }
 
@@ -141,6 +130,11 @@ public sealed record GotoDefinitionResult(
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
     public static GotoDefinitionResult Error(string message) => new(
         "error", null, null, false, null, [], [], message);
+    public static GotoDefinitionResult Found(string symbolName, string kind, ImmutableList<DefinitionLocation> locations) => new(
+        "found", symbolName, kind, false, null, locations, [], null);
+    public static GotoDefinitionResult Metadata(string symbolName, string kind, string? assemblyName) => new(
+        "found", symbolName, kind, true, assemblyName, [], [],
+        $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
 }
 
 public sealed record DefinitionLocation(string FilePath, int Line, int Column, string? Snippet);
