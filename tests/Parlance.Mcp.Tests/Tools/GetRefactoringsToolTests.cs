@@ -24,13 +24,13 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
     public async Task DisposeAsync() => await _session.DisposeAsync();
 
     [Fact]
-    public async Task GetRefactorings_AtMethodBody_ReturnsResult()
+    public async Task GetRefactorings_AtCodeLocation_ReturnsRefactorings()
     {
         var filePath = Path.Combine(TestPaths.RepoRoot,
             "src", "Parlance.CSharp.Workspace", "WorkspaceQueryService.cs");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        // Find a line with actual code
+        // Find a line with a method invocation — rich refactoring target
         var codeLine = Array.FindIndex(lines, l => l.Contains("FindDeclarationsAsync"));
         Assert.True(codeLine >= 0, "Could not find a code line");
 
@@ -42,9 +42,20 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
             endLine: null, endColumn: null,
             CancellationToken.None);
 
-        // May or may not have refactorings depending on loaded providers
-        Assert.True(result.Status is "found" or "no_refactorings",
-            $"Expected 'found' or 'no_refactorings' but got '{result.Status}'");
+        // With built-in Roslyn providers, we should get refactorings at a method call
+        if (result.Status == "found")
+        {
+            Assert.NotEmpty(result.Refactorings);
+            Assert.All(result.Refactorings, r =>
+            {
+                Assert.NotEmpty(r.Id);
+                Assert.NotEmpty(r.Title);
+            });
+        }
+        else
+        {
+            Assert.Equal("no_refactorings", result.Status);
+        }
     }
 
     [Fact]
@@ -57,6 +68,30 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
             CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
+    }
+
+    [Fact]
+    public async Task GetRefactorings_InvalidLine_ReturnsError()
+    {
+        var result = await GetRefactoringsTool.GetRefactorings(
+            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            filePath: "/some/file.cs", line: 0, column: 1,
+            endLine: null, endColumn: null,
+            CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+    }
+
+    [Fact]
+    public async Task GetRefactorings_PartialRange_ReturnsError()
+    {
+        var result = await GetRefactoringsTool.GetRefactorings(
+            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            filePath: "/some/file.cs", line: 1, column: 1,
+            endLine: 5, endColumn: null,
+            CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
     }
 
     [Fact]

@@ -32,6 +32,13 @@ public sealed class GetRefactoringsTool
     {
         using var _ = ToolDiagnostics.TimeToolCall(logger, "get-refactorings");
 
+        if (line < 1 || column < 1)
+            return GetRefactoringsResult.Error("line and column must be >= 1 (1-based).");
+        if (endLine is not null != endColumn is not null)
+            return GetRefactoringsResult.Error("endLine and endColumn must both be provided for range selection.");
+        if (endLine is not null && (endLine.Value < 1 || endColumn!.Value < 1))
+            return GetRefactoringsResult.Error("endLine and endColumn must be >= 1 (1-based).");
+
         if (holder.LoadFailure is { } failure)
             return GetRefactoringsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -72,4 +79,6 @@ public sealed record GetRefactoringsResult(
         "Workspace is still loading");
     public static GetRefactoringsResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
+    public static GetRefactoringsResult Error(string message) => new(
+        "error", null, [], message);
 }

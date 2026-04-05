@@ -33,6 +33,9 @@ public sealed class PreviewCodeActionTool
         if (preview is null)
             return PreviewCodeActionResult.NotFound(actionId);
 
+        if (preview.ErrorMessage is not null)
+            return PreviewCodeActionResult.Error(actionId, preview.ErrorMessage);
+
         if (preview.IsExpired)
             return PreviewCodeActionResult.Expired(actionId);
 
@@ -61,4 +64,6 @@ public sealed record PreviewCodeActionResult(
         "Workspace is still loading");
     public static PreviewCodeActionResult LoadFailed(string message) => new(
         "load_failed", null, null, [], message);
+    public static PreviewCodeActionResult Error(string actionId, string message) => new(
+        "error", actionId, null, [], message);
 }

@@ -32,6 +32,18 @@ public sealed class PreviewCodeActionToolTests : IAsyncLifetime
             CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
+        Assert.Equal("fix-99999", result.ActionId);
+    }
+
+    [Fact]
+    public async Task Preview_MalformedActionId_ReturnsNotFound()
+    {
+        var result = await PreviewCodeActionTool.PreviewCodeAction(
+            _holder, _codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            actionId: "garbage",
+            CancellationToken.None);
+
+        Assert.Equal("not_found", result.Status);
     }
 
     [Fact]
