@@ -29,6 +29,7 @@ builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
 builder.Services.AddSingleton<WorkspaceQueryService>();
 builder.Services.AddSingleton<CurationSetProvider>();
 builder.Services.AddSingleton<AnalysisService>();
+builder.Services.AddSingleton<CodeActionService>();
 
 builder.Services
     .AddMcpServer()
@@ -37,12 +38,18 @@ builder.Services
     .WithTools<DescribeTypeTool>()
     .WithTools<FindImplementationsTool>()
     .WithTools<FindReferencesTool>()
+    .WithTools<GetCodeFixesTool>()
+    .WithTools<GetRefactoringsTool>()
+    .WithTools<GotoDefinitionTool>()
     .WithTools<GetTypeAtTool>()
     .WithTools<OutlineFileTool>()
+    .WithTools<PreviewCodeActionTool>()
     .WithTools<GetSymbolDocsTool>()
     .WithTools<CallHierarchyTool>()
     .WithTools<GetTypeDependenciesTool>()
     .WithTools<SafeToDeleteTool>()
+    .WithTools<SearchSymbolsTool>()
+    .WithTools<TypeHierarchyTool>()
     .WithTools<DecompileTypeTool>()
     .WithTools<AnalyzeTool>();
 

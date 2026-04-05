@@ -34,25 +34,22 @@ public sealed class AnalyzeTool
             var options = new AnalyzeOptions(curationSet, maxDiagnostics);
             var result = await analysis.AnalyzeFilesAsync([.. files], options, ct);
 
-            return new AnalyzeToolResult
-            {
-                Status = "success",
-                CurationSet = result.CurationSet,
-                Summary = new AnalyzeSummary(
+            return AnalyzeToolResult.Success(
+                result.CurationSet,
+                new AnalyzeSummary(
                     result.Summary.TotalDiagnostics,
                     result.Summary.Errors,
                     result.Summary.Warnings,
                     result.Summary.Suggestions,
                     result.Summary.IdiomaticScore),
-                Diagnostics = result.Diagnostics.Select(d => new AnalyzeDiagnostic(
+                result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
                     d.FilePath, d.Line,
-                    d.FixClassification, d.Rationale)).ToImmutableList()
-            };
+                    d.FixClassification, d.Rationale)).ToImmutableList());
         }
         catch (ArgumentException ex)
         {
-            return new AnalyzeToolResult { Status = "error", Error = ex.Message };
+            return AnalyzeToolResult.Failed(ex.Message);
         }
     }
 }
@@ -75,6 +72,21 @@ public sealed record AnalyzeToolResult
     {
         Status = "not_loaded",
         Error = "Workspace is still loading"
+    };
+
+    public static AnalyzeToolResult Success(
+        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics) => new()
+        {
+            Status = "success",
+            CurationSet = curationSet,
+            Summary = summary,
+            Diagnostics = diagnostics
+        };
+
+    public static AnalyzeToolResult Failed(string message) => new()
+    {
+        Status = "error",
+        Error = message
     };
 }
 

@@ -54,13 +54,9 @@ public sealed class DecompileTypeTool
                     if (truncated)
                         decompiledCode = string.Join('\n', lines[..maxLines]);
 
-                    return new DecompileTypeResult(
-                        Status: "found",
-                        TypeName: typeSymbol.ToDisplayString(),
-                        AssemblyName: assemblySymbol.Name,
-                        AssemblyPath: metaRef.FilePath,
-                        DecompiledSource: decompiledCode,
-                        Message: truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null);
+                    return DecompileTypeResult.Found(
+                        typeSymbol.ToDisplayString(), assemblySymbol.Name, metaRef.FilePath, decompiledCode,
+                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null);
                 }
                 catch (Exception ex)
                 {
@@ -101,4 +97,8 @@ public sealed record DecompileTypeResult(
         "load_failed", null, null, null, null, message);
     public static DecompileTypeResult DecompilationFailed(string typeName, string error) => new(
         "decompile_failed", typeName, null, null, null, $"Decompilation failed: {error}");
+    public static DecompileTypeResult Found(
+        string typeName, string assemblyName, string assemblyPath,
+        string decompiledSource, string? message) => new(
+        "found", typeName, assemblyName, assemblyPath, decompiledSource, message);
 }

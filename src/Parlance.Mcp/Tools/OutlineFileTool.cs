@@ -76,12 +76,11 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return new OutlineFileResult("found", filePath, types, null);
+        return OutlineFileResult.Found(filePath, types);
     }
 }
 
-public sealed record OutlineFileResult(
-    string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
+public sealed record OutlineFileResult(string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
 {
     public static OutlineFileResult NotFound(string filePath) => new(
         "not_found", filePath, [], $"File '{filePath}' not found in workspace");
@@ -89,6 +88,8 @@ public sealed record OutlineFileResult(
         "not_loaded", null, [], "Workspace is still loading");
     public static OutlineFileResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
+    public static OutlineFileResult Found(string filePath, ImmutableList<OutlineType> types) => new(
+        "found", filePath, types, null);
 }
 
 public sealed record OutlineType(
