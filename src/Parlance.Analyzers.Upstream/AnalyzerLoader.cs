@@ -65,7 +65,7 @@ public static class AnalyzerLoader
         return results.ToImmutable();
     }
 
-    private static Assembly? ResolveFromDirectory( AssemblyLoadContext context, AssemblyName assemblyName, string directory)
+    private static Assembly? ResolveFromDirectory(AssemblyLoadContext context, AssemblyName assemblyName, string directory)
     {
         // Try exact match first
         var candidatePath = Path.Combine(directory, assemblyName.Name + ".dll");
