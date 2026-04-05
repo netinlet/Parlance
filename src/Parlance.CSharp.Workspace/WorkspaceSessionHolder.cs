@@ -1,5 +1,10 @@
 namespace Parlance.CSharp.Workspace;
 
+/// <summary>
+/// DI-scoped container for the workspace session. Public setters are intentional —
+/// the CLI command or MCP server sets the session once at startup. The holder's lifetime
+/// is tied to the DI container, which disposes it (and the session) on shutdown.
+/// </summary>
 public sealed class WorkspaceSessionHolder : IAsyncDisposable
 {
     private volatile CSharpWorkspaceSession? _session;

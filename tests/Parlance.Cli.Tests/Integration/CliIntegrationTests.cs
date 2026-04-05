@@ -50,9 +50,11 @@ public sealed class CliIntegrationTests
             UseShellExecute = false
         };
 
+        var quotedArgs = string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+
         psi.Arguments = File.Exists(_cliDll)
-            ? $"exec \"{_cliDll}\" {string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a))}"
-            : $"run --project \"{Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Parlance.Cli", "Parlance.Cli.csproj"))}\" --no-build -- {string.Join(' ', args)}";
+            ? $"exec \"{_cliDll}\" {quotedArgs}"
+            : $"run --project \"{Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Parlance.Cli", "Parlance.Cli.csproj"))}\" --no-build -- {quotedArgs}";
 
         using var process = Process.Start(psi)!;
         var stdout = await process.StandardOutput.ReadToEndAsync();

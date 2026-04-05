@@ -81,10 +81,15 @@ internal static class AnalyzeCommand
                             !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
                 .ToImmutableList();
 
+            var suppressArray = suppress.Length > 0
+                ? suppress.ToImmutableArray()
+                : (ImmutableArray<string>?)null;
+
             FileAnalysisResult result;
             try
             {
-                result = await analysis.AnalyzeFilesAsync(allFiles, new AnalyzeOptions(curationSet, maxDiag), ct);
+                result = await analysis.AnalyzeFilesAsync(
+                    allFiles, new AnalyzeOptions(curationSet, maxDiag, suppressArray), ct);
             }
             catch (ArgumentException ex)
             {
@@ -92,15 +97,6 @@ internal static class AnalyzeCommand
                 Environment.ExitCode = 2;
                 return;
             }
-
-            // Post-filter for --suppress (score already reflects all diagnostics)
-            if (suppress.Length > 0)
-                result = result with
-                {
-                    Diagnostics = result.Diagnostics
-                        .Where(d => !suppress.Contains(d.RuleId))
-                        .ToImmutableList()
-                };
 
             IOutputFormatter formatter = format.ToLowerInvariant() switch
             {

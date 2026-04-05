@@ -71,17 +71,41 @@ internal static class AnalyzerDllScanner
 
         if (assemblyDir is not null)
         {
-            var localPath = Path.Combine(assemblyDir, "analyzer-dlls", targetFramework);
+            var localBase = Path.Combine(assemblyDir, "analyzer-dlls");
+            var localPath = Path.Combine(localBase, targetFramework);
             if (Directory.Exists(localPath))
                 return localPath;
+
+            // Fallback: try other supported TFMs (e.g., net10.0 CLI analyzing net8.0 projects)
+            if (Directory.Exists(localBase))
+            {
+                var fallback = SupportedFrameworks
+                    .Where(f => f != targetFramework)
+                    .Select(f => Path.Combine(localBase, f))
+                    .FirstOrDefault(Directory.Exists);
+                if (fallback is not null)
+                    return fallback;
+            }
         }
 
         var srcDir = FindDirectoryAbove(assemblyDir, "src");
         if (srcDir is not null)
         {
-            var devPath = Path.Combine(srcDir, "Parlance.Analyzers.Upstream", "analyzer-dlls", targetFramework);
+            var devBase = Path.Combine(srcDir, "Parlance.Analyzers.Upstream", "analyzer-dlls");
+            var devPath = Path.Combine(devBase, targetFramework);
             if (Directory.Exists(devPath))
                 return devPath;
+
+            // Fallback in dev scenario too
+            if (Directory.Exists(devBase))
+            {
+                var fallback = SupportedFrameworks
+                    .Where(f => f != targetFramework)
+                    .Select(f => Path.Combine(devBase, f))
+                    .FirstOrDefault(Directory.Exists);
+                if (fallback is not null)
+                    return fallback;
+            }
         }
 
         return null;

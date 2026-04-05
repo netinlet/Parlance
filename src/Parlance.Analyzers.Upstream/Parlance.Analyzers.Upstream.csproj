@@ -18,6 +18,11 @@
     <InternalsVisibleTo Include="Parlance.ManifestGenerator" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj"
+                      ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
   <ItemGroup Condition="'$(TargetFramework)'=='net8.0'">
     <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0" GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="4.9.2" GeneratePathProperty="true" ExcludeAssets="all" />
@@ -52,10 +57,12 @@
            Ship a compatible version so the custom ALC resolver can find it by name. -->
       <_BclShimDlls Include="$(PkgMicrosoft_Bcl_AsyncInterfaces)/lib/netstandard2.0/*.dll"
                     Condition="'$(PkgMicrosoft_Bcl_AsyncInterfaces)' != ''" />
+      <_ParlAnalyzerDlls Include="$(MSBuildProjectDirectory)/../Parlance.CSharp.Analyzers/bin/$(Configuration)/netstandard2.0/Parlance.CSharp.Analyzers.dll"
+                         Condition="Exists('$(MSBuildProjectDirectory)/../Parlance.CSharp.Analyzers/bin/$(Configuration)/netstandard2.0/Parlance.CSharp.Analyzers.dll')" />
     </ItemGroup>
 
     <MakeDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
-    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls);@(_BclShimDlls)"
+    <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls);@(_BclShimDlls);@(_ParlAnalyzerDlls)"
           DestinationFolder="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)"
           SkipUnchangedFiles="true" />
   </Target>

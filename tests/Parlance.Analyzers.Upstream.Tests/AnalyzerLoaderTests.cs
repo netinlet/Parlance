@@ -34,6 +34,30 @@ public sealed class AnalyzerLoaderTests
     }
 
     [Fact]
+    public void LoadAll_Net10_IncludesParlAnalyzers()
+    {
+        var analyzers = AnalyzerLoader.LoadAll("net10.0");
+        var allIds = analyzers
+            .SelectMany(a => a.SupportedDiagnostics)
+            .Select(d => d.Id)
+            .ToHashSet();
+
+        Assert.Contains("PARL9003", allIds);
+    }
+
+    [Fact]
+    public void LoadAll_Net8_IncludesParlAnalyzers()
+    {
+        var analyzers = AnalyzerLoader.LoadAll("net8.0");
+        var allIds = analyzers
+            .SelectMany(a => a.SupportedDiagnostics)
+            .Select(d => d.Id)
+            .ToHashSet();
+
+        Assert.Contains("PARL9003", allIds);
+    }
+
+    [Fact]
     public void LoadAll_UnknownTfm_ThrowsArgumentException()
     {
         Assert.Throws<ArgumentException>(() => AnalyzerLoader.LoadAll("net99.0"));

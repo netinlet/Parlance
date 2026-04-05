@@ -31,7 +31,7 @@ public sealed class FixProviderLoaderTests
     }
 
     [Fact]
-    public void LoadAll_DoesNotIncludeParlFixProviders()
+    public void LoadAll_ParlAnalyzersHaveNoFixProviders()
     {
         var providers = FixProviderLoader.LoadAll("net10.0");
         var fixableIds = providers.SelectMany(p => p.FixableDiagnosticIds).ToHashSet();

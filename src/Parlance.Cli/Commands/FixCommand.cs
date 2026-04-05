@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.CommandLine;
+using System.Text;
 using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -64,19 +65,6 @@ internal static class FixCommand
 
             await using (session)
             {
-                var fixProviders = FixProviderLoader.LoadAll("net10.0");
-                var fixableIds = fixProviders.SelectMany(fp => fp.FixableDiagnosticIds).ToHashSet();
-
-                var analyzers = AnalyzerLoader.LoadAll("net10.0")
-                    .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
-                    .ToImmutableArray();
-
-                if (analyzers.IsEmpty)
-                {
-                    Console.WriteLine("No auto-fixes available.");
-                    return;
-                }
-
                 var originalSolution = session.CurrentSolution;
                 var currentSolution = originalSolution;
 
@@ -87,6 +75,31 @@ internal static class FixCommand
 
                     foreach (var project in currentSolution.Projects)
                     {
+                        // Resolve TFM per project, matching AnalysisService behavior
+                        var projectInfo = session.Projects.FirstOrDefault(p => p.Name == project.Name);
+                        var targetFramework = projectInfo?.ActiveTargetFramework ?? "net10.0";
+
+                        ImmutableArray<CodeFixProvider> fixProviders;
+                        ImmutableArray<DiagnosticAnalyzer> analyzers;
+                        try
+                        {
+                            fixProviders = FixProviderLoader.LoadAll(targetFramework);
+                            var fixableIds = fixProviders.SelectMany(fp => fp.FixableDiagnosticIds).ToHashSet();
+                            analyzers = AnalyzerLoader.LoadAll(targetFramework)
+                                .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
+                                .ToImmutableArray();
+                        }
+                        catch (ArgumentException)
+                        {
+                            fixProviders = FixProviderLoader.LoadAll("net10.0");
+                            var fixableIds = fixProviders.SelectMany(fp => fp.FixableDiagnosticIds).ToHashSet();
+                            analyzers = AnalyzerLoader.LoadAll("net10.0")
+                                .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
+                                .ToImmutableArray();
+                        }
+
+                        if (analyzers.IsEmpty) continue;
+
                         var compilation = await project.GetCompilationAsync(ct);
                         if (compilation is null) continue;
 
@@ -139,8 +152,8 @@ internal static class FixCommand
                     if (!applied) break;
                 }
 
-                // Collect changed files
-                var fixedFiles = new List<(string FilePath, string NewContent)>();
+                // Collect changed files, preserving original encoding
+                var fixedFiles = new List<(string FilePath, string NewContent, Encoding Encoding)>();
                 foreach (var project in currentSolution.Projects)
                 {
                     foreach (var document in project.Documents)
@@ -151,10 +164,15 @@ internal static class FixCommand
                         var origDoc = originalSolution.GetDocument(origDocIds[0]);
                         if (origDoc is null) continue;
 
-                        var origText = (await origDoc.GetTextAsync(ct)).ToString();
-                        var newText = (await document.GetTextAsync(ct)).ToString();
-                        if (origText != newText)
-                            fixedFiles.Add((document.FilePath, newText));
+                        var origSourceText = await origDoc.GetTextAsync(ct);
+                        var newSourceText = await document.GetTextAsync(ct);
+                        var origContent = origSourceText.ToString();
+                        var newContent = newSourceText.ToString();
+                        if (origContent != newContent)
+                        {
+                            var encoding = origSourceText.Encoding ?? Encoding.UTF8;
+                            fixedFiles.Add((document.FilePath, newContent, encoding));
+                        }
                     }
                 }
 
@@ -164,7 +182,7 @@ internal static class FixCommand
                     return;
                 }
 
-                foreach (var (filePath, _) in fixedFiles)
+                foreach (var (filePath, _, _) in fixedFiles)
                     Console.WriteLine($"--- {filePath}");
 
                 if (dryRun)
@@ -173,8 +191,8 @@ internal static class FixCommand
                 }
                 else
                 {
-                    foreach (var (filePath, newContent) in fixedFiles)
-                        await File.WriteAllTextAsync(filePath, newContent, ct);
+                    foreach (var (filePath, newContent, encoding) in fixedFiles)
+                        await File.WriteAllTextAsync(filePath, newContent, encoding, ct);
                     Console.WriteLine($"Applied fixes to {fixedFiles.Count} file(s).");
                 }
             }

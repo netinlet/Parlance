@@ -52,13 +52,13 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     [Fact]
     public async Task GetSymbolDocs_TypeWithoutDocs_ReturnsNoDocs()
     {
-        // WorkspaceSessionHolder has no XML doc comments
+        // WorkspaceLoadFailure has no XML doc comments
         var result = await GetSymbolDocsTool.GetSymbolDocs(
             _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
-            "WorkspaceSessionHolder", CancellationToken.None);
+            "WorkspaceLoadFailure", CancellationToken.None);
 
         Assert.Equal("no_docs", result.Status);
-        Assert.Equal("WorkspaceSessionHolder", result.SymbolName);
+        Assert.Equal("WorkspaceLoadFailure", result.SymbolName);
         Assert.Null(result.Summary);
     }
 
