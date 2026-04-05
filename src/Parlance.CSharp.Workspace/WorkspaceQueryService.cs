@@ -149,6 +149,94 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         return [.. implementations];
     }
 
+    private const int MaxSubtypesPerLevel = 50;
+
+    public async Task<TypeHierarchyResult> GetTypeHierarchyAsync(
+        INamedTypeSymbol typeSymbol, int maxDepth = 1, CancellationToken ct = default)
+    {
+        logger.LogDebug("GetTypeHierarchy: {Type}, MaxDepth: {Depth}", typeSymbol.ToDisplayString(), maxDepth);
+
+        var supertypes = GetSupertypes(typeSymbol, maxDepth);
+        var subtypes = await GetSubtypesAsync(typeSymbol, maxDepth, 1, ct);
+
+        return new TypeHierarchyResult(supertypes, subtypes.Nodes, subtypes.Truncated);
+    }
+
+    private static ImmutableList<HierarchyNode> GetSupertypes(INamedTypeSymbol typeSymbol, int maxDepth, int currentDepth = 1)
+    {
+        if (currentDepth > maxDepth)
+            return [];
+
+        var nodes = new List<HierarchyNode>();
+
+        // Base class
+        if (typeSymbol.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object)
+        {
+            var children = currentDepth < maxDepth
+                ? GetSupertypes(baseType, maxDepth, currentDepth + 1)
+                : [];
+            nodes.Add(ToHierarchyNode(baseType, "base_class", children));
+        }
+        else if (typeSymbol.BaseType is { SpecialType: SpecialType.System_Object } objectType)
+        {
+            // Include object but don't recurse past it
+            nodes.Add(ToHierarchyNode(objectType, "base_class", []));
+        }
+
+        // Direct interfaces (not inherited ones)
+        foreach (var iface in typeSymbol.Interfaces)
+        {
+            var children = currentDepth < maxDepth
+                ? GetSupertypes(iface, maxDepth, currentDepth + 1)
+                : [];
+            nodes.Add(ToHierarchyNode(iface, "interface", children));
+        }
+
+        return [.. nodes];
+    }
+
+    private async Task<(ImmutableList<HierarchyNode> Nodes, bool Truncated)> GetSubtypesAsync(
+        ISymbol typeSymbol, int maxDepth, int currentDepth, CancellationToken ct)
+    {
+        if (currentDepth > maxDepth)
+            return ([], false);
+
+        var implementations = await FindImplementationsAsync(typeSymbol, ct);
+        var truncated = implementations.Count > MaxSubtypesPerLevel;
+        var capped = implementations.Take(MaxSubtypesPerLevel).ToList();
+
+        var nodes = new List<HierarchyNode>();
+        foreach (var impl in capped)
+        {
+            var children = ImmutableList<HierarchyNode>.Empty;
+            if (currentDepth < maxDepth && impl is INamedTypeSymbol namedImpl)
+            {
+                var (childNodes, childTruncated) = await GetSubtypesAsync(namedImpl, maxDepth, currentDepth + 1, ct);
+                children = childNodes;
+                truncated = truncated || childTruncated;
+            }
+
+            var relationship = impl is INamedTypeSymbol { TypeKind: TypeKind.Interface } ? "interface" : "base_class";
+            nodes.Add(ToHierarchyNode(impl, relationship, children));
+        }
+
+        return ([.. nodes], truncated);
+    }
+
+    private static HierarchyNode ToHierarchyNode(ISymbol symbol, string relationship, ImmutableList<HierarchyNode> children)
+    {
+        var loc = symbol.Locations.FirstOrDefault();
+        var span = loc?.GetLineSpan();
+        return new HierarchyNode(
+            symbol.Name,
+            symbol.ToDisplayString(),
+            symbol.Kind.ToString(),
+            relationship,
+            span?.Path,
+            span is null ? null : span.Value.StartLinePosition.Line + 1,
+            children);
+    }
+
     public async Task<ISymbol?> GetSymbolAtPositionAsync(string filePath, int line, int column, CancellationToken ct = default)
     {
         var semanticModel = await GetSemanticModelAsync(filePath, ct);
