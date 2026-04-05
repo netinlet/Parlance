@@ -25,6 +25,11 @@ public sealed class TypeHierarchyTool
     {
         using var _ = ToolDiagnostics.TimeToolCall(logger, "type-hierarchy");
 
+        if (string.IsNullOrWhiteSpace(typeName))
+            return TypeHierarchyToolResult.Error("typeName is required.");
+        if (maxDepth < 1)
+            return TypeHierarchyToolResult.Error("maxDepth must be >= 1.");
+
         if (holder.LoadFailure is { } failure)
             return TypeHierarchyToolResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -73,4 +78,6 @@ public sealed record TypeHierarchyToolResult(
     public static TypeHierarchyToolResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", typeName, null, [], [], false, candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+    public static TypeHierarchyToolResult Error(string message) => new(
+        "error", null, null, [], [], false, [], message);
 }

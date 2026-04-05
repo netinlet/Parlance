@@ -205,6 +205,10 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var truncated = implementations.Count > MaxSubtypesPerLevel;
         var capped = implementations.Take(MaxSubtypesPerLevel).ToList();
 
+        // Relationship describes how the child relates to the parent:
+        // if the parent is an interface, children "implement" it; if a class, children "extend" it
+        var relationship = typeSymbol is INamedTypeSymbol { TypeKind: TypeKind.Interface } ? "interface" : "base_class";
+
         var nodes = new List<HierarchyNode>();
         foreach (var impl in capped)
         {
@@ -216,7 +220,6 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
                 truncated = truncated || childTruncated;
             }
 
-            var relationship = impl is INamedTypeSymbol { TypeKind: TypeKind.Interface } ? "interface" : "base_class";
             nodes.Add(ToHierarchyNode(impl, relationship, children));
         }
 
@@ -227,10 +230,13 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     {
         var loc = symbol.Locations.FirstOrDefault();
         var span = loc?.GetLineSpan();
+        var kind = symbol is INamedTypeSymbol namedType
+            ? namedType.TypeKind.ToString()
+            : symbol.Kind.ToString();
         return new HierarchyNode(
             symbol.Name,
             symbol.ToDisplayString(),
-            symbol.Kind.ToString(),
+            kind,
             relationship,
             span?.Path,
             span is null ? null : span.Value.StartLinePosition.Line + 1,
