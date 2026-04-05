@@ -81,15 +81,13 @@ internal static class AnalyzeCommand
                             !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
                 .ToImmutableList();
 
-            var suppressArray = suppress.Length > 0
-                ? suppress.ToImmutableArray()
-                : (ImmutableArray<string>?)null;
+            var suppression = suppress.Length > 0 ? RuleSuppression.From(suppress) : null;
 
             FileAnalysisResult result;
             try
             {
                 result = await analysis.AnalyzeFilesAsync(
-                    allFiles, new AnalyzeOptions(curationSet, maxDiag, suppressArray), ct);
+                    allFiles, new AnalyzeOptions(curationSet, maxDiag, suppression), ct);
             }
             catch (ArgumentException ex)
             {

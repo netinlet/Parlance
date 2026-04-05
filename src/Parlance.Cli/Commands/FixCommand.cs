@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Parlance.Analysis;
 using Parlance.Analyzers.Upstream;
 using Parlance.CSharp.Workspace;
 
@@ -29,7 +30,7 @@ internal static class FixCommand
         {
             var path = parseResult.GetValue(pathArg)!;
             var dryRun = parseResult.GetValue(dryRunOption);
-            var suppress = parseResult.GetValue(suppressOption) ?? [];
+            var suppression = RuleSuppression.From(parseResult.GetValue(suppressOption) ?? []);
 
             if (!File.Exists(path))
             {
@@ -108,7 +109,7 @@ internal static class FixCommand
 
                         var fixableDiags = diagnostics
                             .Where(d => d.Id != "AD0001")
-                            .Where(d => !suppress.Contains(d.Id))
+                            .Where(d => !suppression.IsSuppressed(d.Id))
                             .ToList();
 
                         foreach (var diagnostic in fixableDiags)

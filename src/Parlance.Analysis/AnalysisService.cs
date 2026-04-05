@@ -135,11 +135,8 @@ public sealed class AnalysisService(
         var collected = allCurated.ToImmutable();
 
         // Apply --suppress filter before scoring so totals/score are consistent
-        if (options.SuppressRuleIds is { IsEmpty: false } suppressIds)
-        {
-            var suppressSet = suppressIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            collected = collected.Where(d => !suppressSet.Contains(d.RuleId)).ToImmutableList();
-        }
+        if (options.Suppress is { IsEmpty: false } suppress)
+            collected = collected.Where(d => !suppress.IsSuppressed(d.RuleId)).ToImmutableList();
 
         // Apply curation
         var curated = CurationFilter.Apply(curationSet, collected);
