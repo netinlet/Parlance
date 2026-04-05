@@ -28,6 +28,9 @@ public sealed class GetCodeFixesTool
     {
         using var _ = ToolDiagnostics.TimeToolCall(logger, "get-code-fixes");
 
+        if (line < 1)
+            return GetCodeFixesResult.Error("line must be >= 1 (1-based).");
+
         if (holder.LoadFailure is { } failure)
             return GetCodeFixesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -69,4 +72,6 @@ public sealed record GetCodeFixesResult(
         "Workspace is still loading");
     public static GetCodeFixesResult LoadFailed(string message) => new(
         "load_failed", null, null, [], message);
+    public static GetCodeFixesResult Error(string message) => new(
+        "error", null, null, [], message);
 }

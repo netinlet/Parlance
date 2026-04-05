@@ -77,6 +77,17 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetCodeFixes_InvalidLine_ReturnsError()
+    {
+        var result = await GetCodeFixesTool.GetCodeFixes(
+            _holder, _codeActions, NullLogger<GetCodeFixesTool>.Instance,
+            filePath: "/some/file.cs", line: 0, diagnosticId: null,
+            CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+    }
+
+    [Fact]
     public void GetCodeFixes_NotLoaded_ReturnsNotLoaded()
     {
         var holder = new WorkspaceSessionHolder();

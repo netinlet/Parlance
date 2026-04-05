@@ -94,11 +94,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
         Assert.Equal("found", result.Status);
         Assert.NotEmpty(result.Supertypes);
 
-        // At depth 2, at least some supertype nodes should have non-empty children
-        // (e.g., object's supertypes would be empty, but interfaces may have parent interfaces)
-        // The key invariant: depth-2 nodes CAN have children, unlike depth-1
-        var hasAnyChildren = result.Supertypes.Any(n => n.Children.Count > 0);
-        // Not all types have depth-2 supertypes, so we just verify structure is valid
+        // At depth 2, verify child structure is valid on all nodes
         Assert.All(result.Supertypes, node =>
         {
             Assert.NotEmpty(node.Name);

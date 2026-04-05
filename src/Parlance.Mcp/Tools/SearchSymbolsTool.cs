@@ -36,6 +36,7 @@ public sealed class SearchSymbolsTool
             return SearchSymbolsResult.Error("searchQuery must not be blank.");
         if (maxResults < 1)
             return SearchSymbolsResult.Error("maxResults must be >= 1.");
+        maxResults = Math.Min(maxResults, 250);
 
         var parsed = kind is not null ? ParseKind(kind) : null;
         if (kind is not null && parsed is null)
@@ -43,7 +44,7 @@ public sealed class SearchSymbolsTool
 
         // Request more than maxResults so we can post-filter by specific kind
         var requestLimit = maxResults * 10;
-        var (results, _) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, requestLimit, ct);
+        var (results, totalCount) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, requestLimit, ct);
 
         results = parsed switch
         {
@@ -56,8 +57,8 @@ public sealed class SearchSymbolsTool
         if (results.IsEmpty)
             return SearchSymbolsResult.NoMatches(searchQuery);
 
-        var totalMatches = results.Count;
-        var isTruncated = totalMatches >= requestLimit;
+        var totalMatches = parsed is not null ? results.Count : totalCount;
+        var isTruncated = totalMatches > maxResults;
 
         var matches = results.Take(maxResults).Select(r =>
         {
