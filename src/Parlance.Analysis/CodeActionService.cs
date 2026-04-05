@@ -17,61 +17,60 @@ public sealed class CodeActionService(
     WorkspaceSessionHolder holder, ILogger<CodeActionService> logger)
 {
     private readonly ConcurrentDictionary<string, CachedCodeAction> _actionCache = new();
+    private readonly ConcurrentDictionary<string, ImmutableArray<CodeFixProvider>> _fixProvidersByTfm = new();
+    private readonly ConcurrentDictionary<string, ImmutableArray<CodeRefactoringProvider>> _refactoringProvidersByTfm = new();
     private int _nextFixId;
     private int _nextRefactorId;
 
-    private ImmutableArray<CodeFixProvider>? _fixProviders;
-    private ImmutableArray<CodeRefactoringProvider>? _refactoringProviders;
-
     private CSharpWorkspaceSession Session => holder.Session;
 
-    private string ResolveTargetFramework() =>
-        Session.Projects.FirstOrDefault()?.ActiveTargetFramework ?? "net10.0";
+    private sealed record ResolvedDocument(Document Document, string TargetFramework);
 
-    private ImmutableArray<CodeFixProvider> GetFixProviders()
+    private ResolvedDocument? ResolveDocument(string filePath)
     {
-        if (_fixProviders is not null) return _fixProviders.Value;
+        var docId = Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+        if (docId is null) return null;
 
-        var providers = new List<CodeFixProvider>();
+        var document = Session.CurrentSolution.GetDocument(docId);
+        if (document is null) return null;
 
-        // External analyzer-shipped providers
-        providers.AddRange(AnalyzerLoader.LoadCodeFixProviders(ResolveTargetFramework()));
+        var tfm = Session.Projects
+            .FirstOrDefault(p => p.Name == document.Project.Name)
+            ?.ActiveTargetFramework ?? "net10.0";
 
-        // Built-in Roslyn providers (extract method, introduce variable, etc.)
-        providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
-        providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.Features"));
-
-        _fixProviders = [.. providers];
-        return _fixProviders.Value;
+        return new ResolvedDocument(document, tfm);
     }
 
-    private ImmutableArray<CodeRefactoringProvider> GetRefactoringProviders()
-    {
-        if (_refactoringProviders is not null) return _refactoringProviders.Value;
+    private ImmutableArray<CodeFixProvider> GetFixProviders(string targetFramework) =>
+        _fixProvidersByTfm.GetOrAdd(targetFramework, tfm =>
+        {
+            var providers = new List<CodeFixProvider>();
+            providers.AddRange(AnalyzerLoader.LoadCodeFixProviders(tfm));
+            providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
+            providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.Features"));
+            return [.. providers];
+        });
 
-        var providers = new List<CodeRefactoringProvider>();
-
-        // External analyzer-shipped providers
-        providers.AddRange(AnalyzerLoader.LoadCodeRefactoringProviders(ResolveTargetFramework()));
-
-        // Built-in Roslyn providers
-        providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
-        providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.Features"));
-
-        _refactoringProviders = [.. providers];
-        return _refactoringProviders.Value;
-    }
+    private ImmutableArray<CodeRefactoringProvider> GetRefactoringProviders(string targetFramework) =>
+        _refactoringProvidersByTfm.GetOrAdd(targetFramework, tfm =>
+        {
+            var providers = new List<CodeRefactoringProvider>();
+            providers.AddRange(AnalyzerLoader.LoadCodeRefactoringProviders(tfm));
+            providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
+            providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.Features"));
+            return [.. providers];
+        });
 
     public async Task<ImmutableList<CodeFixEntry>> GetCodeFixesAsync(
         string filePath, int line, string? diagnosticId = null, CancellationToken ct = default)
     {
-        var document = GetDocument(filePath);
-        if (document is null) return [];
+        var resolvedDoc = ResolveDocument(filePath);
+        if (resolvedDoc is null) return [];
 
-        var compilation = await document.Project.GetCompilationAsync(ct);
+        var compilation = await resolvedDoc.Document.Project.GetCompilationAsync(ct);
         if (compilation is null) return [];
 
-        var tree = await document.GetSyntaxTreeAsync(ct);
+        var tree = await resolvedDoc.Document.GetSyntaxTreeAsync(ct);
         if (tree is null) return [];
 
         var text = await tree.GetTextAsync(ct);
@@ -86,7 +85,7 @@ public sealed class CodeActionService(
             .Where(d => d.Location.SourceSpan.IntersectsWith(lineSpan));
 
         // Get analyzer diagnostics
-        var analyzers = AnalyzerLoader.LoadAll(ResolveTargetFramework());
+        var analyzers = AnalyzerLoader.LoadAll(resolvedDoc.TargetFramework);
         var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
         var analyzerDiags = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
         var filteredAnalyzerDiags = analyzerDiags
@@ -105,13 +104,13 @@ public sealed class CodeActionService(
 
         foreach (var diagnostic in lineDiags)
         {
-            foreach (var provider in GetFixProviders())
+            foreach (var provider in GetFixProviders(resolvedDoc.TargetFramework))
             {
                 if (!provider.FixableDiagnosticIds.Contains(diagnostic.Id))
                     continue;
 
                 var codeActions = new List<CodeAction>();
-                var context = new CodeFixContext(document, diagnostic,
+                var context = new CodeFixContext(resolvedDoc.Document, diagnostic,
                     (action, _) => codeActions.Add(action), ct);
 
                 try
@@ -144,10 +143,10 @@ public sealed class CodeActionService(
         string filePath, int line, int column, int? endLine = null, int? endColumn = null,
         CancellationToken ct = default)
     {
-        var document = GetDocument(filePath);
-        if (document is null) return [];
+        var resolvedDoc = ResolveDocument(filePath);
+        if (resolvedDoc is null) return [];
 
-        var text = await document.GetTextAsync(ct);
+        var text = await resolvedDoc.Document.GetTextAsync(ct);
         var zeroLine = line - 1;
         var zeroCol = column - 1;
         if (zeroLine < 0 || zeroLine >= text.Lines.Count) return [];
@@ -175,7 +174,7 @@ public sealed class CodeActionService(
         else
         {
             var position = text.Lines.GetPosition(new LinePosition(zeroLine, zeroCol));
-            var root = await document.GetSyntaxRootAsync(ct);
+            var root = await resolvedDoc.Document.GetSyntaxRootAsync(ct);
             if (root is null) return [];
             var token = root.FindToken(position);
             span = token.Span;
@@ -184,10 +183,10 @@ public sealed class CodeActionService(
         var refactorings = new List<RefactoringEntry>();
         var snapshotVersion = Session.SnapshotVersion;
 
-        foreach (var provider in GetRefactoringProviders())
+        foreach (var provider in GetRefactoringProviders(resolvedDoc.TargetFramework))
         {
             var codeActions = new List<CodeAction>();
-            var context = new CodeRefactoringContext(document, span,
+            var context = new CodeRefactoringContext(resolvedDoc.Document, span,
                 action => codeActions.Add(action), ct);
 
             try
@@ -225,6 +224,10 @@ public sealed class CodeActionService(
         {
             operations = await cached.Action.GetOperationsAsync(ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (ReflectionTypeLoadException ex)
         {
             logger.LogError(ex, "Code action '{ActionId}' failed due to missing assembly dependencies", actionId);
@@ -232,9 +235,16 @@ public sealed class CodeActionService(
                 "Code action failed: missing runtime dependency. " +
                 string.Join("; ", ex.LoaderExceptions?.Select(e => e?.Message).Where(m => m is not null).Distinct() ?? []));
         }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Code action '{ActionId}' failed during preview", actionId);
+            return CodeActionPreview.Failed(actionId, cached.Action.Title, "Code action failed: " + ex.Message);
+        }
 
         var applyOp = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
-        if (applyOp is null) return null;
+        if (applyOp is null)
+            return CodeActionPreview.Failed(actionId, cached.Action.Title,
+                "Code action does not produce text changes that can be previewed.");
 
         var changedSolution = applyOp.ChangedSolution;
         var currentSolution = Session.CurrentSolution;
@@ -265,12 +275,6 @@ public sealed class CodeActionService(
         }
 
         return new CodeActionPreview(actionId, cached.Action.Title, [.. changes]);
-    }
-
-    private Document? GetDocument(string filePath)
-    {
-        var docId = Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
-        return docId is null ? null : Session.CurrentSolution.GetDocument(docId);
     }
 
     private static string DetermineScope(CodeFixProvider provider)

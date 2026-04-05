@@ -38,12 +38,11 @@ public sealed class GotoDefinitionTool
         var hasPartialPosition = filePath is not null && (line is null || column is null);
         var hasName = symbolName is not null;
 
+        if (hasPartialPosition)
+            return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.");
+
         if (!hasPosition && !hasName)
-        {
-            return GotoDefinitionResult.Error(hasPartialPosition
-                ? "Position-based lookup requires filePath, line, and column."
-                : "Provide either symbolName or filePath + line + column.");
-        }
+            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
 
         ISymbol? targetSymbol;
 
