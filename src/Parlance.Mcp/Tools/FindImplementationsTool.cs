@@ -42,13 +42,7 @@ public sealed class FindImplementationsTool
                 s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1))
             .ToImmutableList();
 
-        return new FindImplementationsResult(
-            Status: "found",
-            TargetType: targetSymbol.ToDisplayString(),
-            Count: entries.Count,
-            Implementations: entries,
-            Candidates: [],
-            Message: null);
+        return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries);
     }
 }
 
@@ -67,6 +61,8 @@ public sealed record FindImplementationsResult(
     public static FindImplementationsResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", typeName, 0, [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+    public static FindImplementationsResult Found(string targetType, ImmutableList<ImplementationEntry> implementations) => new(
+        "found", targetType, implementations.Count, implementations, [], null);
 }
 
 public sealed record ImplementationEntry(

@@ -75,13 +75,7 @@ public sealed class FindReferencesTool
             .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
             .ToImmutableList();
 
-        return new FindReferencesResult(
-            Status: "found",
-            SymbolName: targetSymbol.ToDisplayString(),
-            TotalCount: totalCount,
-            FileGroups: fileGroups,
-            Candidates: [],
-            Message: null);
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups);
     }
 }
 
@@ -100,6 +94,8 @@ public sealed record FindReferencesResult(
     public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+    public static FindReferencesResult Found(string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups) => new(
+        "found", symbolName, totalCount, fileGroups, [], null);
 }
 
 public sealed record ReferenceFileGroup(string FilePath, ImmutableList<ReferenceLocation> Locations);
