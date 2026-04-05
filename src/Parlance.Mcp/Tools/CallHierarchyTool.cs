@@ -114,13 +114,8 @@ public sealed class CallHierarchyTool
             }
         }
 
-        return new CallHierarchyResult(
-            Status: "found",
-            TargetMethod: targetSymbol.ToDisplayString(),
-            Callers: callersBuilder.ToImmutable(),
-            Callees: calleesBuilder.ToImmutable(),
-            Candidates: [],
-            Message: null);
+        return CallHierarchyResult.Found(
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable());
     }
 }
 
@@ -137,6 +132,9 @@ public sealed record CallHierarchyResult(
     public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", methodName, [], [], candidates,
         $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
+    public static CallHierarchyResult Found(
+        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees) => new(
+        "found", targetMethod, callers, callees, [], null);
 }
 
 public sealed record HierarchyEntry(

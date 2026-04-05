@@ -2,6 +2,8 @@ using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
+using Microsoft.CodeAnalysis.CodeFixes;
+using Microsoft.CodeAnalysis.CodeRefactorings;
 using Microsoft.CodeAnalysis.Diagnostics;
 
 namespace Parlance.Analyzers.Upstream;
@@ -10,7 +12,16 @@ public static class AnalyzerLoader
 {
     private static readonly HashSet<string> SupportedFrameworks = ["net8.0", "net10.0"];
 
-    public static ImmutableArray<DiagnosticAnalyzer> LoadAll(string targetFramework)
+    public static ImmutableArray<DiagnosticAnalyzer> LoadAll(string targetFramework) =>
+        DiscoverFromAssemblies<DiagnosticAnalyzer>(targetFramework);
+
+    public static ImmutableArray<CodeFixProvider> LoadCodeFixProviders(string targetFramework) =>
+        DiscoverFromAssemblies<CodeFixProvider>(targetFramework);
+
+    public static ImmutableArray<CodeRefactoringProvider> LoadCodeRefactoringProviders(string targetFramework) =>
+        DiscoverFromAssemblies<CodeRefactoringProvider>(targetFramework);
+
+    private static ImmutableArray<T> DiscoverFromAssemblies<T>(string targetFramework) where T : class
     {
         if (!SupportedFrameworks.Contains(targetFramework))
         {
@@ -19,11 +30,11 @@ public static class AnalyzerLoader
                 nameof(targetFramework));
         }
 
-        var analyzers = ImmutableArray.CreateBuilder<DiagnosticAnalyzer>();
+        var results = ImmutableArray.CreateBuilder<T>();
 
-        // Discover PARL analyzers from the Parlance.CSharp.Analyzers assembly
+        // Discover from the Parlance.CSharp.Analyzers assembly
         var parlAssembly = typeof(Parlance.CSharp.Analyzers.Rules.PARL9003_UseDefaultLiteral).Assembly;
-        analyzers.AddRange(parlAssembly.DiscoverInstances<DiagnosticAnalyzer>());
+        results.AddRange(parlAssembly.DiscoverInstances<T>());
 
         // Load upstream analyzer DLLs
         var analyzerDir = ResolveAnalyzerDirectory(targetFramework);
@@ -42,7 +53,7 @@ public static class AnalyzerLoader
                         ResolveFromDirectory(alc, assemblyName, analyzerDir);
 
                     var assembly = loadContext.LoadFromAssemblyPath(dllPath);
-                    analyzers.AddRange(assembly.DiscoverInstances<DiagnosticAnalyzer>());
+                    results.AddRange(assembly.DiscoverInstances<T>());
                 }
                 catch (Exception ex)
                 {
@@ -51,11 +62,10 @@ public static class AnalyzerLoader
             }
         }
 
-        return analyzers.ToImmutable();
+        return results.ToImmutable();
     }
 
-    private static Assembly? ResolveFromDirectory(
-        AssemblyLoadContext context, AssemblyName assemblyName, string directory)
+    private static Assembly? ResolveFromDirectory(AssemblyLoadContext context, AssemblyName assemblyName, string directory)
     {
         // Try exact match first
         var candidatePath = Path.Combine(directory, assemblyName.Name + ".dll");
