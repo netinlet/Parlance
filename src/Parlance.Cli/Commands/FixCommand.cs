@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.CommandLine;
 using System.Text;
@@ -18,13 +19,18 @@ internal static class FixCommand
     {
         var pathArg = new Argument<string>("path") { Description = "Path to .sln or .csproj" };
         var dryRunOption = new Option<bool>("--dry-run") { Description = "Preview changes without writing" };
-        var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
-        suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
+        var suppressOption = new Option<string[]>("--suppress")
+        {
+            Description = "Rule IDs to suppress",
+            DefaultValueFactory = _ => []
+        };
 
-        var command = new Command("fix", "Apply auto-fixes to C# source files");
-        command.Add(pathArg);
-        command.Add(dryRunOption);
-        command.Add(suppressOption);
+        var command = new Command("fix", "Apply auto-fixes to C# source files")
+        {
+            pathArg,
+            dryRunOption,
+            suppressOption
+        };
 
         command.SetAction(async (parseResult, ct) =>
         {
@@ -69,6 +75,13 @@ internal static class FixCommand
                 var originalSolution = session.CurrentSolution;
                 var currentSolution = originalSolution;
 
+                // Pre-build project info lookup by name
+                var projectInfoByName = session.Projects
+                    .ToDictionary(p => p.Name, StringComparer.OrdinalIgnoreCase);
+
+                // Cache loaded providers/analyzers by TFM — avoids repeated directory scans + reflection
+                var cache = new Dictionary<string, FixResources>(StringComparer.OrdinalIgnoreCase);
+
                 const int maxIterations = 50;
                 for (var iteration = 0; iteration < maxIterations; iteration++)
                 {
@@ -76,47 +89,32 @@ internal static class FixCommand
 
                     foreach (var project in currentSolution.Projects)
                     {
-                        // Resolve TFM per project, matching AnalysisService behavior
-                        var projectInfo = session.Projects.FirstOrDefault(p => p.Name == project.Name);
-                        var targetFramework = projectInfo?.ActiveTargetFramework ?? "net10.0";
+                        var targetFramework = projectInfoByName.TryGetValue(project.Name, out var info)
+                            ? info.ActiveTargetFramework ?? "net10.0"
+                            : "net10.0";
 
-                        ImmutableArray<CodeFixProvider> fixProviders;
-                        ImmutableArray<DiagnosticAnalyzer> analyzers;
-                        try
+                        if (!cache.TryGetValue(targetFramework, out var resources))
                         {
-                            fixProviders = FixProviderLoader.LoadAll(targetFramework);
-                            var fixableIds = fixProviders.SelectMany(fp => fp.FixableDiagnosticIds).ToHashSet();
-                            analyzers = AnalyzerLoader.LoadAll(targetFramework)
-                                .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
-                                .ToImmutableArray();
-                        }
-                        catch (ArgumentException)
-                        {
-                            fixProviders = FixProviderLoader.LoadAll("net10.0");
-                            var fixableIds = fixProviders.SelectMany(fp => fp.FixableDiagnosticIds).ToHashSet();
-                            analyzers = AnalyzerLoader.LoadAll("net10.0")
-                                .Where(a => a.SupportedDiagnostics.Any(d => fixableIds.Contains(d.Id)))
-                                .ToImmutableArray();
+                            resources = LoadFixResources(targetFramework);
+                            cache[targetFramework] = resources;
                         }
 
-                        if (analyzers.IsEmpty) continue;
+                        if (resources.Analyzers.IsEmpty) continue;
 
                         var compilation = await project.GetCompilationAsync(ct);
                         if (compilation is null) continue;
 
-                        var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
+                        var compilationWithAnalyzers = compilation.WithAnalyzers(resources.Analyzers);
                         var diagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
                         var fixableDiags = diagnostics
                             .Where(d => d.Id != "AD0001")
-                            .Where(d => !suppression.IsSuppressed(d.Id))
-                            .ToList();
+                            .Where(d => !suppression.IsSuppressed(d.Id));
 
                         foreach (var diagnostic in fixableDiags)
                         {
-                            var fixProvider = fixProviders.FirstOrDefault(fp =>
-                                fp.FixableDiagnosticIds.Contains(diagnostic.Id));
-                            if (fixProvider is null) continue;
+                            if (!resources.ProviderByDiagnosticId.TryGetValue(diagnostic.Id, out var fixProvider))
+                                continue;
 
                             var tree = diagnostic.Location.SourceTree;
                             if (tree is null) continue;
@@ -137,11 +135,9 @@ internal static class FixCommand
                             var operations = await actions[0].GetOperationsAsync(ct);
                             foreach (var op in operations)
                             {
-                                if (op is ApplyChangesOperation applyOp)
-                                {
-                                    currentSolution = applyOp.ChangedSolution;
-                                    applied = true;
-                                }
+                                if (op is not ApplyChangesOperation applyOp) continue;
+                                currentSolution = applyOp.ChangedSolution;
+                                applied = true;
                             }
 
                             if (applied) break;
@@ -167,13 +163,10 @@ internal static class FixCommand
 
                         var origSourceText = await origDoc.GetTextAsync(ct);
                         var newSourceText = await document.GetTextAsync(ct);
-                        var origContent = origSourceText.ToString();
-                        var newContent = newSourceText.ToString();
-                        if (origContent != newContent)
-                        {
-                            var encoding = origSourceText.Encoding ?? Encoding.UTF8;
-                            fixedFiles.Add((document.FilePath, newContent, encoding));
-                        }
+                        if (origSourceText.ContentEquals(newSourceText)) continue;
+
+                        var encoding = origSourceText.Encoding ?? Encoding.UTF8;
+                        fixedFiles.Add((document.FilePath, newSourceText.ToString(), encoding));
                     }
                 }
 
@@ -201,4 +194,40 @@ internal static class FixCommand
 
         return command;
     }
+
+    private static ImmutableArray<T> LoadWithFallback<T>(Func<string, ImmutableArray<T>> loader, string targetFramework)
+    {
+        try
+        {
+            return loader(targetFramework);
+        }
+        catch (ArgumentException)
+        {
+            return loader("net10.0");
+        }
+    }
+
+    private static FixResources LoadFixResources(string targetFramework)
+    {
+        var fixProviders = LoadWithFallback(FixProviderLoader.LoadAll, targetFramework);
+
+        var providerByDiagId = new Dictionary<string, CodeFixProvider>(StringComparer.OrdinalIgnoreCase);
+        foreach (var fp in fixProviders)
+        {
+            foreach (var id in fp.FixableDiagnosticIds)
+                _ = providerByDiagId.TryAdd(id, fp);
+        }
+
+        var frozen = providerByDiagId.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase);
+
+        var analyzers = LoadWithFallback(AnalyzerLoader.LoadAll, targetFramework)
+            .Where(a => a.SupportedDiagnostics.Any(d => frozen.ContainsKey(d.Id)))
+            .ToImmutableArray();
+
+        return new FixResources(analyzers, frozen);
+    }
+
+    private sealed record FixResources(
+        ImmutableArray<DiagnosticAnalyzer> Analyzers,
+        FrozenDictionary<string, CodeFixProvider> ProviderByDiagnosticId);
 }
