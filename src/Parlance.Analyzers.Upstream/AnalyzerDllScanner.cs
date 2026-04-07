@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.Loader;
@@ -8,11 +10,18 @@ internal static class AnalyzerDllScanner
 {
     internal static readonly HashSet<string> SupportedFrameworks = ["net8.0", "net10.0"];
 
-    internal static IEnumerable<Assembly> ScanAssemblies(string targetFramework)
+    private static readonly ConcurrentDictionary<string, ImmutableArray<Assembly>> Cache = new(StringComparer.OrdinalIgnoreCase);
+
+    internal static ImmutableArray<Assembly> ScanAssemblies(string targetFramework) =>
+        Cache.GetOrAdd(targetFramework, ScanAssembliesCore);
+
+    private static ImmutableArray<Assembly> ScanAssembliesCore(string targetFramework)
     {
         var analyzerDir = ResolveAnalyzerDirectory(targetFramework);
         if (analyzerDir is null || !Directory.Exists(analyzerDir))
-            yield break;
+            return [];
+
+        var builder = ImmutableArray.CreateBuilder<Assembly>();
 
         foreach (var dllPath in Directory.EnumerateFiles(analyzerDir, "*.dll"))
         {
@@ -42,8 +51,10 @@ internal static class AnalyzerDllScanner
                 continue;
             }
 
-            yield return assembly;
+            builder.Add(assembly);
         }
+
+        return builder.ToImmutable();
     }
 
     private static Assembly? ResolveFromDirectory(
