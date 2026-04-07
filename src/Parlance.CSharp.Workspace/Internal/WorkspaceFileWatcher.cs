@@ -109,18 +109,19 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
 
     public void Dispose()
     {
-        DisposeCore();
+        StopAndCapture().GetAwaiter().GetResult();
+        _processingLock.Dispose();
         _logger.LogInformation("File watcher stopped (sync)");
     }
 
     public async ValueTask DisposeAsync()
     {
-        var processingTask = DisposeCore();
-        await processingTask.ConfigureAwait(false);
+        await StopAndCapture().ConfigureAwait(false);
+        _processingLock.Dispose();
         _logger.LogInformation("File watcher stopped");
     }
 
-    private Task DisposeCore()
+    private Task StopAndCapture()
     {
         foreach (var watcher in _watchers)
             watcher.EnableRaisingEvents = false;
@@ -138,7 +139,6 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
         foreach (var watcher in _watchers)
             watcher.Dispose();
 
-        _processingLock.Dispose();
         return processingTask;
     }
 }
