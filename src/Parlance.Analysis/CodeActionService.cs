@@ -45,7 +45,7 @@ public sealed class CodeActionService(
         _fixProvidersByTfm.GetOrAdd(targetFramework, tfm =>
         {
             var providers = new List<CodeFixProvider>();
-            providers.AddRange(AnalyzerLoader.LoadCodeFixProviders(tfm));
+            providers.AddRange(FixProviderLoader.LoadAll(tfm));
             providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
             providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.Features"));
             return [.. providers];
@@ -55,7 +55,7 @@ public sealed class CodeActionService(
         _refactoringProvidersByTfm.GetOrAdd(targetFramework, tfm =>
         {
             var providers = new List<CodeRefactoringProvider>();
-            providers.AddRange(AnalyzerLoader.LoadCodeRefactoringProviders(tfm));
+            providers.AddRange(RefactoringProviderLoader.LoadAll(tfm));
             providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
             providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.Features"));
             return [.. providers];

@@ -173,12 +173,12 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     [Fact]
     public async Task TypeHierarchy_FindImplementations_ReturnsDirectSubtypesOnly()
     {
-        // IAnalysisEngine → CSharpAnalysisEngine is direct
+        // IOutputFormatter → TextFormatter, JsonFormatter are direct
         // If FindImplementationsAsync returned transitive results, we'd see
         // unexpected entries at depth 1. Verify the count is reasonable.
         var result = await TypeHierarchyTool.TypeHierarchy(
             _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
-            typeName: "IAnalysisEngine",
+            typeName: "IOutputFormatter",
             maxDepth: 1,
             CancellationToken.None);
 

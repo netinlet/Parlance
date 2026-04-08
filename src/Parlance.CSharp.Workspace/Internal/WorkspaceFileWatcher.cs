@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Parlance.CSharp.Workspace.Internal;
 
-internal sealed class WorkspaceFileWatcher : IAsyncDisposable
+internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
 {
     private readonly FileSystemWatcher[] _watchers;
     private readonly Func<IReadOnlyList<string>, Task> _onChanges;
@@ -107,7 +107,21 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
             || path.Contains($"{sep}obj{sep}", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void Dispose()
+    {
+        StopAndCapture().GetAwaiter().GetResult();
+        _processingLock.Dispose();
+        _logger.LogInformation("File watcher stopped (sync)");
+    }
+
     public async ValueTask DisposeAsync()
+    {
+        await StopAndCapture().ConfigureAwait(false);
+        _processingLock.Dispose();
+        _logger.LogInformation("File watcher stopped");
+    }
+
+    private Task StopAndCapture()
     {
         foreach (var watcher in _watchers)
             watcher.EnableRaisingEvents = false;
@@ -122,12 +136,9 @@ internal sealed class WorkspaceFileWatcher : IAsyncDisposable
             processingTask = _processingTask;
         }
 
-        await processingTask.ConfigureAwait(false);
-
         foreach (var watcher in _watchers)
             watcher.Dispose();
 
-        _processingLock.Dispose();
-        _logger.LogInformation("File watcher stopped");
+        return processingTask;
     }
 }

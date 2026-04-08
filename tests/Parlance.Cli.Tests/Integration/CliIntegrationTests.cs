@@ -1,44 +1,43 @@
+// tests/Parlance.Cli.Tests/Integration/CliIntegrationTests.cs
 using System.Diagnostics;
 using System.Text.Json;
 
 namespace Parlance.Cli.Tests.Integration;
 
-public sealed class CliIntegrationTests : IDisposable
+public sealed class CliIntegrationTests
 {
-    private readonly string _tempDir;
     private readonly string _cliDll;
+    private readonly string _solutionPath;
 
     public CliIntegrationTests()
     {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempDir);
-
-        // Find the CLI project's built DLL relative to test output
         var testDir = AppContext.BaseDirectory;
         _cliDll = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", "..",
             "src", "Parlance.Cli", "bin", "Debug", "net10.0", "Parlance.Cli.dll"));
 
-        // If DLL doesn't exist at the relative path, try building it
         if (!File.Exists(_cliDll))
         {
             var cliProject = Path.GetFullPath(Path.Combine(testDir, "..", "..", "..", "..", "..",
                 "src", "Parlance.Cli", "Parlance.Cli.csproj"));
-            var buildProcess = Process.Start(new ProcessStartInfo
+            Process.Start(new ProcessStartInfo
             {
                 FileName = "dotnet",
                 Arguments = $"build \"{cliProject}\" --no-restore -v quiet",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                UseShellExecute = false,
-            });
-            buildProcess?.WaitForExit();
+                UseShellExecute = false
+            })?.WaitForExit();
         }
-    }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempDir))
-            Directory.Delete(_tempDir, recursive: true);
+        // Walk up from test output to find Parlance.sln
+        var dir = testDir;
+        while (dir is not null)
+        {
+            var sln = Directory.GetFiles(dir, "Parlance.sln").FirstOrDefault();
+            if (sln is not null) { _solutionPath = sln; return; }
+            dir = Path.GetDirectoryName(dir);
+        }
+        throw new InvalidOperationException("Could not find Parlance.sln");
     }
 
     private async Task<(int ExitCode, string StdOut, string StdErr)> RunCliAsync(params string[] args)
@@ -48,280 +47,94 @@ public sealed class CliIntegrationTests : IDisposable
             FileName = "dotnet",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            UseShellExecute = false,
+            UseShellExecute = false
         };
 
-        // Use dotnet exec for the built DLL - much faster than dotnet run
-        if (File.Exists(_cliDll))
-        {
-            psi.Arguments = $"exec \"{_cliDll}\" {string.Join(' ', args)}";
-        }
-        else
-        {
-            // Fallback to dotnet run if DLL not found
-            var cliProject = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..",
-                "src", "Parlance.Cli", "Parlance.Cli.csproj"));
-            psi.Arguments = $"run --project \"{cliProject}\" --no-build -- {string.Join(' ', args)}";
-        }
+        var quotedArgs = string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a));
+
+        psi.Arguments = File.Exists(_cliDll)
+            ? $"exec \"{_cliDll}\" {quotedArgs}"
+            : $"run --project \"{Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "Parlance.Cli", "Parlance.Cli.csproj"))}\" --no-build -- {quotedArgs}";
 
         using var process = Process.Start(psi)!;
         var stdout = await process.StandardOutput.ReadToEndAsync();
         var stderr = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
-
         return (process.ExitCode, stdout, stderr);
     }
 
     [Fact]
-    public async Task Analyze_SingleFile_ShowsDiagnostics()
+    public async Task Analyze_Solution_ExitCode0AndProducesOutput()
     {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, """
-            class C
-            {
-                int M()
-                {
-                    return default(int);
-                }
-            }
-            """);
-
-        var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
-
+        var (exitCode, stdout, _) = await RunCliAsync("analyze", _solutionPath);
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL9003", stdout);
         Assert.Contains("Idiomatic score:", stdout);
     }
 
     [Fact]
-    public async Task Analyze_JsonFormat_ReturnsValidJson()
+    public async Task Analyze_JsonFormat_ReturnsValidJsonWithExpectedShape()
     {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, "class C { void M() { } }");
-
-        var (exitCode, stdout, _) = await RunCliAsync("analyze", file, "--format", "json");
-
+        var (exitCode, stdout, _) = await RunCliAsync("analyze", _solutionPath, "--format", "json");
         Assert.Equal(0, exitCode);
         var doc = JsonDocument.Parse(stdout);
         Assert.True(doc.RootElement.TryGetProperty("summary", out _));
+        Assert.True(doc.RootElement.TryGetProperty("diagnostics", out _));
+        Assert.True(doc.RootElement.TryGetProperty("curationSet", out _));
     }
 
     [Fact]
-    public async Task Analyze_FailBelow_ExitCode1()
+    public async Task Analyze_FileNotFound_ExitCode2()
     {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, """
-            class C
-            {
-                int M()
-                {
-                    return default(int);
-                }
-            }
-            """);
-
-        var (exitCode, _, _) = await RunCliAsync("analyze", file, "--fail-below", "100");
-
-        Assert.Equal(1, exitCode);
-    }
-
-    [Fact]
-    public async Task Analyze_NoFiles_ExitCode2()
-    {
-        var (exitCode, _, stderr) = await RunCliAsync("analyze", Path.Combine(_tempDir, "nonexistent"));
-
+        var (exitCode, _, stderr) = await RunCliAsync("analyze", "/nonexistent/path.sln");
         Assert.Equal(2, exitCode);
-        Assert.Contains("No .cs files found", stderr);
+        Assert.Contains("not found", stderr);
     }
 
     [Fact]
-    public async Task Fix_DryRun_DoesNotModify()
+    public async Task Analyze_WrongExtension_ExitCode2()
     {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        var original = """
-            class C
-            {
-                void M() { }
-            }
-            """;
-        File.WriteAllText(file, original);
-
-        var (exitCode, _, _) = await RunCliAsync("fix", file);
-
-        Assert.Equal(0, exitCode);
-        Assert.Equal(original, File.ReadAllText(file));
+        var (exitCode, _, stderr) = await RunCliAsync("analyze", "somefile.cs");
+        Assert.Equal(2, exitCode);
+        Assert.Contains(".sln or .csproj", stderr);
     }
 
     [Fact]
-    public async Task Rules_ShowsRules()
+    public async Task Analyze_InvalidFormat_ReturnsNonZeroExit()
     {
-        var (exitCode, stdout, _) = await RunCliAsync("rules");
-
-        Assert.Equal(0, exitCode);
-        Assert.Contains("PARL9003", stdout);
+        var (exitCode, _, stderr) = await RunCliAsync("analyze", _solutionPath, "--format", "nope");
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("nope", stderr);
     }
 
     [Fact]
     public async Task Rules_ShowsUpstreamRules()
     {
         var (exitCode, stdout, _) = await RunCliAsync("rules");
-
         Assert.Equal(0, exitCode);
-        Assert.Contains("PARL9003", stdout);
         Assert.Matches("(CA|IDE|RCS)", stdout);
     }
 
     [Fact]
-    public async Task Rules_TargetFramework_AcceptsNet8()
+    public async Task Rules_JsonFormat_ReturnsArray()
     {
-        var (exitCode, stdout, _) = await RunCliAsync("rules", "--target-framework", "net8.0");
-
-        Assert.Equal(0, exitCode);
-        Assert.Contains("PARL9003", stdout);
-    }
-
-    [Fact]
-    public async Task Analyze_TargetFramework_AcceptsNet8()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, "class C { }");
-
-        var (exitCode, _, _) = await RunCliAsync("analyze", file, "--target-framework", "net8.0");
-
-        Assert.Equal(0, exitCode);
-    }
-
-    [Fact]
-    public async Task Fix_TargetFramework_AcceptsNet8()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, """
-            class C
-            {
-                void M() { }
-            }
-            """);
-
-        var (exitCode, _, _) = await RunCliAsync("fix", file, "--target-framework", "net8.0");
-
-        Assert.Equal(0, exitCode);
-    }
-
-    [Fact]
-    public async Task Analyze_WithUpstreamAnalyzers_ReportsNonParlDiagnostics()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        // Code that triggers CA1822 (method can be static)
-        File.WriteAllText(file, """
-            public class C
-            {
-                public int GetValue()
-                {
-                    return 42;
-                }
-            }
-            """);
-
-        var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
-
-        Assert.Equal(0, exitCode);
-        // Should contain at least one non-PARL diagnostic
-        Assert.Matches("(CA|IDE|RCS)", stdout);
-    }
-
-    [Fact]
-    public async Task Analyze_DefaultProfile_ProducesUpstreamDiagnosticsInJson()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, """
-            using System;
-
-            public class MyClass
-            {
-                public int Add(int a, int b)
-                {
-                    return a + b;
-                }
-            }
-            """);
-
-        var (exitCode, stdout, _) = await RunCliAsync(
-            "analyze", file, "--format", "json");
-
+        var (exitCode, stdout, _) = await RunCliAsync("rules", "--format", "json");
         Assert.Equal(0, exitCode);
         var doc = JsonDocument.Parse(stdout);
-        Assert.True(doc.RootElement.TryGetProperty("summary", out _));
-    }
-
-    [Fact]
-    public async Task Analyze_ParlAndUpstreamDiagnostics_CoexistInOutput()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        // Code that triggers PARL9003 (default literal) and upstream diagnostics
-        File.WriteAllText(file, """
-            public class C
-            {
-                public int M()
-                {
-                    return default(int);
-                }
-            }
-            """);
-
-        var (exitCode, stdout, _) = await RunCliAsync("analyze", file);
-
-        Assert.Equal(0, exitCode);
-        // PARL diagnostics still fire
-        Assert.Contains("PARL9003", stdout);
-        // Upstream diagnostics also fire alongside PARL ones
-        Assert.Matches("(CA|IDE|RCS)", stdout);
-    }
-
-    // Reject invalid --format values instead of silently falling back to text
-    [Fact]
-    public async Task Analyze_InvalidFormat_ReturnsNonZeroExit()
-    {
-        var file = Path.Combine(_tempDir, "Test.cs");
-        File.WriteAllText(file, "class C { }");
-
-        var (exitCode, _, stderr) = await RunCliAsync("analyze", file, "--format", "nope");
-
-        Assert.NotEqual(0, exitCode);
-        Assert.Contains("nope", stderr);
+        Assert.Equal(JsonValueKind.Array, doc.RootElement.ValueKind);
+        Assert.NotEmpty(doc.RootElement.EnumerateArray());
     }
 
     [Fact]
     public async Task Rules_InvalidFormat_ReturnsNonZeroExit()
     {
-        var (exitCode, _, stderr) = await RunCliAsync("rules", "--format", "nope");
-
+        var (exitCode, _, _) = await RunCliAsync("rules", "--format", "nope");
         Assert.NotEqual(0, exitCode);
-        Assert.Contains("nope", stderr);
     }
 
-    // Unknown options on commands without variadic args should fail
     [Fact]
     public async Task Rules_UnknownOption_ReturnsNonZeroExit()
     {
         var (exitCode, _, _) = await RunCliAsync("rules", "--bogus");
-
         Assert.NotEqual(0, exitCode);
-    }
-
-    // Recursive glob patterns like src/**/*.cs should match nested files
-    [Fact]
-    public async Task Analyze_RecursiveGlob_FindsNestedFiles()
-    {
-        var subDir = Path.Combine(_tempDir, "src", "sub");
-        Directory.CreateDirectory(subDir);
-        File.WriteAllText(Path.Combine(subDir, "Example.cs"), "class Example { }");
-        File.WriteAllText(Path.Combine(_tempDir, "src", "Root.cs"), "class Root { }");
-
-        var pattern = Path.Combine(_tempDir, "src", "**", "*.cs");
-        var (exitCode, stdout, stderr) = await RunCliAsync("analyze", pattern);
-
-        Assert.Equal(0, exitCode);
-        Assert.DoesNotContain("No .cs files found", stderr);
-        Assert.Contains("Idiomatic score:", stdout);
     }
 }

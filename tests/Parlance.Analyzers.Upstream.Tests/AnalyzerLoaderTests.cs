@@ -19,19 +19,6 @@ public sealed class AnalyzerLoaderTests
     }
 
     [Fact]
-    public void LoadAll_Net10_IncludesParlAnalyzers()
-    {
-        var analyzers = AnalyzerLoader.LoadAll("net10.0");
-        var parlIds = analyzers
-            .SelectMany(a => a.SupportedDiagnostics)
-            .Select(d => d.Id)
-            .Where(id => id.StartsWith("PARL"))
-            .ToList();
-
-        Assert.Contains("PARL9003", parlIds);
-    }
-
-    [Fact]
     public void LoadAll_Net10_IncludesUpstreamAnalyzers()
     {
         var analyzers = AnalyzerLoader.LoadAll("net10.0");
@@ -44,6 +31,30 @@ public sealed class AnalyzerLoaderTests
         Assert.Contains("CA1822", allIds);  // NetAnalyzers
         Assert.Contains("IDE0055", allIds); // CodeStyle
         Assert.Contains("RCS1003", allIds); // Roslynator
+    }
+
+    [Fact]
+    public void LoadAll_Net10_IncludesParlAnalyzers()
+    {
+        var analyzers = AnalyzerLoader.LoadAll("net10.0");
+        var allIds = analyzers
+            .SelectMany(a => a.SupportedDiagnostics)
+            .Select(d => d.Id)
+            .ToHashSet();
+
+        Assert.Contains("PARL9003", allIds);
+    }
+
+    [Fact]
+    public void LoadAll_Net8_IncludesParlAnalyzers()
+    {
+        var analyzers = AnalyzerLoader.LoadAll("net8.0");
+        var allIds = analyzers
+            .SelectMany(a => a.SupportedDiagnostics)
+            .Select(d => d.Id)
+            .ToHashSet();
+
+        Assert.Contains("PARL9003", allIds);
     }
 
     [Fact]
@@ -60,12 +71,4 @@ public sealed class AnalyzerLoaderTests
             $"Expected at least 50 analyzer types, got {analyzers.Length}");
     }
 
-    [Fact]
-    public void LoadAll_Net8VsNet10_BothHaveAnalyzers()
-    {
-        var net8 = AnalyzerLoader.LoadAll("net8.0");
-        var net10 = AnalyzerLoader.LoadAll("net10.0");
-        Assert.NotEmpty(net8);
-        Assert.NotEmpty(net10);
-    }
 }
