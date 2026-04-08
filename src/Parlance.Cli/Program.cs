@@ -17,7 +17,6 @@ await using var provider = services.BuildServiceProvider();
 
 var rootCommand = new RootCommand("Parlance — C# code quality analysis");
 rootCommand.Add(AnalyzeCommand.Create(provider));
-rootCommand.Add(FixCommand.Create(provider));
 rootCommand.Add(RulesCommand.Create());
 
 var result = await rootCommand.Parse(args).InvokeAsync();

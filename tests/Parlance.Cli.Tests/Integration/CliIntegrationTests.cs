@@ -107,16 +107,6 @@ public sealed class CliIntegrationTests
     }
 
     [Fact]
-    public async Task Fix_DryRun_DoesNotModifyFiles()
-    {
-        var (exitCode, stdout, _) = await RunCliAsync("fix", _solutionPath, "--dry-run");
-        Assert.Equal(0, exitCode);
-        Assert.True(
-            stdout.Contains("No auto-fixes available.") || stdout.Contains("would be modified"),
-            $"Unexpected output: {stdout}");
-    }
-
-    [Fact]
     public async Task Rules_ShowsUpstreamRules()
     {
         var (exitCode, stdout, _) = await RunCliAsync("rules");
