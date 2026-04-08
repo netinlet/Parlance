@@ -6,7 +6,7 @@ namespace Parlance.CSharp.Workspace;
 /// previous session. The holder's lifetime is tied to the DI container, which
 /// disposes it (and the session) on shutdown.
 /// </summary>
-/// TODO: This is a great dogfooding test case for rename tool - change name from WorkspaceSessionHolder to WorkspaceSessionHandle
+// TODO: dogfooding test case for rename tool — rename to WorkspaceSessionHandle
 public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
 {
     private CSharpWorkspaceSession? _session;
@@ -20,12 +20,17 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
 
     public void SetSession(CSharpWorkspaceSession session)
     {
+        Interlocked.Exchange(ref _loadFailure, null);
         var previous = Interlocked.Exchange(ref _session, session);
         previous?.Dispose();
     }
 
-    public void SetLoadFailure(WorkspaceLoadFailure failure) =>
+    public void SetLoadFailure(WorkspaceLoadFailure failure)
+    {
         Interlocked.Exchange(ref _loadFailure, failure);
+        var previous = Interlocked.Exchange(ref _session, null);
+        previous?.Dispose();
+    }
 
     public void Dispose() =>
         Interlocked.Exchange(ref _session, null)?.Dispose();
