@@ -2,79 +2,108 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-use modern C# syntax
-
-do not push commits
-
-do not attribute commits
-
-## Build & Test Commands
+## Build & Test
 
 ```bash
-# Build (exclude Package project which is pack-only)
+# Build individual projects (not the full solution — Parlance.CSharp.Package is pack-only and breaks dotnet build)
 dotnet build src/Parlance.Cli/Parlance.Cli.csproj
-
-# Build MCP server
 dotnet build src/Parlance.Mcp/Parlance.Mcp.csproj
-
-# Run MCP server (stdio)
-dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln
 
 # Run all tests
 dotnet test Parlance.sln
 
 # Run a specific test project
-dotnet test tests/Parlance.CSharp.Tests/Parlance.CSharp.Tests.csproj
+dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj
 
 # Run a single test by name
 dotnet test tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj --filter "Analyze_SingleFile_ShowsDiagnostics"
 
 # Check formatting (CI enforces this)
 dotnet format Parlance.sln --verify-no-changes
+
+# Run MCP server (stdio transport)
+dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln
 ```
 
-Note: `dotnet build Parlance.sln` fails because `Parlance.CSharp.Package` sets `NoBuild=true` (it's a pack-only metapackage). Build individual projects or exclude it.
+**Note:** `dotnet build Parlance.sln` fails because `Parlance.CSharp.Package` has `NoBuild=true` (pack-only metapackage). Build individual projects instead.
 
 ## Architecture
 
-Parlance is a C# code quality analysis tool built on Roslyn. The dependency flow is:
+Parlance is an AI-first C# code analysis tool built on Roslyn. The MCP server is the primary interface; the CLI is a thin client.
+
+### Core dependency flow
 
 ```
-Parlance.Abstractions          (interfaces: IAnalysisEngine, models: Diagnostic, AnalysisResult)
+Parlance.Abstractions           Shared types (Diagnostic, Location, AnalysisSummary)
     ↑
-Parlance.CSharp.Analyzers      (netstandard2.0 — 8 Roslyn analyzers, PARL0001-PARL9003)
+Parlance.CSharp                 Score calculator, idiomatic analysis
     ↑
-Parlance.CSharp                (analysis engine — CompilationFactory, DiagnosticEnricher, ScoreCalculator)
+Parlance.CSharp.Analyzers       Custom PARL rules (netstandard2.0, Roslyn requirement)
     ↑
-Parlance.Analyzers.Upstream    (loads NetAnalyzers + Roslynator via reflection)
+Parlance.Analyzers.Upstream     Dynamic analyzer loading (NetAnalyzers, Roslynator, PARL rules)
     ↑
-Parlance.Cli                   (System.CommandLine 2.0.3 — analyze/fix/rules commands)
-
-Parlance.CSharp.Workspace      (MSBuildWorkspace engine — session, health, file watching)
+Parlance.Analysis               AnalysisService, CurationSetProvider, CodeActionService
     ↑
-Parlance.Mcp                   (MCP server — stdio transport, workspace-status tool)
+Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, compilation cache, file watching)
+    ↑
+├── Parlance.Mcp                MCP server — 15+ tools, stdio transport, Microsoft.Extensions.Hosting
+└── Parlance.Cli                CLI — analyze/rules commands, System.CommandLine 2.0.3
 ```
 
-**NuGet packages** (under `src/`):
-- `Parlance.CSharp.Analyzers` — Roslyn analyzer package (netstandard2.0, ships in `analyzers/dotnet/cs/`)
-- `Parlance.CSharp.Package` (PackageId=`Parlance.CSharp`) — bundle metapackage pulling in custom + upstream analyzers. Must NOT use `DevelopmentDependency` or `SuppressDependenciesWhenPacking`.
+### Key engine concepts
 
-## Key Conventions
+- **CSharpWorkspaceSession** wraps MSBuildWorkspace. Two modes: `Server` (long-running, file watching, compilation caching) and `Report` (one-shot CLI).
+- **WorkspaceSessionHolder** is a DI singleton holding the active session. All tools/commands access the workspace through it.
+- **WorkspaceQueryService** provides semantic navigation: symbol search, type hierarchy, find-references, go-to-definition.
+- **AnalysisService** runs diagnostics through dynamically-loaded analyzers, applies curation filtering, returns enriched results.
+- **Curation sets** are code-defined (not .editorconfig). They control which analyzer rules are enabled/disabled/suppressed.
+- All analyzers (PARL custom + 3rd party) load through a single `AnalyzerLoader` path — no special-casing.
 
-- **System.CommandLine 2.0.3 stable** — uses `SetAction` (not `SetHandler`), `parseResult.GetValue()`, `Parse(args).InvokeAsync()`. The beta API is completely different.
-- **Diagnostic prefix:** `PARL` (4-char, per MS guidance)
-- **Analyzer TFM:** netstandard2.0 (Roslyn requirement). All other projects target net10.0.
-- **Test framework:** xUnit with `Microsoft.CodeAnalysis.CSharp.Testing.XUnit` for analyzer tests
-- **Shared version** (0.1.0) set in `Directory.Build.props`
-- **Fixable rules:** PARL0004 (pattern matching), PARL9001 (using declarations)
-- **Scoring:** Weighted deduction — error -10, warning -5, suggestion -2, floor 0
+### MCP tool pattern
 
-## Code Style
+Tools are static methods on `[McpServerToolType]` classes. All tools are `ReadOnly = true`. They receive services via DI parameters:
 
-Enforced via `.editorconfig` and CI formatting check:
-- File-scoped namespaces only
-- `var` everywhere
-- Pattern matching preferred (switch expressions, `is` patterns, `not` patterns)
-- Seal classes by default
-- Positional record syntax / primary constructors
-- No consts for single-use strings
+```csharp
+[McpServerToolType]
+public sealed class MyTool
+{
+    [McpServerTool(Name = "my-tool", ReadOnly = true)]
+    [Description("...")]
+    public static MyResult Execute(WorkspaceSessionHolder holder, WorkspaceQueryService query, ILogger<MyTool> logger)
+    {
+        using var _ = ToolDiagnostics.TimeToolCall(logger, "my-tool");
+        // ...
+    }
+}
+```
+
+## Conventions
+
+- **SDK:** .NET 10.0 (pinned in `global.json`). All projects target `net10.0` except analyzers which must target `netstandard2.0`.
+- **System.CommandLine 2.0.3 stable** — uses `SetAction`, `parseResult.GetValue()`, `Parse(args).InvokeAsync()`. Not the beta API.
+- **Diagnostic prefix:** `PARL` (4-char, avoids collision per MS guidance).
+- **Seal classes by default** unless inheritance is needed.
+- **Positional record syntax** / primary constructors.
+- **`ImmutableList<T>`** over `ImmutableArray<T>`. `ImmutableDictionary` for computed-once data.
+- **`var` everywhere**, pattern matching, switch expressions, file-scoped namespaces.
+- **No consts for single-use strings.** YAGNI.
+- **Logging:** `Microsoft.Extensions.Logging` with structured logging throughout. MCP logs to stderr.
+- Do not push commits. Do not attribute commits.
+
+## Agent Guidance: dotnet-skills
+
+IMPORTANT: Prefer retrieval-led reasoning over pretraining for any .NET work.
+Workflow: skim repo patterns -> consult dotnet-skills by name -> implement smallest-change -> note conflicts.
+
+Routing (invoke by name)
+- C# / code quality: csharp-coding-standards, csharp-concurrency-patterns, csharp-api-design, csharp-type-design-performance
+- DI / config: microsoft-extensions-dependency-injection, microsoft-extensions-configuration
+- Testing: snapshot-testing
+- Project structure: project-structure, package-management, serialization
+
+Quality gates (use when applicable)
+- dotnet-slopwatch: after substantial new/refactor/LLM-authored code
+- crap-analysis: after tests added/changed in complex code
+
+Specialist agents
+- dotnet-concurrency-specialist, dotnet-performance-analyst, roslyn-incremental-generator-specialist
