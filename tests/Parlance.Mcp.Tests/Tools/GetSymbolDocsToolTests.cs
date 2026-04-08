@@ -25,13 +25,13 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     [Fact]
     public async Task GetSymbolDocs_TypeWithDocs_ReturnsSummary()
     {
-        // IAnalysisEngine has XML doc comments added to Parlance.Abstractions
+        // ResolvedSymbol has XML doc comments in Parlance.CSharp.Workspace
         var result = await GetSymbolDocsTool.GetSymbolDocs(
             _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
-            "IAnalysisEngine", CancellationToken.None);
+            "ResolvedSymbol", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
-        Assert.Contains("IAnalysisEngine", result.SymbolName);
+        Assert.Contains("ResolvedSymbol", result.SymbolName);
         Assert.NotNull(result.Summary);
         Assert.NotEmpty(result.Summary);
     }
@@ -39,11 +39,11 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     [Fact]
     public async Task GetSymbolDocs_AmbiguousMethod_ReturnsAmbiguous()
     {
-        // AnalyzeSourceAsync exists on both IAnalysisEngine and its implementations,
+        // DisposeAsync exists on CSharpWorkspaceSession, WorkspaceSessionHolder, and WorkspaceFileWatcher,
         // so unqualified lookup should surface the ambiguity rather than silently picking one.
         var result = await GetSymbolDocsTool.GetSymbolDocs(
             _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
-            "AnalyzeSourceAsync", CancellationToken.None);
+            "DisposeAsync", CancellationToken.None);
 
         Assert.Equal("ambiguous", result.Status);
         Assert.NotEmpty(result.Candidates);
@@ -52,13 +52,13 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     [Fact]
     public async Task GetSymbolDocs_TypeWithoutDocs_ReturnsNoDocs()
     {
-        // WorkspaceSessionHolder has no XML doc comments
+        // WorkspaceLoadFailure has no XML doc comments
         var result = await GetSymbolDocsTool.GetSymbolDocs(
             _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
-            "WorkspaceSessionHolder", CancellationToken.None);
+            "WorkspaceLoadFailure", CancellationToken.None);
 
         Assert.Equal("no_docs", result.Status);
-        Assert.Equal("WorkspaceSessionHolder", result.SymbolName);
+        Assert.Equal("WorkspaceLoadFailure", result.SymbolName);
         Assert.Null(result.Summary);
     }
 

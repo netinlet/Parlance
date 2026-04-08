@@ -132,8 +132,14 @@ public sealed class AnalysisService(
             }
         }
 
+        var collected = allCurated.ToImmutable();
+
+        // Apply --suppress filter before scoring so totals/score are consistent
+        if (options.Suppress is { IsEmpty: false } suppress)
+            collected = collected.Where(d => !suppress.IsSuppressed(d.RuleId)).ToImmutableList();
+
         // Apply curation
-        var curated = CurationFilter.Apply(curationSet, allCurated.ToImmutable());
+        var curated = CurationFilter.Apply(curationSet, collected);
 
         // Convert to Parlance diagnostics for scoring
         var parlanceDiagnostics = curated.Select(d => new Abstractions.Diagnostic(

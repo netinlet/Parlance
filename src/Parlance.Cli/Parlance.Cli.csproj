@@ -15,14 +15,13 @@
 
   <ItemGroup>
     <PackageReference Include="System.CommandLine" Version="2.0.3" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.0.0" />
-    <PackageReference Include="Microsoft.Extensions.FileSystemGlobbing" Version="10.0.3" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Parlance.Abstractions\Parlance.Abstractions.csproj" />
-    <ProjectReference Include="..\Parlance.CSharp\Parlance.CSharp.csproj" />
-    <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
+    <ProjectReference Include="..\Parlance.Analysis\Parlance.Analysis.csproj" />
+    <ProjectReference Include="..\Parlance.CSharp.Workspace\Parlance.CSharp.Workspace.csproj" />
     <ProjectReference Include="..\Parlance.Analyzers.Upstream\Parlance.Analyzers.Upstream.csproj" />
   </ItemGroup>
 
