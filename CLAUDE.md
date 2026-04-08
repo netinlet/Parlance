@@ -107,3 +107,32 @@ Quality gates (use when applicable)
 
 Specialist agents
 - dotnet-concurrency-specialist, dotnet-performance-analyst, roslyn-incremental-generator-specialist
+
+## Dogfooding Parlance
+
+Parlance MCP tools are available in this repo via `.mcp.json`. You **must** use them as the primary code intelligence layer. Do not default to native tools (Grep, Glob, Read) for tasks that Parlance covers.
+
+### Tool mapping — must use Parlance first
+
+| Instead of... | Must use Parlance tool | When |
+|---|---|---|
+| Grep for a symbol | `search-symbols` | Finding types, methods, properties by name |
+| Grep for usages | `find-references` | Finding all usages of a symbol |
+| Read a file to understand a type | `describe-type` | Understanding a class/interface/record structure |
+| Read a file for structure | `outline-file` | Getting the shape of a file without reading every line |
+| Glob for a class definition | `goto-definition` | Finding where a type/method is defined |
+| Read to check inheritance | `type-hierarchy` | Understanding inheritance/implementation chains |
+| Read to understand an external type | `decompile-type` | Understanding types from NuGet packages |
+| Manual code review | `analyze` | Getting diagnostics and code quality feedback |
+| Grep for callers | `call-hierarchy` | Understanding who calls what |
+| Read XML docs | `get-symbol-docs` | Getting documentation for a symbol |
+| Guess if something is unused | `safe-to-delete` | Checking if a symbol has zero references |
+| Read to resolve `var` | `get-type-at` | Finding what type a `var` actually is |
+
+### When you fall back to a native tool
+
+You **must**:
+1. Note in your response which native tool you used, what you needed, and why Parlance didn't cover it
+2. Dispatch the `dogfooding-feedback` agent in the background to log the gap to `kibble/`
+
+This applies to all agents — main session and subagents alike.
