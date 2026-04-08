@@ -29,8 +29,24 @@ public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel Mini
         if (!string.IsNullOrWhiteSpace(envValue))
             return envValue;
 
+        var discovered = DiscoverSolutionFile(Environment.CurrentDirectory);
+        if (discovered is not null)
+            return discovered;
+
         throw new InvalidOperationException(
-            "Solution path is required. Use --solution-path <path> or set PARLANCE_SOLUTION_PATH environment variable.");
+            "Solution path is required. Use --solution-path <path>, set PARLANCE_SOLUTION_PATH environment variable, or run from a directory containing a .sln file.");
+    }
+
+    private static string? DiscoverSolutionFile(string directory)
+    {
+        var slnFiles = Directory.GetFiles(directory, "*.sln");
+        return slnFiles.Length switch
+        {
+            1 => slnFiles[0],
+            0 => null,
+            _ => throw new InvalidOperationException(
+                $"Multiple .sln files found in '{directory}'. Use --solution-path to specify which one.")
+        };
     }
 
     private static LogLevel GetLogLevel(string[] args)
