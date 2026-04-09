@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Parlance analytics logs
+.parlance/
+
 # User-specific files
 *.rsuser
 *.suo
