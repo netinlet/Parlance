@@ -28,7 +28,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
         var filePath = Path.Combine(TestPaths.RepoRoot, "src", "Parlance.CSharp.Workspace", "CSharpWorkspaceSession.cs");
 
         var result = await OutlineFileTool.OutlineFile(
-            _holder, _query, NullLogger<OutlineFileTool>.Instance, filePath, CancellationToken.None);
+            _holder, _query, TestAnalytics.Instance, filePath, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.Equal(filePath, result.FilePath);
@@ -41,7 +41,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
         var filePath = Path.Combine(TestPaths.RepoRoot, "src", "Parlance.CSharp.Workspace", "CSharpWorkspaceSession.cs");
 
         var result = await OutlineFileTool.OutlineFile(
-            _holder, _query, NullLogger<OutlineFileTool>.Instance, filePath, CancellationToken.None);
+            _holder, _query, TestAnalytics.Instance, filePath, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         var sessionType = Assert.Single(result.Types, t => t.Name == "CSharpWorkspaceSession");
@@ -53,7 +53,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
     public async Task OutlineFile_UnknownFile_ReturnsNotFound()
     {
         var result = await OutlineFileTool.OutlineFile(
-            _holder, _query, NullLogger<OutlineFileTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "/does/not/exist/Fake.cs", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -67,7 +67,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = OutlineFileTool.OutlineFile(
-            holder, query, NullLogger<OutlineFileTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "/any/path.cs", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -79,7 +79,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
         var filePath = Path.Combine(TestPaths.RepoRoot,
             "src", "Parlance.Mcp", "Tools", "WorkspaceStatusResult.cs");
         var result = await OutlineFileTool.OutlineFile(
-            _holder, _query, NullLogger<OutlineFileTool>.Instance, filePath, CancellationToken.None);
+            _holder, _query, TestAnalytics.Instance, filePath, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.True(result.Types.Count >= 2);
@@ -93,7 +93,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = OutlineFileTool.OutlineFile(
-            holder, query, NullLogger<OutlineFileTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "/any/path.cs", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

@@ -3,7 +3,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -18,9 +17,9 @@ public sealed class GetTypeAtTool
                  "Particularly useful for resolving 'var' declarations to their concrete types.")]
     public static async Task<GetTypeAtResult> GetTypeAt(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<GetTypeAtTool> logger, string filePath, int line, int column, CancellationToken ct)
+        ToolAnalytics analytics, string filePath, int line, int column, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-type-at");
+        using var _ = analytics.TimeToolCall("get-type-at", new { filePath, line, column });
 
         if (holder.LoadFailure is { } failure)
             return GetTypeAtResult.LoadFailed(failure.Message);

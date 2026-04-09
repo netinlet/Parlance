@@ -27,7 +27,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     {
         // ResolvedSymbol has XML doc comments in Parlance.CSharp.Workspace
         var result = await GetSymbolDocsTool.GetSymbolDocs(
-            _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "ResolvedSymbol", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -42,7 +42,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
         // DisposeAsync exists on CSharpWorkspaceSession, WorkspaceSessionHolder, and WorkspaceFileWatcher,
         // so unqualified lookup should surface the ambiguity rather than silently picking one.
         var result = await GetSymbolDocsTool.GetSymbolDocs(
-            _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "DisposeAsync", CancellationToken.None);
 
         Assert.Equal("ambiguous", result.Status);
@@ -54,7 +54,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     {
         // WorkspaceLoadFailure has no XML doc comments
         var result = await GetSymbolDocsTool.GetSymbolDocs(
-            _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "WorkspaceLoadFailure", CancellationToken.None);
 
         Assert.Equal("no_docs", result.Status);
@@ -66,7 +66,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
     public async Task GetSymbolDocs_NotFound_ReturnsNotFound()
     {
         var result = await GetSymbolDocsTool.GetSymbolDocs(
-            _holder, _query, NullLogger<GetSymbolDocsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "ThisSymbolDoesNotExistAnywhere", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -80,7 +80,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetSymbolDocsTool.GetSymbolDocs(
-            holder, query, NullLogger<GetSymbolDocsTool>.Instance,
+            holder, query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -94,7 +94,7 @@ public sealed class GetSymbolDocsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetSymbolDocsTool.GetSymbolDocs(
-            holder, query, NullLogger<GetSymbolDocsTool>.Instance,
+            holder, query, TestAnalytics.Instance, NullLogger<GetSymbolDocsTool>.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

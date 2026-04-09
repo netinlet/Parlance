@@ -27,7 +27,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
     {
         // CSharpWorkspaceSession is referenced in many files across the solution
         var result = await SafeToDeleteTool.CheckSafeToDelete(
-            _holder, _query, NullLogger<SafeToDeleteTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -41,7 +41,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
     public async Task CheckSafeToDelete_ReferencedType_ReturnsSampleLocations()
     {
         var result = await SafeToDeleteTool.CheckSafeToDelete(
-            _holder, _query, NullLogger<SafeToDeleteTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -58,7 +58,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
     public async Task CheckSafeToDelete_NotFound_ReturnsNotFound()
     {
         var result = await SafeToDeleteTool.CheckSafeToDelete(
-            _holder, _query, NullLogger<SafeToDeleteTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "ThisSymbolDoesNotExistAnywhere", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -74,7 +74,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = SafeToDeleteTool.CheckSafeToDelete(
-            holder, query, NullLogger<SafeToDeleteTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -88,7 +88,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
     {
         // Verifies the Safe field correctly reflects ReferenceCount == 0 on a real workspace result
         var result = await SafeToDeleteTool.CheckSafeToDelete(
-            _holder, _query, NullLogger<SafeToDeleteTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -103,7 +103,7 @@ public sealed class SafeToDeleteToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = SafeToDeleteTool.CheckSafeToDelete(
-            holder, query, NullLogger<SafeToDeleteTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

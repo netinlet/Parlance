@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,9 +15,9 @@ public sealed class OutlineFileTool
                  "Use absolute file paths.")]
     public static async Task<OutlineFileResult> OutlineFile(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<OutlineFileTool> logger, string filePath, CancellationToken ct)
+        ToolAnalytics analytics, string filePath, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "outline-file");
+        using var _ = analytics.TimeToolCall("outline-file", new { filePath });
 
         if (holder.LoadFailure is { } failure)
             return OutlineFileResult.LoadFailed(failure.Message);

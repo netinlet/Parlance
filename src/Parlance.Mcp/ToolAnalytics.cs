@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Parlance.Mcp;
 
-internal sealed class ToolAnalytics : IAsyncDisposable
+public sealed class ToolAnalytics : IAsyncDisposable
 {
     private readonly ILogger<ToolAnalytics> _logger;
     private readonly StreamWriter? _writer;

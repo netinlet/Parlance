@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
@@ -17,7 +16,7 @@ public sealed class GetRefactoringsTool
     public static async Task<GetRefactoringsResult> GetRefactorings(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
-        ILogger<GetRefactoringsTool> logger,
+        ToolAnalytics analytics,
         [Description("Absolute file path")]
         string filePath,
         [Description("1-based line number")]
@@ -30,7 +29,7 @@ public sealed class GetRefactoringsTool
         int? endColumn = null,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-refactorings");
+        using var _ = analytics.TimeToolCall("get-refactorings", new { filePath, line, column, endLine, endColumn });
 
         if (line < 1 || column < 1)
             return GetRefactoringsResult.Error("line and column must be >= 1 (1-based).");

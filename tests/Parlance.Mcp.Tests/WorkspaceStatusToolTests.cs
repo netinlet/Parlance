@@ -17,7 +17,7 @@ public sealed class WorkspaceStatusToolTests
         holder.SetLoadFailure(new WorkspaceLoadFailure("Something went wrong", "/path/to/Solution.sln"));
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, TestAnalytics.Instance, logger);
 
         Assert.Equal("Failed", result.Status);
         Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
@@ -33,7 +33,7 @@ public sealed class WorkspaceStatusToolTests
         var holder = new WorkspaceSessionHolder();
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, TestAnalytics.Instance, logger);
 
         Assert.Equal("Loading", result.Status);
         Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
@@ -49,7 +49,7 @@ public sealed class WorkspaceStatusToolTests
         holder.SetLoadFailure(new WorkspaceLoadFailure("Failed", "/path.sln"));
         var logger = NullLogger<WorkspaceStatusTool>.Instance;
 
-        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, TestAnalytics.Instance, logger);
 
         Assert.Equal("Failed", result.Status);
     }

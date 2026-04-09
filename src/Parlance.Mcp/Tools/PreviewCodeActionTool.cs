@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
@@ -17,12 +16,12 @@ public sealed class PreviewCodeActionTool
     public static async Task<PreviewCodeActionResult> PreviewCodeAction(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
-        ILogger<PreviewCodeActionTool> logger,
+        ToolAnalytics analytics,
         [Description("Action ID from get-code-fixes or get-refactorings (e.g., 'fix-1', 'refactor-3')")]
         string actionId,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "preview-code-action");
+        using var _ = analytics.TimeToolCall("preview-code-action", new { actionId });
 
         if (holder.LoadFailure is { } failure)
             return PreviewCodeActionResult.LoadFailed(failure.Message);

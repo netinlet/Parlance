@@ -27,7 +27,7 @@ public sealed class CallHierarchyToolTests : IAsyncLifetime
     {
         // RefreshAsync is called from multiple tests in RefreshTests.cs
         var result = await CallHierarchyTool.GetCallHierarchy(
-            _holder, _query, NullLogger<CallHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "RefreshAsync", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -41,7 +41,7 @@ public sealed class CallHierarchyToolTests : IAsyncLifetime
     {
         // RefreshAsync calls other methods internally (GetDocumentsAsync, etc.)
         var result = await CallHierarchyTool.GetCallHierarchy(
-            _holder, _query, NullLogger<CallHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "RefreshAsync", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -54,7 +54,7 @@ public sealed class CallHierarchyToolTests : IAsyncLifetime
     public async Task GetCallHierarchy_NotFound_ReturnsNotFound()
     {
         var result = await CallHierarchyTool.GetCallHierarchy(
-            _holder, _query, NullLogger<CallHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "ThisMethodDoesNotExistAnywhere", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -69,7 +69,7 @@ public sealed class CallHierarchyToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = CallHierarchyTool.GetCallHierarchy(
-            holder, query, NullLogger<CallHierarchyTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -85,7 +85,7 @@ public sealed class CallHierarchyToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = CallHierarchyTool.GetCallHierarchy(
-            holder, query, NullLogger<CallHierarchyTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

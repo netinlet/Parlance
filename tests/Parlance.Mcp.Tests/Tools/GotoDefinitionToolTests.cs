@@ -26,7 +26,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_ByName_FindsSourceDefinition()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: "CSharpWorkspaceSession",
             filePath: null, line: null, column: null,
             CancellationToken.None);
@@ -57,7 +57,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
         var refCol = lines[refLine].IndexOf("Session", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: null,
             filePath: filePath, line: refLine + 1, column: refCol + 1,
             CancellationToken.None);
@@ -79,7 +79,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
         var refCol = lines[refLine].IndexOf("Session", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: "SymbolCandidate",
             filePath: filePath, line: refLine + 1, column: refCol + 1,
             CancellationToken.None);
@@ -92,7 +92,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_MetadataSymbol_ReturnsIsMetadata()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: "INamedTypeSymbol",
             filePath: null, line: null, column: null,
             CancellationToken.None);
@@ -107,7 +107,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_UnknownSymbol_ReturnsNotFound()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: "ThisSymbolDefinitelyDoesNotExist",
             filePath: null, line: null, column: null,
             CancellationToken.None);
@@ -120,7 +120,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_AmbiguousName_ReturnsAmbiguous()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: "Diagnostic",
             filePath: null, line: null, column: null,
             CancellationToken.None);
@@ -133,7 +133,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_NoInputs_ReturnsError()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: null,
             filePath: null, line: null, column: null,
             CancellationToken.None);
@@ -146,7 +146,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task GotoDefinition_PartialPosition_ReturnsError()
     {
         var result = await GotoDefinitionTool.GotoDefinition(
-            _holder, _query, NullLogger<GotoDefinitionTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             symbolName: null,
             filePath: "/some/file.cs", line: 10, column: null,
             CancellationToken.None);
@@ -162,7 +162,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GotoDefinitionTool.GotoDefinition(
-            holder, query, NullLogger<GotoDefinitionTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             symbolName: "Anything",
             filePath: null, line: null, column: null,
             CancellationToken.None).Result;
@@ -178,7 +178,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GotoDefinitionTool.GotoDefinition(
-            holder, query, NullLogger<GotoDefinitionTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             symbolName: "Anything",
             filePath: null, line: null, column: null,
             CancellationToken.None).Result;

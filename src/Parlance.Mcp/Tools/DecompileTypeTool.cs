@@ -18,9 +18,10 @@ public sealed class DecompileTypeTool
                  "Only works for types loaded as metadata references, not source-defined types.")]
     public static async Task<DecompileTypeResult> DecompileType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<DecompileTypeTool> logger, string typeName, CancellationToken ct)
+        ToolAnalytics analytics, ILogger<DecompileTypeTool> logger,
+        string typeName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "decompile-type");
+        using var _ = analytics.TimeToolCall("decompile-type", new { typeName });
 
         if (holder.LoadFailure is { } failure)
             return DecompileTypeResult.LoadFailed(failure.Message);

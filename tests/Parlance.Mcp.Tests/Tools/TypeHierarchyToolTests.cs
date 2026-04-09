@@ -27,7 +27,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     {
         // CSharpWorkspaceSession implements IAsyncDisposable
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "CSharpWorkspaceSession",
             maxDepth: 1,
             CancellationToken.None);
@@ -61,7 +61,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     {
         // IProjectCompilationCache should have implementations
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "IProjectCompilationCache",
             maxDepth: 1,
             CancellationToken.None);
@@ -86,7 +86,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
         // IAnalysisEngine is an interface; its implementor(s) are classes that have base classes
         // At depth 2, supertypes should have children populated
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "CSharpWorkspaceSession",
             maxDepth: 2,
             CancellationToken.None);
@@ -111,7 +111,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     {
         // Verify interface Kind is "Interface", not "NamedType"
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "IProjectCompilationCache",
             maxDepth: 1,
             CancellationToken.None);
@@ -124,7 +124,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     public async Task TypeHierarchy_BlankTypeName_ReturnsError()
     {
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "  ",
             maxDepth: 1,
             CancellationToken.None);
@@ -136,7 +136,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     public async Task TypeHierarchy_ZeroMaxDepth_ReturnsError()
     {
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "CSharpWorkspaceSession",
             maxDepth: 0,
             CancellationToken.None);
@@ -148,7 +148,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     public async Task TypeHierarchy_UnknownType_ReturnsNotFound()
     {
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "ThisTypeDefinitelyDoesNotExist",
             maxDepth: 1,
             CancellationToken.None);
@@ -161,7 +161,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
     {
         // "Diagnostic" exists in both Parlance and Roslyn
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "Diagnostic",
             maxDepth: 1,
             CancellationToken.None);
@@ -177,7 +177,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
         // If FindImplementationsAsync returned transitive results, we'd see
         // unexpected entries at depth 1. Verify the count is reasonable.
         var result = await TypeHierarchyTool.TypeHierarchy(
-            _holder, _query, NullLogger<TypeHierarchyTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             typeName: "IOutputFormatter",
             maxDepth: 1,
             CancellationToken.None);
@@ -195,7 +195,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = TypeHierarchyTool.TypeHierarchy(
-            holder, query, NullLogger<TypeHierarchyTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             typeName: "Anything", maxDepth: 1,
             CancellationToken.None).Result;
 
@@ -210,7 +210,7 @@ public sealed class TypeHierarchyToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = TypeHierarchyTool.TypeHierarchy(
-            holder, query, NullLogger<TypeHierarchyTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             typeName: "Anything", maxDepth: 1,
             CancellationToken.None).Result;
 

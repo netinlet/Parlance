@@ -41,7 +41,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
-            holder, service, NullLogger<AnalyzeTool>.Instance,
+            holder, service, TestAnalytics.Instance,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -59,7 +59,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
-            holder, service, NullLogger<AnalyzeTool>.Instance,
+            holder, service, TestAnalytics.Instance,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
@@ -72,7 +72,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
         var filePath = Path.Combine(solutionDir, "src", "Parlance.Abstractions", "Diagnostic.cs");
 
         var result = await AnalyzeTool.Analyze(
-            _holder, _service, NullLogger<AnalyzeTool>.Instance,
+            _holder, _service, TestAnalytics.Instance,
             [filePath], null, null, CancellationToken.None);
 
         Assert.Equal("success", result.Status);

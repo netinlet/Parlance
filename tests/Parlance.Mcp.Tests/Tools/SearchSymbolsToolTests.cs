@@ -26,7 +26,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     public async Task SearchSymbols_SubstringMatch_FindsResults()
     {
         var result = await SearchSymbolsTool.SearchSymbols(
-            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             searchQuery: "Workspace", kind: null, maxResults: 25,
             CancellationToken.None);
 
@@ -46,7 +46,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     public async Task SearchSymbols_KindFilter_ReturnsOnlyMatchingKind()
     {
         var result = await SearchSymbolsTool.SearchSymbols(
-            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             searchQuery: "Workspace", kind: "class", maxResults: 25,
             CancellationToken.None);
 
@@ -59,7 +59,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     public async Task SearchSymbols_MaxResults_CapsOutput()
     {
         var result = await SearchSymbolsTool.SearchSymbols(
-            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             searchQuery: "Get", kind: null, maxResults: 3,
             CancellationToken.None);
 
@@ -72,7 +72,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     public async Task SearchSymbols_NoMatches_ReturnsNoMatches()
     {
         var result = await SearchSymbolsTool.SearchSymbols(
-            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             searchQuery: "XyzzyNonexistentSymbolName", kind: null, maxResults: 25,
             CancellationToken.None);
 
@@ -85,7 +85,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
     public async Task SearchSymbols_InvalidKind_ReturnsError()
     {
         var result = await SearchSymbolsTool.SearchSymbols(
-            _holder, _query, NullLogger<SearchSymbolsTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             searchQuery: "Workspace", kind: "delegate", maxResults: 25,
             CancellationToken.None);
 
@@ -101,7 +101,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = SearchSymbolsTool.SearchSymbols(
-            holder, query, NullLogger<SearchSymbolsTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             searchQuery: "Anything", kind: null, maxResults: 25,
             CancellationToken.None).Result;
 
@@ -116,7 +116,7 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = SearchSymbolsTool.SearchSymbols(
-            holder, query, NullLogger<SearchSymbolsTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             searchQuery: "Anything", kind: null, maxResults: 25,
             CancellationToken.None).Result;
 

@@ -36,7 +36,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
 
         // Tool takes 1-based line/column
         var result = await GetTypeAtTool.GetTypeAt(
-            _holder, _query, NullLogger<GetTypeAtTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             filePath, classLine + 1, classCol + 1, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -60,7 +60,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
         var varCol = lines[varLine].IndexOf("var", StringComparison.Ordinal);
 
         var result = await GetTypeAtTool.GetTypeAt(
-            _holder, _query, NullLogger<GetTypeAtTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             filePath, varLine + 1, varCol + 1, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -73,7 +73,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
     public async Task GetTypeAt_UnknownFile_ReturnsNotFound()
     {
         var result = await GetTypeAtTool.GetTypeAt(
-            _holder, _query, NullLogger<GetTypeAtTool>.Instance,
+            _holder, _query, TestAnalytics.Instance,
             "/nonexistent/file.cs", 1, 1, CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -88,7 +88,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetTypeAtTool.GetTypeAt(
-            holder, query, NullLogger<GetTypeAtTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "/some/file.cs", 1, 1, CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -102,7 +102,7 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetTypeAtTool.GetTypeAt(
-            holder, query, NullLogger<GetTypeAtTool>.Instance,
+            holder, query, TestAnalytics.Instance,
             "/some/file.cs", 1, 1, CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

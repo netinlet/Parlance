@@ -30,6 +30,7 @@ builder.Services.AddSingleton<WorkspaceQueryService>();
 builder.Services.AddSingleton<CurationSetProvider>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<CodeActionService>();
+builder.Services.AddSingleton<ToolAnalytics>();
 
 builder.Services
     .AddMcpServer()
