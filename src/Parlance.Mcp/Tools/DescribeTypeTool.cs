@@ -10,7 +10,9 @@ namespace Parlance.Mcp.Tools;
 public sealed class DescribeTypeTool
 {
     [McpServerTool(Name = "describe-type", ReadOnly = true)]
-    [Description("Resolve a type by name and return its members, base types, interfaces, and accessibility. " +
+    [Description("Get a type's members, signatures, base types, and interfaces. " +
+                 "Works for both source-defined types and types from NuGet packages. " +
+                 "Use this first for understanding a type's shape. " +
                  "Use a fully qualified name to disambiguate (e.g., 'Parlance.Abstractions.Diagnostic').")]
     public static async Task<DescribeTypeResult> DescribeType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,

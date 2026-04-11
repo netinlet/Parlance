@@ -13,9 +13,9 @@ namespace Parlance.Mcp.Tools;
 public sealed class DecompileTypeTool
 {
     [McpServerTool(Name = "decompile-type", ReadOnly = true)]
-    [Description("Decompile a type from an external assembly (not in source). " +
-                 "Use a fully qualified type name, e.g., 'Microsoft.CodeAnalysis.Project'. " +
-                 "Only works for types loaded as metadata references, not source-defined types.")]
+    [Description("Reconstruct full C# source from a NuGet package or external assembly — use when you need to see how an external type is implemented. " +
+                 "Does not work on source-defined types; read the source file directly for those. " +
+                 "Use a fully qualified type name, e.g., 'Microsoft.CodeAnalysis.Project'.")]
     public static async Task<DecompileTypeResult> DecompileType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         ToolAnalytics analytics, ILogger<DecompileTypeTool> logger,
