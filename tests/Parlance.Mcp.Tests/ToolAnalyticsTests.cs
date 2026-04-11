@@ -19,7 +19,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void TimeToolCall_WritesEntryToFile()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("describe-type", new { typeName = "Foo" }))
         {
@@ -40,7 +40,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void TimeToolCall_NoParams_WritesEmptyParamsField()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("workspace-status"))
         {
@@ -58,7 +58,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void TimeToolCall_MultipleParams_FormatsCorrectly()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("search-symbols", new { searchQuery = "Handler", kind = "method", maxResults = 25 }))
         {
@@ -76,7 +76,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void TimeToolCall_NullParamValues_Skipped()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("goto-definition", new { symbolName = "Foo", filePath = (string?)null }))
         {
@@ -94,7 +94,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     public void CreatesDirectoryIfMissing()
     {
         var nested = Path.Combine(_tempDir, "nested", "deep");
-        var analytics = new ToolAnalytics(
+        using var analytics = new ToolAnalytics(
             new ParlanceMcpConfiguration("/fake/path.sln", nested), NullLoggerFactory.Instance);
 
         using (analytics.TimeToolCall("workspace-status"))
@@ -111,7 +111,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     public void InvalidPath_DoesNotThrow_LogsDegraded()
     {
         // Use an invalid path that can't be created
-        var analytics = new ToolAnalytics(
+        using var analytics = new ToolAnalytics(
             new ParlanceMcpConfiguration("/fake/path.sln", "/\0invalid/path"), NullLoggerFactory.Instance);
 
         // Should not throw — analytics is non-critical
@@ -123,7 +123,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void MultipleCalls_AllWrittenToSameFile()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("describe-type", new { typeName = "A" })) { }
         using (analytics.TimeToolCall("find-references", new { symbolName = "B" })) { }
@@ -140,7 +140,7 @@ public sealed class ToolAnalyticsTests : IDisposable
     [Fact]
     public void EntryFormat_HasExpectedPipeDelimitedStructure()
     {
-        var analytics = CreateAnalytics();
+        using var analytics = CreateAnalytics();
 
         using (analytics.TimeToolCall("analyze", new { files = "test.cs" })) { }
 

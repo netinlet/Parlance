@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Parlance.Mcp;
 
-public sealed class ToolAnalytics : IAsyncDisposable
+public sealed class ToolAnalytics : IDisposable, IAsyncDisposable
 {
     private readonly ILogger<ToolAnalytics> _logger;
     private readonly StreamWriter? _writer;
@@ -38,6 +38,8 @@ public sealed class ToolAnalytics : IAsyncDisposable
     }
 
     public void Flush() => _writer?.Flush();
+
+    public void Dispose() => _writer?.Dispose();
 
     public async ValueTask DisposeAsync()
     {
