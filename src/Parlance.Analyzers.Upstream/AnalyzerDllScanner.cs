@@ -12,6 +12,12 @@ internal static class AnalyzerDllScanner
 
     private static readonly ConcurrentDictionary<string, ImmutableArray<Assembly>> Cache = new(StringComparer.OrdinalIgnoreCase);
 
+    // GetOrAdd does not lock during factory execution — concurrent first-access calls for the
+    // same TFM may each invoke ScanAssembliesCore, creating duplicate non-collectible ALCs.
+    // Only one result is stored; the others are discarded (unreferenced, but their loaded
+    // assembly metadata is permanent for the process lifetime). This is acceptable: the key
+    // space is bounded to SupportedFrameworks (currently 2), so worst case is one duplicate
+    // scan per TFM, ever. The original bug (unbounded growth on every call) is fully fixed.
     internal static ImmutableArray<Assembly> ScanAssemblies(string targetFramework) =>
         Cache.GetOrAdd(targetFramework, ScanAssembliesCore);
 
