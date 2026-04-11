@@ -8,6 +8,7 @@ public sealed class ToolAnalytics : IAsyncDisposable
 {
     private readonly ILogger<ToolAnalytics> _logger;
     private readonly StreamWriter? _writer;
+    private readonly Lock _writeLock = new();
 
     public ToolAnalytics(ParlanceMcpConfiguration configuration, ILoggerFactory loggerFactory)
     {
@@ -57,7 +58,10 @@ public sealed class ToolAnalytics : IAsyncDisposable
 
         try
         {
-            _writer.WriteLine($"{timestamp} | {toolName} | {elapsedStr} | {status} | {paramsStr}");
+            lock (_writeLock)
+            {
+                _writer.WriteLine($"{timestamp} | {toolName} | {elapsedStr} | {status} | {paramsStr}");
+            }
         }
         catch (Exception ex)
         {
