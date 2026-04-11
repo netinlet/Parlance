@@ -18,7 +18,7 @@ public sealed class SearchSymbolsTool
         ToolAnalytics analytics,
         [Description("Substring to search for (e.g., 'Handler', 'Parse')")]
         string searchQuery,
-        [Description("Filter by symbol kind: class, method, property, interface, enum, struct, field, event")]
+        [Description("Filter by symbol kind (single value): class, method, property, interface, enum, struct, field, event")]
         string? kind = null,
         [Description("Maximum number of results to return (default 25)")]
         int maxResults = 25,
