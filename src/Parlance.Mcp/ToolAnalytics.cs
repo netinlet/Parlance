@@ -17,7 +17,7 @@ public sealed class ToolAnalytics : IAsyncDisposable
         try
         {
             Directory.CreateDirectory(configuration.AnalyticsPath);
-            var fileName = $"session-{DateTime.UtcNow:yyyyMMdd-HHmmss}.log";
+            var fileName = $"session-{DateTime.UtcNow:yyyyMMdd-HHmmss-fff}.log";
             var filePath = Path.Combine(configuration.AnalyticsPath, fileName);
             _writer = new StreamWriter(filePath, append: false) { AutoFlush = true };
             _logger.LogInformation("Analytics logging to {Path}", filePath);
