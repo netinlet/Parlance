@@ -4,8 +4,6 @@ public sealed class RuleSuppression
 {
     private readonly HashSet<string> _ids;
 
-    public static readonly RuleSuppression None = new([]);
-
     private RuleSuppression(IEnumerable<string> ruleIds) =>
         _ids = new HashSet<string>(ruleIds, StringComparer.OrdinalIgnoreCase);
 
