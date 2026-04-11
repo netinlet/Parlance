@@ -14,7 +14,7 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
     private readonly Lock _taskLock = new();
     private readonly ILogger<WorkspaceFileWatcher> _logger;
     private Task _processingTask = Task.CompletedTask;
-    private bool _disposed;
+    private volatile bool _disposed;
     private const int DebounceMs = 300;
 
     public WorkspaceFileWatcher(
@@ -126,13 +126,13 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
         foreach (var watcher in _watchers)
             watcher.EnableRaisingEvents = false;
 
-        _disposed = true;
         _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
         _debounceTimer.Dispose();
 
         Task processingTask;
         lock (_taskLock)
         {
+            _disposed = true;
             processingTask = _processingTask;
         }
 
