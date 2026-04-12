@@ -3,7 +3,7 @@
     <Version>0.1.0</Version>
     <Authors>Netinlet</Authors>
     <Company>Netinlet</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/netinlet/parlance</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
