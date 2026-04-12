@@ -54,6 +54,7 @@ Copy `.mcp.json.example` to `.mcp.json` and fill in your paths:
       "command": "dotnet",
       "args": [
         "run",
+        "--no-build",
         "--project", "/absolute/path/to/parlance/src/Parlance.Mcp",
         "--",
         "--solution-path", "/absolute/path/to/YourSolution.sln"
@@ -63,21 +64,39 @@ Copy `.mcp.json.example` to `.mcp.json` and fill in your paths:
 }
 ```
 
-> **Note:** Always build before running to avoid build output corrupting the MCP stdio stream:
+> **Note:** Build first, then use `--no-build`. Without it, `dotnet run` may write restore output to stdout and corrupt the MCP stdio stream.
 > ```bash
 > dotnet build src/Parlance.Mcp
 > ```
-> Then add `--no-build` to the args above.
+
+The solution path can also be supplied via the `PARLANCE_SOLUTION_PATH` environment variable, or omitted entirely if the MCP server's working directory contains exactly one `.sln` file.
 
 ### CLI
 
-```bash
-# Analyze a solution
-dotnet run --project src/Parlance.Cli -- analyze /path/to/Solution.sln
+**Analyze a solution or project:**
 
-# List available rules
+```bash
+dotnet run --project src/Parlance.Cli -- analyze /path/to/Solution.sln
+dotnet run --project src/Parlance.Cli -- analyze /path/to/Project.csproj
+```
+
+Options:
+- `-f, --format text|json` — output format (default: `text`)
+- `--suppress <id>...` — suppress specific rule IDs
+- `--max-diagnostics <n>` — cap the number of diagnostics returned
+- `--curation-set <name>` — named curation set (default: project defaults)
+
+**List available rules:**
+
+```bash
 dotnet run --project src/Parlance.Cli -- rules
 ```
+
+Options:
+- `--category <name>` — filter by category
+- `--severity <level>` — filter by severity
+- `--fixable` — show only rules with auto-fixes
+- `-f, --format text|json` — output format (default: `text`)
 
 ## Building
 
