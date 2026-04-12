@@ -13,10 +13,8 @@ public sealed class FindImplementationsTool
     [Description("Find all types that implement or inherit from a given interface or class.")]
     public static async Task<FindImplementationsResult> FindImplementations(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("find-implementations", new { typeName });
-
         if (holder.LoadFailure is { } failure)
             return FindImplementationsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

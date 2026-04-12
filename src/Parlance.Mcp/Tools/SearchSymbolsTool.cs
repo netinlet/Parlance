@@ -15,7 +15,6 @@ public sealed class SearchSymbolsTool
                  "Use this to discover symbols when you don't know the exact name.")]
     public static async Task<SearchSymbolsResult> SearchSymbols(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics,
         [Description("Substring to search for (e.g., 'Handler', 'Parse')")]
         string searchQuery,
         [Description("Filter by symbol kind (single string value, e.g. \"class\" or \"method\"): class, method, property, interface, enum, struct, field, event")]
@@ -24,8 +23,6 @@ public sealed class SearchSymbolsTool
         int maxResults = 25,
         CancellationToken ct = default)
     {
-        using var _ = analytics.TimeToolCall("search-symbols", new { searchQuery, kind, maxResults });
-
         if (holder.LoadFailure is { } failure)
             return SearchSymbolsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

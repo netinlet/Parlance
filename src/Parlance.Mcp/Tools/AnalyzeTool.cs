@@ -15,14 +15,11 @@ public sealed class AnalyzeTool
     public static async Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
-        ToolAnalytics analytics,
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
         CancellationToken ct = default)
     {
-        using var _ = analytics.TimeToolCall("analyze", new { files = string.Join(", ", files), curationSet, maxDiagnostics });
-
         if (holder.LoadFailure is { } failure)
             return AnalyzeToolResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

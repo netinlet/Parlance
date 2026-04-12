@@ -14,10 +14,8 @@ public sealed class SafeToDeleteTool
                  "Returns safe=true only if there are zero references.")]
     public static async Task<SafeToDeleteResult> CheckSafeToDelete(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("safe-to-delete", new { symbolName });
-
         if (holder.LoadFailure is { } failure)
             return SafeToDeleteResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

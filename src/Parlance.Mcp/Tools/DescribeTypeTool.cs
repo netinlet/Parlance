@@ -16,10 +16,8 @@ public sealed class DescribeTypeTool
                  "Use a fully qualified name to disambiguate (e.g., 'Parlance.Abstractions.Diagnostic').")]
     public static async Task<DescribeTypeResult> DescribeType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("describe-type", new { typeName });
-
         if (holder.LoadFailure is { } failure)
             return DescribeTypeResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

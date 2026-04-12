@@ -17,10 +17,8 @@ public sealed class GetTypeAtTool
                  "Particularly useful for resolving 'var' declarations to their concrete types.")]
     public static async Task<GetTypeAtResult> GetTypeAt(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string filePath, int line, int column, CancellationToken ct)
+        string filePath, int line, int column, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("get-type-at", new { filePath, line, column });
-
         if (holder.LoadFailure is { } failure)
             return GetTypeAtResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

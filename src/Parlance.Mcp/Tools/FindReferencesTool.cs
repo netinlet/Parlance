@@ -13,10 +13,8 @@ public sealed class FindReferencesTool
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
     public static async Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("find-references", new { symbolName });
-
         if (holder.LoadFailure is { } failure)
             return FindReferencesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

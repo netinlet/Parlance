@@ -14,10 +14,8 @@ public sealed class GetTypeDependenciesTool
                  "scoped to solution-defined types only.")]
     public static async Task<GetTypeDependenciesResult> GetTypeDependencies(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("get-type-dependencies", new { typeName });
-
         if (holder.LoadFailure is { } failure)
             return GetTypeDependenciesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

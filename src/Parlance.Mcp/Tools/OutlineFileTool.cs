@@ -15,10 +15,8 @@ public sealed class OutlineFileTool
                  "Use absolute file paths.")]
     public static async Task<OutlineFileResult> OutlineFile(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string filePath, CancellationToken ct)
+        string filePath, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("outline-file", new { filePath });
-
         if (holder.LoadFailure is { } failure)
             return OutlineFileResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

@@ -15,7 +15,6 @@ public sealed class GotoDefinitionTool
                  "If both are provided, position takes precedence.")]
     public static async Task<GotoDefinitionResult> GotoDefinition(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics,
         [Description("Symbol name to look up (e.g., 'MyClass' or 'Namespace.MyClass')")]
         string? symbolName = null,
         [Description("File path for position-based lookup")]
@@ -26,8 +25,6 @@ public sealed class GotoDefinitionTool
         int? column = null,
         CancellationToken ct = default)
     {
-        using var _ = analytics.TimeToolCall("goto-definition", new { symbolName, filePath, line, column });
-
         if (holder.LoadFailure is { } failure)
             return GotoDefinitionResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

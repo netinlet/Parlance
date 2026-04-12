@@ -14,11 +14,8 @@ public sealed class WorkspaceStatusTool
     public static WorkspaceStatusResult GetStatus(
         WorkspaceSessionHolder holder,
         ParlanceMcpConfiguration configuration,
-        ToolAnalytics analytics,
         ILogger<WorkspaceStatusTool> logger)
     {
-        using var _ = analytics.TimeToolCall("workspace-status");
-
         if (holder.LoadFailure is { } failure)
         {
             logger.LogWarning("Workspace load failed: {Message}", failure.Message);

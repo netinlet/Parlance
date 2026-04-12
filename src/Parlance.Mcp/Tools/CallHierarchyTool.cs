@@ -15,10 +15,8 @@ public sealed class CallHierarchyTool
     [Description("Returns callers (incoming calls) and callees (outgoing calls) for a method, one level deep.")]
     public static async Task<CallHierarchyResult> GetCallHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, string methodName, CancellationToken ct)
+        string methodName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("call-hierarchy", new { methodName });
-
         if (holder.LoadFailure is { } failure)
             return CallHierarchyResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

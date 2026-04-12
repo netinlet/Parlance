@@ -18,11 +18,9 @@ public sealed class DecompileTypeTool
                  "Use a fully qualified type name, e.g., 'Microsoft.CodeAnalysis.Project'.")]
     public static async Task<DecompileTypeResult> DecompileType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ToolAnalytics analytics, ILogger<DecompileTypeTool> logger,
+        ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
-        using var _ = analytics.TimeToolCall("decompile-type", new { typeName });
-
         if (holder.LoadFailure is { } failure)
             return DecompileTypeResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

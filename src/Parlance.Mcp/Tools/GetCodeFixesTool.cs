@@ -16,7 +16,6 @@ public sealed class GetCodeFixesTool
     public static async Task<GetCodeFixesResult> GetCodeFixes(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
-        ToolAnalytics analytics,
         [Description("Absolute file path")]
         string filePath,
         [Description("1-based line number")]
@@ -25,8 +24,6 @@ public sealed class GetCodeFixesTool
         string? diagnosticId = null,
         CancellationToken ct = default)
     {
-        using var _ = analytics.TimeToolCall("get-code-fixes", new { filePath, line, diagnosticId });
-
         if (line < 1)
             return GetCodeFixesResult.Error("line must be >= 1 (1-based).");
 
