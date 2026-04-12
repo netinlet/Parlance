@@ -1,5 +1,7 @@
 # Tool Usage Analytics
 
+> **Implementation note:** The delivered implementation diverges from this spec. The `TimeToolCall`/per-tool injection approach was replaced by an MCP `CallToolFilters` pipeline filter (`AnalyticsFilter`). `ToolAnalytics` exposes `RecordCall(toolName, elapsed, success, args)` and is called only from the filter — tools are analytics-free. Arguments are serialized as JSON (not `key=value` pairs). This spec reflects the original design intent; see `AnalyticsFilter.cs` and `ToolAnalytics.cs` for the actual implementation.
+
 ## Problem
 
 Tool call timing data is logged to stderr at Debug level and disappears when the session ends. There is no persistent record of tool usage, performance, or parameters — making it impossible to track latency regressions, understand usage patterns, or debug past sessions.

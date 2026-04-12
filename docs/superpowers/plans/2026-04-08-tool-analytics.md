@@ -1,5 +1,7 @@
 # Tool Usage Analytics Implementation Plan
 
+> **Implementation note:** The delivered implementation diverges from this plan. The per-tool `TimeToolCall` injection approach was replaced by an MCP `CallToolFilters` pipeline filter (`AnalyticsFilter`). `ToolAnalytics` exposes `RecordCall(toolName, elapsed, success, args)` — tools receive no analytics dependency. Arguments are serialized as JSON via the filter. This plan reflects the original approach; see `docs/superpowers/plans/2026-04-11-analytics-filter.md` for the refactor that produced the final design.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the static `ToolDiagnostics` class with a DI-registered `ToolAnalytics` service that logs tool calls (with parameters) to a per-session file while preserving stderr logging.
