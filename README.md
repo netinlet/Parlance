@@ -8,33 +8,37 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 
 ## Features
 
-18 MCP tools covering:
+18 MCP tools across 6 categories:
 
-**Semantic navigation**
+**Navigation (7)**
 - `describe-type` — members, signatures, base types, interfaces
-- `search-symbols` — find types, methods, properties by name
-- `goto-definition` — locate where a symbol is defined
-- `find-references` — all usages of a symbol
 - `find-implementations` — concrete implementations of interfaces/abstract members
+- `find-references` — all usages of a symbol
+- `goto-definition` — locate where a symbol is defined
 - `type-hierarchy` — inheritance and implementation chains
 - `call-hierarchy` — who calls what
-- `outline-file` — file structure without reading every line
-- `get-type-at` — resolve what type a `var` actually is
-- `get-symbol-docs` — XML documentation for any symbol
 - `get-type-dependencies` — dependencies of a type
-- `decompile-type` — inspect types from NuGet packages
 
-**Diagnostics & fixes**
-- `analyze` — run curated analyzer rules, get enriched diagnostics
+**Code Intelligence (5)**
+- `outline-file` — file structure without reading every line
+- `get-symbol-docs` — XML documentation for any symbol
+- `search-symbols` — find types, methods, properties by name
+- `get-type-at` — resolve what type a `var` actually is
+- `safe-to-delete` — verify a symbol has zero references before removing it
+
+**Code Actions (3)**
 - `get-code-fixes` — available code fixes for a diagnostic
 - `get-refactorings` — available refactorings at a location
 - `preview-code-action` — preview a fix or refactoring before applying
 
-**Safety**
-- `safe-to-delete` — verify a symbol has zero references before removing it
+**Analysis (1)**
+- `analyze` — run curated analyzer rules, get enriched diagnostics
 
-**Workspace**
+**Workspace (1)**
 - `workspace-status` — health, loaded projects, target frameworks, project graph
+
+**Decompilation (1)**
+- `decompile-type` — inspect types from NuGet packages
 
 ## Requirements
 
