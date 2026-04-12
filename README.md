@@ -73,10 +73,10 @@ Copy `.mcp.json.example` to `.mcp.json` and fill in your paths:
 
 ```bash
 # Analyze a solution
-dotnet run --project src/Parlance.Cli -- analyze --solution /path/to/Solution.sln
+dotnet run --project src/Parlance.Cli -- analyze /path/to/Solution.sln
 
 # List available rules
-dotnet run --project src/Parlance.Cli -- rules --solution /path/to/Solution.sln
+dotnet run --project src/Parlance.Cli -- rules /path/to/Solution.sln
 ```
 
 ## Building
