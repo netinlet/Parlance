@@ -114,4 +114,4 @@ dotnet format Parlance.sln --verify-no-changes
 
 ## License
 
-[Apache-2.0](LICENSE) — © Netinlet
+[Apache-2.0](LICENSE) — © 2026 Doug Bryant
