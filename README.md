@@ -76,7 +76,7 @@ Copy `.mcp.json.example` to `.mcp.json` and fill in your paths:
 dotnet run --project src/Parlance.Cli -- analyze /path/to/Solution.sln
 
 # List available rules
-dotnet run --project src/Parlance.Cli -- rules /path/to/Solution.sln
+dotnet run --project src/Parlance.Cli -- rules
 ```
 
 ## Building
