@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -15,10 +14,8 @@ public sealed class GetTypeDependenciesTool
                  "scoped to solution-defined types only.")]
     public static async Task<GetTypeDependenciesResult> GetTypeDependencies(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<GetTypeDependenciesTool> logger, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-type-dependencies");
-
         if (holder.LoadFailure is { } failure)
             return GetTypeDependenciesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
@@ -17,7 +16,6 @@ public sealed class GetCodeFixesTool
     public static async Task<GetCodeFixesResult> GetCodeFixes(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
-        ILogger<GetCodeFixesTool> logger,
         [Description("Absolute file path")]
         string filePath,
         [Description("1-based line number")]
@@ -26,8 +24,6 @@ public sealed class GetCodeFixesTool
         string? diagnosticId = null,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-code-fixes");
-
         if (line < 1)
             return GetCodeFixesResult.Error("line must be >= 1 (1-based).");
 

@@ -37,7 +37,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
         var codeCol = lines[codeLine].IndexOf("FindDeclarationsAsync", StringComparison.Ordinal);
 
         var result = await GetRefactoringsTool.GetRefactorings(
-            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            _holder, _codeActions,
             filePath: filePath, line: codeLine + 1, column: codeCol + 1,
             endLine: null, endColumn: null,
             CancellationToken.None);
@@ -62,7 +62,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
     public async Task GetRefactorings_UnknownFile_ReturnsNotFound()
     {
         var result = await GetRefactoringsTool.GetRefactorings(
-            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            _holder, _codeActions,
             filePath: "/nonexistent/file.cs", line: 1, column: 1,
             endLine: null, endColumn: null,
             CancellationToken.None);
@@ -74,7 +74,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
     public async Task GetRefactorings_InvalidLine_ReturnsError()
     {
         var result = await GetRefactoringsTool.GetRefactorings(
-            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            _holder, _codeActions,
             filePath: "/some/file.cs", line: 0, column: 1,
             endLine: null, endColumn: null,
             CancellationToken.None);
@@ -86,7 +86,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
     public async Task GetRefactorings_PartialRange_ReturnsError()
     {
         var result = await GetRefactoringsTool.GetRefactorings(
-            _holder, _codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            _holder, _codeActions,
             filePath: "/some/file.cs", line: 1, column: 1,
             endLine: 5, endColumn: null,
             CancellationToken.None);
@@ -101,7 +101,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = GetRefactoringsTool.GetRefactorings(
-            holder, codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            holder, codeActions,
             filePath: "/some/file.cs", line: 1, column: 1,
             endLine: null, endColumn: null,
             CancellationToken.None).Result;
@@ -117,7 +117,7 @@ public sealed class GetRefactoringsToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = GetRefactoringsTool.GetRefactorings(
-            holder, codeActions, NullLogger<GetRefactoringsTool>.Instance,
+            holder, codeActions,
             filePath: "/some/file.cs", line: 1, column: 1,
             endLine: null, endColumn: null,
             CancellationToken.None).Result;

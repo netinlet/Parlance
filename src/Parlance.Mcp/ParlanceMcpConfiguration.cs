@@ -2,14 +2,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Parlance.Mcp;
 
-public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel MinimumLogLevel = LogLevel.Information)
+public sealed record ParlanceMcpConfiguration(
+    string SolutionPath, string AnalyticsPath, LogLevel MinimumLogLevel = LogLevel.Information)
 {
     public static ParlanceMcpConfiguration FromArgs(string[] args)
     {
         var solutionPath = GetSolutionPath(args);
         var logLevel = GetLogLevel(args);
+        var fullSolutionPath = Path.GetFullPath(solutionPath);
+        var analyticsPath = GetAnalyticsPath(args, fullSolutionPath);
 
-        return new ParlanceMcpConfiguration(Path.GetFullPath(solutionPath), logLevel);
+        return new ParlanceMcpConfiguration(fullSolutionPath, analyticsPath, logLevel);
     }
 
     private static string GetSolutionPath(string[] args)
@@ -67,5 +70,25 @@ public sealed record ParlanceMcpConfiguration(string SolutionPath, LogLevel Mini
         }
 
         return LogLevel.Information;
+    }
+
+    private static string GetAnalyticsPath(string[] args, string fullSolutionPath)
+    {
+        for (var i = 0; i < args.Length; i++)
+        {
+            if (args[i] is not "--analytics-path")
+                continue;
+
+            if (i + 1 >= args.Length)
+                throw new InvalidOperationException("--analytics-path requires a value.");
+
+            return Path.GetFullPath(args[i + 1]);
+        }
+
+        var envValue = Environment.GetEnvironmentVariable("PARLANCE_ANALYTICS_PATH");
+        if (!string.IsNullOrWhiteSpace(envValue))
+            return Path.GetFullPath(envValue);
+
+        return Path.Combine(Path.GetDirectoryName(fullSolutionPath)!, ".parlance", "logs");
     }
 }

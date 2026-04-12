@@ -16,10 +16,9 @@ public sealed class GetSymbolDocsTool
                  "Handles inheritdoc by walking to the base symbol.")]
     public static async Task<GetSymbolDocsResult> GetSymbolDocs(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<GetSymbolDocsTool> logger, string symbolName, CancellationToken ct)
+        ILogger<GetSymbolDocsTool> logger,
+        string symbolName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-symbol-docs");
-
         if (holder.LoadFailure is { } failure)
             return GetSymbolDocsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

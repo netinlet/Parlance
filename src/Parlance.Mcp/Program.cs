@@ -3,6 +3,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
 using ModelContextProtocol;
+using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
@@ -30,6 +31,10 @@ builder.Services.AddSingleton<WorkspaceQueryService>();
 builder.Services.AddSingleton<CurationSetProvider>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<CodeActionService>();
+builder.Services.AddSingleton<ToolAnalytics>();
+builder.Services.AddOptions<McpServerOptions>()
+    .Configure<ToolAnalytics>((options, analytics) =>
+        options.Filters.Request.CallToolFilters.Add(AnalyticsFilter.Create(analytics)));
 
 builder.Services
     .AddMcpServer()

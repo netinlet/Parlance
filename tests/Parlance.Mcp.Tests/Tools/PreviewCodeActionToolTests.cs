@@ -27,7 +27,7 @@ public sealed class PreviewCodeActionToolTests : IAsyncLifetime
     public async Task Preview_InvalidActionId_ReturnsNotFound()
     {
         var result = await PreviewCodeActionTool.PreviewCodeAction(
-            _holder, _codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            _holder, _codeActions,
             actionId: "fix-99999",
             CancellationToken.None);
 
@@ -39,7 +39,7 @@ public sealed class PreviewCodeActionToolTests : IAsyncLifetime
     public async Task Preview_MalformedActionId_ReturnsNotFound()
     {
         var result = await PreviewCodeActionTool.PreviewCodeAction(
-            _holder, _codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            _holder, _codeActions,
             actionId: "garbage",
             CancellationToken.None);
 
@@ -53,7 +53,7 @@ public sealed class PreviewCodeActionToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = PreviewCodeActionTool.PreviewCodeAction(
-            holder, codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            holder, codeActions,
             actionId: "fix-1",
             CancellationToken.None).Result;
 
@@ -68,7 +68,7 @@ public sealed class PreviewCodeActionToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = PreviewCodeActionTool.PreviewCodeAction(
-            holder, codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            holder, codeActions,
             actionId: "fix-1",
             CancellationToken.None).Result;
 

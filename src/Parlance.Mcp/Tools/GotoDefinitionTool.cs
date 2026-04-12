@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,7 +15,6 @@ public sealed class GotoDefinitionTool
                  "If both are provided, position takes precedence.")]
     public static async Task<GotoDefinitionResult> GotoDefinition(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<GotoDefinitionTool> logger,
         [Description("Symbol name to look up (e.g., 'MyClass' or 'Namespace.MyClass')")]
         string? symbolName = null,
         [Description("File path for position-based lookup")]
@@ -27,8 +25,6 @@ public sealed class GotoDefinitionTool
         int? column = null,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "goto-definition");
-
         if (holder.LoadFailure is { } failure)
             return GotoDefinitionResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

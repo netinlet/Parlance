@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -14,10 +13,8 @@ public sealed class FindImplementationsTool
     [Description("Find all types that implement or inherit from a given interface or class.")]
     public static async Task<FindImplementationsResult> FindImplementations(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<FindImplementationsTool> logger, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "find-implementations");
-
         if (holder.LoadFailure is { } failure)
             return FindImplementationsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

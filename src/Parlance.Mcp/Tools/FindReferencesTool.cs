@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -14,10 +13,8 @@ public sealed class FindReferencesTool
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
     public static async Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<FindReferencesTool> logger, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "find-references");
-
         if (holder.LoadFailure is { } failure)
             return FindReferencesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

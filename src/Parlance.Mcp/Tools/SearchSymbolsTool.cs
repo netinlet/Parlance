@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,17 +15,14 @@ public sealed class SearchSymbolsTool
                  "Use this to discover symbols when you don't know the exact name.")]
     public static async Task<SearchSymbolsResult> SearchSymbols(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<SearchSymbolsTool> logger,
         [Description("Substring to search for (e.g., 'Handler', 'Parse')")]
         string searchQuery,
-        [Description("Filter by symbol kind: class, method, property, interface, enum, struct, field, event")]
+        [Description("Filter by symbol kind (single string value, e.g. \"class\" or \"method\"): class, method, property, interface, enum, struct, field, event")]
         string? kind = null,
         [Description("Maximum number of results to return (default 25)")]
         int maxResults = 25,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "search-symbols");
-
         if (holder.LoadFailure is { } failure)
             return SearchSymbolsResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

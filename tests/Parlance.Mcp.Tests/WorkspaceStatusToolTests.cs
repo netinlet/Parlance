@@ -8,7 +8,7 @@ namespace Parlance.Mcp.Tests;
 public sealed class WorkspaceStatusToolTests
 {
     private static readonly ParlanceMcpConfiguration DefaultConfig =
-        new("/path/to/Solution.sln", LogLevel.Information);
+        new("/path/to/Solution.sln", "/path/to/.parlance/logs", LogLevel.Information);
 
     [Fact]
     public void GetStatus_LoadFailure_ReturnsFailedStatus()

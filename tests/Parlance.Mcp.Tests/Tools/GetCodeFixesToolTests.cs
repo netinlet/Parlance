@@ -36,7 +36,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         for (var testLine = 1; testLine <= 50; testLine++)
         {
             var result = await GetCodeFixesTool.GetCodeFixes(
-                _holder, _codeActions, NullLogger<GetCodeFixesTool>.Instance,
+                _holder, _codeActions,
                 filePath: filePath, line: testLine, diagnosticId: null,
                 CancellationToken.None);
 
@@ -69,7 +69,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
     public async Task GetCodeFixes_UnknownFile_ReturnsNotFound()
     {
         var result = await GetCodeFixesTool.GetCodeFixes(
-            _holder, _codeActions, NullLogger<GetCodeFixesTool>.Instance,
+            _holder, _codeActions,
             filePath: "/nonexistent/file.cs", line: 1, diagnosticId: null,
             CancellationToken.None);
 
@@ -80,7 +80,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
     public async Task GetCodeFixes_InvalidLine_ReturnsError()
     {
         var result = await GetCodeFixesTool.GetCodeFixes(
-            _holder, _codeActions, NullLogger<GetCodeFixesTool>.Instance,
+            _holder, _codeActions,
             filePath: "/some/file.cs", line: 0, diagnosticId: null,
             CancellationToken.None);
 
@@ -94,7 +94,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = GetCodeFixesTool.GetCodeFixes(
-            holder, codeActions, NullLogger<GetCodeFixesTool>.Instance,
+            holder, codeActions,
             filePath: "/some/file.cs", line: 1, diagnosticId: null,
             CancellationToken.None).Result;
 
@@ -109,7 +109,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = GetCodeFixesTool.GetCodeFixes(
-            holder, codeActions, NullLogger<GetCodeFixesTool>.Instance,
+            holder, codeActions,
             filePath: "/some/file.cs", line: 1, diagnosticId: null,
             CancellationToken.None).Result;
 
@@ -128,7 +128,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         for (var testLine = 1; testLine <= 50; testLine++)
         {
             var result = await GetCodeFixesTool.GetCodeFixes(
-                _holder, _codeActions, NullLogger<GetCodeFixesTool>.Instance,
+                _holder, _codeActions,
                 filePath: filePath, line: testLine, diagnosticId: null,
                 CancellationToken.None);
 
@@ -148,7 +148,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         // Preview the first fix
         var actionId = fixResult.Fixes[0].Id;
         var previewResult = await PreviewCodeActionTool.PreviewCodeAction(
-            _holder, _codeActions, NullLogger<PreviewCodeActionTool>.Instance,
+            _holder, _codeActions,
             actionId: actionId,
             CancellationToken.None);
 

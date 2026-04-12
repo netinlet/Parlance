@@ -3,7 +3,6 @@ using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,10 +15,8 @@ public sealed class CallHierarchyTool
     [Description("Returns callers (incoming calls) and callees (outgoing calls) for a method, one level deep.")]
     public static async Task<CallHierarchyResult> GetCallHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<CallHierarchyTool> logger, string methodName, CancellationToken ct)
+        string methodName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "call-hierarchy");
-
         if (holder.LoadFailure is { } failure)
             return CallHierarchyResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

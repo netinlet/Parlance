@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -15,10 +14,8 @@ public sealed class SafeToDeleteTool
                  "Returns safe=true only if there are zero references.")]
     public static async Task<SafeToDeleteResult> CheckSafeToDelete(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<SafeToDeleteTool> logger, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "safe-to-delete");
-
         if (holder.LoadFailure is { } failure)
             return SafeToDeleteResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

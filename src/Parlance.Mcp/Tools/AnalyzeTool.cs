@@ -1,6 +1,5 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
@@ -16,14 +15,11 @@ public sealed class AnalyzeTool
     public static async Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
-        ILogger<AnalyzeTool> logger,
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "analyze");
-
         if (holder.LoadFailure is { } failure)
             return AnalyzeToolResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)

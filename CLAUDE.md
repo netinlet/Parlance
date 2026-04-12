@@ -110,7 +110,7 @@ Specialist agents
 
 ## Dogfooding Parlance
 
-Parlance MCP tools are available in this repo via `.mcp.json`. You **must** use them as the primary code intelligence layer. Do not default to native tools (Grep, Glob, Read) for tasks that Parlance covers.
+Parlance MCP tools are available in this repo via `.mcp.json`. You **must** use them as the primary code intelligence layer. Do not default to native tools (Grep, Glob, Read) for tasks that Parlance covers. If you were dispatched as a subagent in this repo, you must still abide by the tool mapping table below.
 
 ### Tool mapping — must use Parlance first
 

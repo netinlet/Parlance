@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,15 +15,12 @@ public sealed class TypeHierarchyTool
                  "Use maxDepth to control how many levels deep to walk (default 1).")]
     public static async Task<TypeHierarchyToolResult> TypeHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<TypeHierarchyTool> logger,
         [Description("Type name to look up (e.g., 'MyClass' or 'Namespace.MyClass')")]
         string typeName,
         [Description("How many levels deep to walk (default 1)")]
         int maxDepth = 1,
         CancellationToken ct = default)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "type-hierarchy");
-
         if (string.IsNullOrWhiteSpace(typeName))
             return TypeHierarchyToolResult.Error("typeName is required.");
         if (maxDepth < 1)
