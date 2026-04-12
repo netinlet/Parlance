@@ -9,6 +9,21 @@
 # Parlance analytics logs
 .parlance/
 
+# Internal AI workflow docs
+docs/superpowers/
+
+# Claude Code local settings (personal, not for contributors)
+.claude/settings.local.json
+
+# MCP server configuration (personal paths — see .mcp.json.example)
+.mcp.json
+
+# JetBrains IDE files
+.idea/
+
+# ReSharper user settings
+*.DotSettings.user
+
 # User-specific files
 *.rsuser
 *.suo
