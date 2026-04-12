@@ -1,10 +1,10 @@
 # Parlance
 
-**An opinionated C# code intelligence server for AI agents, built on Roslyn.**
+A C# code intelligence MCP server built on Roslyn — semantic navigation, diagnostics, and code actions for AI agents working in .NET codebases.
 
-Parlance exposes semantic understanding of your .NET codebase via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP). Where raw Roslyn gives you a compiler API, Parlance gives you a senior developer — curation, scoring, fix safety classification, and idiomatic direction on top of a full MSBuildWorkspace.
+Parlance exposes your solution via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), giving AI agents direct access to a full MSBuildWorkspace: type information, symbol search, call hierarchies, diagnostics, and code fixes — without reading raw source files.
 
-The primary consumer is the AI agent. The CLI is a thin client for CI and one-shot reporting.
+The CLI is a thin client for one-shot analysis and CI reporting.
 
 ## Features
 
