@@ -46,7 +46,7 @@ Parlance.Analysis               AnalysisService, CurationSetProvider, CodeAction
     ↑
 Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, compilation cache, file watching)
     ↑
-├── Parlance.Mcp                MCP server — 15+ tools, stdio transport, Microsoft.Extensions.Hosting
+├── Parlance.Mcp                MCP server — 18 tools, stdio transport, Microsoft.Extensions.Hosting
 └── Parlance.Cli                CLI — analyze/rules commands, System.CommandLine 2.0.3
 ```
 
@@ -61,7 +61,7 @@ Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, comp
 
 ### MCP tool pattern
 
-Tools are static methods on `[McpServerToolType]` classes. All tools are `ReadOnly = true`. They receive services via DI parameters:
+Tools are static methods on `[McpServerToolType]` classes. All tools are `ReadOnly = true`. They receive services via DI parameters. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
 
 ```csharp
 [McpServerToolType]
@@ -69,13 +69,20 @@ public sealed class MyTool
 {
     [McpServerTool(Name = "my-tool", ReadOnly = true)]
     [Description("...")]
-    public static MyResult Execute(WorkspaceSessionHolder holder, WorkspaceQueryService query, ILogger<MyTool> logger)
+    public static async Task<MyResult> Execute(
+        WorkspaceSessionHolder holder, WorkspaceQueryService query,
+        string param, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "my-tool");
+        if (holder.LoadFailure is { } failure)
+            return MyResult.LoadFailed(failure.Message);
+        if (!holder.IsLoaded)
+            return MyResult.NotLoaded();
         // ...
     }
 }
 ```
+
+`ILogger<T>` is only injected in the minority of tools that need structured logging beyond analytics (e.g. `WorkspaceStatusTool`, `DecompileTypeTool`). Do not add it by default.
 
 ## Conventions
 
