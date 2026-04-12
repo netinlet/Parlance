@@ -26,7 +26,7 @@ public sealed class DecompileTypeToolTests : IAsyncLifetime
     public async Task DecompileType_ExternalType_ReturnsDecompiledSource()
     {
         var result = await DecompileTypeTool.DecompileType(
-            _holder, _query, TestAnalytics.Instance, NullLogger<DecompileTypeTool>.Instance,
+            _holder, _query, NullLogger<DecompileTypeTool>.Instance,
             "Microsoft.CodeAnalysis.Project", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -40,7 +40,7 @@ public sealed class DecompileTypeToolTests : IAsyncLifetime
     public async Task DecompileType_NonexistentType_ReturnsNotFound()
     {
         var result = await DecompileTypeTool.DecompileType(
-            _holder, _query, TestAnalytics.Instance, NullLogger<DecompileTypeTool>.Instance,
+            _holder, _query, NullLogger<DecompileTypeTool>.Instance,
             "This.Type.DoesNotExist", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -53,7 +53,7 @@ public sealed class DecompileTypeToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = DecompileTypeTool.DecompileType(
-            holder, query, TestAnalytics.Instance, NullLogger<DecompileTypeTool>.Instance,
+            holder, query, NullLogger<DecompileTypeTool>.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -67,7 +67,7 @@ public sealed class DecompileTypeToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = DecompileTypeTool.DecompileType(
-            holder, query, TestAnalytics.Instance, NullLogger<DecompileTypeTool>.Instance,
+            holder, query, NullLogger<DecompileTypeTool>.Instance,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
