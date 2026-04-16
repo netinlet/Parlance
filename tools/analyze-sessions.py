@@ -54,7 +54,7 @@ def load_sessions(session_dir: Path, start: date, end: date) -> list[dict]:
 
         records = []
         try:
-            with open(jsonl_file) as f:
+            with open(jsonl_file, encoding='utf-8', errors='ignore') as f:
                 for line in f:
                     line = line.strip()
                     if line:
@@ -106,6 +106,10 @@ def main():
     parser.add_argument('--project-dir', help='Project root (default: cwd)')
     parser.add_argument('--session-dir', help='Direct override of session dir')
     args = parser.parse_args()
+
+    if args.days <= 0:
+        print('Error: --days must be >= 1', file=sys.stderr)
+        sys.exit(1)
 
     session_dir = resolve_session_dir(args.project_dir, args.session_dir)
     if not session_dir.exists():
