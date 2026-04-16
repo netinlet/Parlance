@@ -11,6 +11,96 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 
+CS_EXTENSIONS = re.compile(
+    r'\.(cs|csproj|sln|slnx|props|targets)$', re.IGNORECASE
+)
+CS_GLOB_PATTERN = re.compile(
+    r'(/\*\*?)?/[^/]*\.(cs|csproj|sln|slnx|props|targets)$'
+    r'|\.(cs|csproj|sln|slnx|props|targets)$',
+    re.IGNORECASE
+)
+
+
+def extract_tool_calls(records: list[dict]) -> list[dict]:
+    """Extract all tool_use blocks from assistant messages.
+
+    Returns list of dicts with keys: name, input, timestamp
+    """
+    calls = []
+    for rec in records:
+        if rec.get('type') != 'assistant':
+            continue
+        content = rec.get('message', {}).get('content', [])
+        if not isinstance(content, list):
+            continue
+        ts = rec.get('timestamp', '')
+        for block in content:
+            if isinstance(block, dict) and block.get('type') == 'tool_use':
+                calls.append({
+                    'name': block.get('name', ''),
+                    'input': block.get('input', {}),
+                    'timestamp': ts,
+                })
+    return calls
+
+
+def is_parlance_call(call: dict) -> bool:
+    return call['name'].startswith('mcp__parlance__')
+
+
+def is_native_fallback(call: dict) -> tuple[bool, str]:
+    """Check if a tool call is a native fallback on a C# file.
+
+    Returns (is_fallback, reason_note).
+    """
+    name = call['name']
+    inp = call['input']
+
+    if name == 'Read':
+        fp = inp.get('file_path', '')
+        if CS_EXTENSIONS.search(fp):
+            return True, ''
+        return False, ''
+
+    if name == 'Grep':
+        path = inp.get('path', '')
+        glob = inp.get('glob', '')
+        type_ = inp.get('type', '')
+        if CS_EXTENSIONS.search(path):
+            return True, ''
+        if CS_GLOB_PATTERN.search(glob):
+            return True, ''
+        if type_ == 'cs':
+            return True, ''
+        if '/src/' in path and not glob and not type_:
+            return True, '(no glob, /src/ path)'
+        return False, ''
+
+    if name == 'Glob':
+        pattern = inp.get('pattern', '')
+        if CS_GLOB_PATTERN.search(pattern):
+            return True, ''
+        return False, ''
+
+    return False, ''
+
+
+def describe_fallback(call: dict, note: str) -> str:
+    """Format a violation line for the report."""
+    name = call['name']
+    inp = call['input']
+    if name == 'Read':
+        target = inp.get('file_path', '')
+    elif name == 'Grep':
+        target = inp.get('path', '') or inp.get('glob', '')
+    elif name == 'Glob':
+        target = inp.get('pattern', '')
+    else:
+        target = str(inp)
+    suffix = f'  {note}' if note else ''
+    return f'  {name:<6} → {target}{suffix}'
+
+
 def encode_path_for_claude(project_dir: str) -> str:
     """Encode a project path the way Claude Code does for session dir naming.
 
