@@ -102,6 +102,77 @@ def describe_fallback(call: dict, note: str) -> str:
     return f'  {name:<6} → {target}{suffix}'
 
 
+def analyze_session(session: dict) -> dict:
+    """Analyze a single session, returning counts and violation lines."""
+    calls = extract_tool_calls(session['records'])
+    parlance_count = 0
+    violations = []
+
+    for call in calls:
+        if is_parlance_call(call):
+            parlance_count += 1
+        else:
+            ok, note = is_native_fallback(call)
+            if ok:
+                violations.append(describe_fallback(call, note))
+
+    return {
+        'session_id': session['session_id'],
+        'date': session['date'],
+        'branch': session['branch'],
+        'parlance': parlance_count,
+        'fallbacks': len(violations),
+        'violations': violations,
+        'first_timestamp': next(
+            (c['timestamp'] for c in calls if c['timestamp']), ''
+        ),
+    }
+
+
+def format_report(results: list[dict], start: date, end: date) -> str:
+    days = (end - start).days + 1
+    total_parlance = sum(r['parlance'] for r in results)
+    total_fallbacks = sum(r['fallbacks'] for r in results)
+
+    lines = []
+    lines.append(f'=== Session Analysis: {start} → {end} ({days} days) ===')
+    lines.append(
+        f'Sessions: {len(results)}  |  '
+        f'Parlance calls: {total_parlance}  |  '
+        f'Native fallbacks: {total_fallbacks}'
+    )
+    lines.append('')
+
+    # Summary table
+    lines.append('SESSION SUMMARY')
+    lines.append(f'{"Date":<12}{"Session":<10}{"Branch":<24}{"Parlance":>9}{"Fallbacks":>11}')
+    lines.append(f'{"-"*12}{"-"*10}{"-"*24}{"-"*9}{"-"*11}')
+    for r in results:
+        lines.append(
+            f'{str(r["date"]):<12}'
+            f'{r["session_id"][:8]:<10}'
+            f'{r["branch"][:23]:<24}'
+            f'{r["parlance"]:>9}'
+            f'{r["fallbacks"]:>11}'
+        )
+
+    # Violations detail
+    violations_exist = any(r['violations'] for r in results)
+    if violations_exist:
+        lines.append('')
+        lines.append('VIOLATIONS DETAIL')
+        for r in results:
+            if not r['violations']:
+                continue
+            ts = r['first_timestamp'][11:16] if r['first_timestamp'] else '?'
+            lines.append(
+                f'[{r["date"]} {ts} | {r["session_id"][:8]} | {r["branch"]}]'
+            )
+            lines.extend(r['violations'])
+
+    return '\n'.join(lines)
+
+
 def encode_path_for_claude(project_dir: str) -> str:
     """Encode a project path the way Claude Code does for session dir naming.
 
@@ -190,12 +261,11 @@ def main():
     parser = argparse.ArgumentParser(
         description='Analyze Claude Code sessions for Parlance tool adoption'
     )
-    parser.add_argument('--days', type=int, default=7,
-                        help='Look back N days (default: 7)')
-    parser.add_argument('--since', help='Start date YYYY-MM-DD')
-    parser.add_argument('--until', help='End date YYYY-MM-DD (default: today)')
-    parser.add_argument('--project-dir', help='Project root (default: cwd)')
-    parser.add_argument('--session-dir', help='Direct override of session dir')
+    parser.add_argument('--days', type=int, default=7)
+    parser.add_argument('--since')
+    parser.add_argument('--until')
+    parser.add_argument('--project-dir')
+    parser.add_argument('--session-dir')
     args = parser.parse_args()
 
     if args.days <= 0:
@@ -209,7 +279,13 @@ def main():
 
     start, end = resolve_date_range(args.days, args.since, args.until)
     sessions = load_sessions(session_dir, start, end)
-    print(f'Found {len(sessions)} sessions from {start} to {end}')
+
+    if not sessions:
+        print(f'No sessions found from {start} to {end}.')
+        return
+
+    results = [analyze_session(s) for s in sessions]
+    print(format_report(results, start, end))
 
 
 if __name__ == '__main__':
