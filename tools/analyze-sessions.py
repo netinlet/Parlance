@@ -45,7 +45,8 @@ def extract_tool_calls(records: list[dict]) -> list[dict]:
 
 
 def is_parlance_call(call: dict) -> bool:
-    return call['name'].startswith('mcp__parlance__')
+    """Check if a tool call is a Parlance MCP tool."""
+    return call.get('name', '').startswith('mcp__parlance__')
 
 
 def is_native_fallback(call: dict) -> tuple[bool, str]:
