@@ -15,6 +15,7 @@ If the user passed arguments (anything after `/analyze-sessions`):
   - `/analyze-sessions 30` → ask: "Did you mean `--days 30`?"
   - `/analyze-sessions april` → ask: "Can you clarify the date range? e.g. `--since 2026-04-01`"
 - If no args, use `--days 7` as the default.
+- If `--project-dir PATH` or `--session-dir PATH` is passed, verify the path exists before proceeding. If it doesn't exist, tell the user and ask them to correct it.
 
 ## Step 2: Announce plan and confirm
 
@@ -23,7 +24,9 @@ Before running, tell the user:
 2. The session directory that will be scanned
 3. How many `.jsonl` files exist in that directory within the date window
 
-Then ask: "Ready to run?"
+If the session count is 0, ask the user: "No sessions found in this range. Would you like to adjust the dates (e.g. `--days 14`)?" and stop.
+
+Otherwise ask: "Ready to run?"
 
 To count sessions without running the full analysis, use:
 ```bash
