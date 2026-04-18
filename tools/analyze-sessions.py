@@ -93,7 +93,14 @@ def describe_fallback(call: dict, note: str) -> str:
     if name == 'Read':
         target = inp.get('file_path', '')
     elif name == 'Grep':
-        target = inp.get('path', '') or inp.get('glob', '')
+        target_parts = [
+            inp.get('path', ''),
+            inp.get('glob', ''),
+            inp.get('pattern', ''),
+        ]
+        if inp.get('type', ''):
+            target_parts.append(f'type={inp["type"]}')
+        target = ' '.join(part for part in target_parts if part)
     elif name == 'Glob':
         target = inp.get('pattern', '')
     else:
@@ -164,7 +171,7 @@ def format_report(results: list[dict], start: date, end: date) -> str:
         for r in results:
             if not r['violations']:
                 continue
-            ts = r['first_timestamp'][11:16] if r['first_timestamp'] else '?'
+            ts = r['first_timestamp'][11:16] if len(r['first_timestamp']) >= 16 else '?'
             lines.append(
                 f'[{r["date"]} {ts} | {r["session_id"][:8]} | {r["branch"]}]'
             )
