@@ -22,13 +22,13 @@ If the user passed arguments (anything after `/analyze-sessions`):
 Before running, tell the user:
 1. The resolved time range (e.g. "2026-04-08 → 2026-04-15, 7 days")
 2. The session directory that will be scanned
-3. How many `.jsonl` files exist in that directory within the date window
+3. How many total `.jsonl` session files exist in that directory (the script filters by embedded session timestamp at run time)
 
-If the session count is 0, ask the user: "No sessions found in this range. Would you like to adjust the dates (e.g. `--days 14`)?" and stop.
+If the total session count is 0, ask the user: "No sessions found in this directory. Would you like to adjust the path?" and stop.
 
 Otherwise ask: "Ready to run?"
 
-To count sessions without running the full analysis, use:
+To count total session files without running the full analysis, use:
 ```bash
 python3 -c "
 from pathlib import Path

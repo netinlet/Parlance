@@ -6,7 +6,6 @@ import json
 import os
 import re
 import sys
-from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -217,10 +216,6 @@ def load_sessions(session_dir: Path, start: date, end: date) -> list[dict]:
     """
     sessions = []
     for jsonl_file in sorted(session_dir.glob('*.jsonl')):
-        file_date = date.fromtimestamp(jsonl_file.stat().st_mtime)
-        if not (start <= file_date <= end):
-            continue
-
         records = []
         try:
             with open(jsonl_file, encoding='utf-8', errors='ignore') as f:
@@ -237,22 +232,31 @@ def load_sessions(session_dir: Path, start: date, end: date) -> list[dict]:
         if not records:
             continue
 
-        # Extract session metadata from first record that has it
+        # Derive session_date from the first valid embedded timestamp; fall
+        # back to mtime only if no record has a parseable timestamp. This
+        # keeps filtering and reporting consistent when files are copied or
+        # touched and mtimes drift from the actual session start.
         session_id = jsonl_file.stem
         branch = 'unknown'
-        session_date = file_date
+        session_date: date | None = None
         for rec in records:
-            if 'gitBranch' in rec:
-                branch = rec['gitBranch']
-            if 'timestamp' in rec:
+            if session_date is None and 'timestamp' in rec:
                 try:
                     session_date = datetime.fromisoformat(
                         rec['timestamp'].replace('Z', '+00:00')
                     ).date()
                 except ValueError:
                     pass
-            if branch != 'unknown':
+            if branch == 'unknown' and 'gitBranch' in rec:
+                branch = rec['gitBranch']
+            if session_date is not None and branch != 'unknown':
                 break
+
+        if session_date is None:
+            session_date = date.fromtimestamp(jsonl_file.stat().st_mtime)
+
+        if not (start <= session_date <= end):
+            continue
 
         sessions.append({
             'session_id': session_id,
