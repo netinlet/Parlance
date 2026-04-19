@@ -1,3 +1,5 @@
+<!-- generated from 20-Projects/Parlance/Contributor/analyzer-process.md — edit in vault, run tools/docs/publish.sh -->
+
 # Analyzer Process
 
 This document describes how Parlance creates official analyzers. It complements

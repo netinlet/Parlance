@@ -9,8 +9,15 @@
 # Parlance analytics logs
 .parlance/
 
-# Internal AI workflow docs
+# Symlink into the vault (created by tools/docs/setup-vault-link.sh).
+# The trailing-slash variant covers any accidental real directory at this path.
+docs/superpowers
 docs/superpowers/
+
+# Vault is the source of truth for research notes. Only the LSP comparison
+# is published into the repo; everything else is scratch and stays in the vault.
+docs/research/*
+!docs/research/2026-04-03-parlance-vs-lsp-comparison.md
 
 # Claude Code local settings (personal, not for contributors)
 .claude/settings.local.json

@@ -97,6 +97,47 @@ public sealed class MyTool
 - **Logging:** `Microsoft.Extensions.Logging` with structured logging throughout. MCP logs to stderr.
 - Do not push commits. Do not attribute commits.
 
+## Working with docs
+
+The Parlance Obsidian vault is the source of truth for *all* documentation
+— research, plans, rule drafts, contributor guides. The repo's `docs/` tree
+holds only the subset that has been explicitly published from the vault.
+
+**Vault location** (default): `/mnt/c/Users/doug/ObsidianVault/NotesMain/20-Projects/Parlance/`
+Override with `PARLANCE_VAULT_PATH`. Subfolders: `Research/`, `Rules/`,
+`Plans/`, `Contributor/`, `Superpowers/`.
+
+### Workflows
+
+| Need | How |
+|---|---|
+| Search vault notes | `obsidian-cli` skill |
+| Read a vault note | `obsidian-cli` skill |
+| Author a new vault note | `obsidian-cli` skill, or `Write` to the vault path directly |
+| Publish vault doc → repo | Add `parlance_publish: <repo-path>` to the vault doc's frontmatter, run `tools/docs/publish.sh` |
+| Pull updated vault docs into the repo on this branch | `tools/docs/publish.sh` (re-runs all manifested entries) |
+| Set up `docs/superpowers` symlink on a fresh clone | `tools/docs/setup-vault-link.sh` |
+
+### Publication contract
+
+- **Vault is source.** Repo docs under `docs/` carry a generated-marker
+  comment at the top: `<!-- generated from 20-Projects/Parlance/... -->`. Do
+  not edit those repo files directly — `tools/docs/publish.sh` overwrites them
+  on next run. Edit the vault original.
+- **Frontmatter declares the publish target.** A vault note publishes if and
+  only if it has a `parlance_publish: <repo-path>` key in YAML frontmatter.
+  Notes without it stay in the vault.
+- **Superpowers output lands in the vault automatically.** `docs/superpowers/`
+  is a symlink to the vault `Superpowers/` folder, so brainstorms, plans,
+  reviews, etc. flow there with no extra steps.
+
+### When to publish from vault
+
+Promote a vault doc to the repo only when it is contributor-facing and
+maintained: rule references (`docs/rules/PARLxxxx.md`), contributor guides,
+shipped design docs. Research notes, in-progress plans, and exploration stay
+vault-only.
+
 ## Agent Guidance: dotnet-skills
 
 IMPORTANT: Prefer retrieval-led reasoning over pretraining for any .NET work.
