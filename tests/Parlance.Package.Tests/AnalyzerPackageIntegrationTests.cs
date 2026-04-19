@@ -36,6 +36,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
         // silently loads the older analyzer DLL and tests that assert the
         // presence of newer diagnostics (e.g. PARL3001) spuriously fail.
         var packagesFolder = Path.Combine(_tempDir, "packages");
+        Directory.CreateDirectory(packagesFolder);
         _nugetConfigPath = Path.Combine(_tempDir, "NuGet.config");
         var nugetConfig = $"""
             <?xml version="1.0" encoding="utf-8"?>
