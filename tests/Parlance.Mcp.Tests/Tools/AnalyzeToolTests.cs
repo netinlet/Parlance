@@ -1,5 +1,8 @@
 using System.Collections.Immutable;
+using System.ComponentModel;
+using System.Reflection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
@@ -29,6 +32,19 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     }
 
     public async Task DisposeAsync() => await _session.DisposeAsync();
+
+    [Fact]
+    public void AnalyzeFiles_HasExplicitToolNameAndShellExamples()
+    {
+        var method = typeof(AnalyzeTool).GetMethod(nameof(AnalyzeTool.Analyze))!;
+        var tool = method.GetCustomAttribute<McpServerToolAttribute>()!;
+        var description = method.GetCustomAttribute<DescriptionAttribute>()!.Description;
+
+        Assert.Equal("analyze-files", tool.Name);
+        Assert.Contains("workspace-relative", description);
+        Assert.Contains("ls *.cs", description);
+        Assert.Contains("git diff --name-only main...HEAD -- '*.cs'", description);
+    }
 
     [Fact]
     public void NotLoaded_ReturnsNotLoaded()
@@ -77,6 +93,19 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         Assert.Equal("success", result.Status);
         Assert.NotNull(result.Summary);
+        Assert.NotNull(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task Analyze_WorkspaceRelativeFile_ReturnsResults()
+    {
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            ["src/Parlance.Mcp/Program.cs"], null, null, CancellationToken.None);
+
+        Assert.Equal("success", result.Status);
+        Assert.True(result.Summary.HasValue);
+        Assert.True(result.Summary.Value.Total > 0);
         Assert.NotNull(result.Diagnostics);
     }
 }

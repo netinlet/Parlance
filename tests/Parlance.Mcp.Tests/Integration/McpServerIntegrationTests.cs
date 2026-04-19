@@ -77,6 +77,10 @@ public sealed class McpServerIntegrationTests
         Assert.Contains("get-type-dependencies", toolNames);
         Assert.Contains("safe-to-delete", toolNames);
         Assert.Contains("decompile-type", toolNames);
+        Assert.Contains("list-project-files", toolNames);
+        Assert.Contains("analyze-files", toolNames);
+        Assert.Contains("analyze-project", toolNames);
+        Assert.DoesNotContain("analyze-diff", toolNames);
     }
 
     [Fact]

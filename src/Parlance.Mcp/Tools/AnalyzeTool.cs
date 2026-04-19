@@ -9,9 +9,16 @@ namespace Parlance.Mcp.Tools;
 [McpServerToolType]
 public sealed class AnalyzeTool
 {
-    [McpServerTool(Name = "analyze", ReadOnly = true)]
-    [Description("Run diagnostics on C# files. Returns analyzer findings with severity, " +
-                 "fix classification, and rationale. Pass absolute file paths.")]
+    private const string Description =
+        "Analyze explicit C# files loaded in the current Roslyn workspace. " +
+        "Pass absolute paths or workspace-relative paths. " +
+        "Shell examples: analyze files from the current directory with `ls *.cs`; " +
+        "analyze files changed on the current branch vs main with " +
+        "`git diff --name-only main...HEAD -- '*.cs'`, then pass those paths as files. " +
+        "This tool does not run git or discover changed files.";
+
+    [McpServerTool(Name = "analyze-files", ReadOnly = true)]
+    [Description(Description)]
     public static async Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
@@ -27,8 +34,11 @@ public sealed class AnalyzeTool
 
         try
         {
+            var resolvedFiles = files
+                .Select(f => ResolveFilePath(holder.Session.WorkspacePath, f))
+                .ToImmutableList();
             var options = new AnalyzeOptions(curationSet, maxDiagnostics);
-            var result = await analysis.AnalyzeFilesAsync([.. files], options, ct);
+            var result = await analysis.AnalyzeFilesAsync(resolvedFiles, options, ct);
 
             return AnalyzeToolResult.Success(
                 result.CurationSet,
@@ -48,6 +58,14 @@ public sealed class AnalyzeTool
             return AnalyzeToolResult.Failed(ex.Message);
         }
     }
+
+    private static string ResolveFilePath(string workspacePath, string filePath) =>
+        Path.IsPathRooted(filePath)
+            ? Path.GetFullPath(filePath)
+            : Path.GetFullPath(Path.Combine(GetWorkspaceRoot(workspacePath), filePath));
+
+    private static string GetWorkspaceRoot(string workspacePath) =>
+        Path.GetDirectoryName(workspacePath) ?? workspacePath;
 }
 
 public readonly record struct AnalyzeToolResult(
