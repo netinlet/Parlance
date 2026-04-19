@@ -249,7 +249,8 @@ public sealed class PARL3001Tests
         foreach (var location in diagnostic.AdditionalLocations)
         {
             Assert.True(location.IsInSource);
-            Assert.True(location.SourceSpan.Length >= 0);
+            Assert.Same(diagnostic.Location.SourceTree, location.SourceTree);
+            Assert.True(location.SourceSpan.Length > 0);
         }
     }
 
