@@ -1,3 +1,5 @@
+<!-- generated from 20-Projects/Parlance/Research/2026-04-03-parlance-vs-lsp-comparison.md — edit in vault, run tools/docs/publish.sh -->
+
 # Parlance MCP Tools vs LSP Specification
 
 **Date:** 2026-04-03
