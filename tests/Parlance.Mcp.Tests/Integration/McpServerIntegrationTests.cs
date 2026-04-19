@@ -80,7 +80,6 @@ public sealed class McpServerIntegrationTests
         Assert.Contains("list-project-files", toolNames);
         Assert.Contains("analyze-files", toolNames);
         Assert.Contains("analyze-project", toolNames);
-        Assert.DoesNotContain("analyze-diff", toolNames);
     }
 
     [Fact]

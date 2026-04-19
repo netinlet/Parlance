@@ -55,7 +55,7 @@ public sealed class ListProjectFilesToolTests : IAsyncLifetime
         Assert.Equal("src/Parlance.Mcp/Tools/*Tool.cs", result.PathPattern);
         Assert.False(result.Truncated);
         Assert.Equal(result.TotalMatched, result.Returned);
-        Assert.Contains("src/Parlance.Mcp/Tools/AnalyzeTool.cs", result.Files);
+        Assert.Contains("src/Parlance.Mcp/Tools/AnalyzeFilesTool.cs", result.Files);
         Assert.DoesNotContain(result.Files, f => f.Contains('\\'));
         Assert.Equal(result.Files.Order(StringComparer.OrdinalIgnoreCase), result.Files);
     }

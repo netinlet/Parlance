@@ -11,7 +11,7 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class AnalyzeToolTests : IAsyncLifetime
+public sealed class AnalyzeFilesToolTests : IAsyncLifetime
 {
     private WorkspaceSessionHolder _holder = null!;
     private WorkspaceQueryService _query = null!;
@@ -36,7 +36,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     [Fact]
     public void AnalyzeFiles_HasExplicitToolNameAndShellExamples()
     {
-        var method = typeof(AnalyzeTool).GetMethod(nameof(AnalyzeTool.Analyze))!;
+        var method = typeof(AnalyzeFilesTool).GetMethod(nameof(AnalyzeFilesTool.AnalyzeFiles))!;
         var tool = method.GetCustomAttribute<McpServerToolAttribute>()!;
         var description = method.GetCustomAttribute<DescriptionAttribute>()!.Description;
 
@@ -56,7 +56,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
             holder, query, curationProvider,
             NullLogger<AnalysisService>.Instance);
 
-        var result = AnalyzeTool.Analyze(
+        var result = AnalyzeFilesTool.AnalyzeFiles(
             holder, service,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
@@ -74,7 +74,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
             holder, query, curationProvider,
             NullLogger<AnalysisService>.Instance);
 
-        var result = AnalyzeTool.Analyze(
+        var result = AnalyzeFilesTool.AnalyzeFiles(
             holder, service,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
@@ -87,7 +87,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
         var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
         var filePath = Path.Combine(solutionDir, "src", "Parlance.Abstractions", "Diagnostic.cs");
 
-        var result = await AnalyzeTool.Analyze(
+        var result = await AnalyzeFilesTool.AnalyzeFiles(
             _holder, _service,
             [filePath], null, null, CancellationToken.None);
 
@@ -99,7 +99,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     [Fact]
     public async Task Analyze_WorkspaceRelativeFile_ReturnsResults()
     {
-        var result = await AnalyzeTool.Analyze(
+        var result = await AnalyzeFilesTool.AnalyzeFiles(
             _holder, _service,
             ["src/Parlance.Mcp/Program.cs"], null, null, CancellationToken.None);
 

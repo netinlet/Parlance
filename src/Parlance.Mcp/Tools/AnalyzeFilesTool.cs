@@ -7,7 +7,7 @@ using Parlance.CSharp.Workspace;
 namespace Parlance.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class AnalyzeTool
+public sealed class AnalyzeFilesTool
 {
     private const string Description =
         "Analyze explicit C# files loaded in the current Roslyn workspace. " +
@@ -19,7 +19,7 @@ public sealed class AnalyzeTool
 
     [McpServerTool(Name = "analyze-files", ReadOnly = true)]
     [Description(Description)]
-    public static async Task<AnalyzeToolResult> Analyze(
+    public static async Task<AnalyzeToolResult> AnalyzeFiles(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
         string[] files,

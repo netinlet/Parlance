@@ -58,6 +58,6 @@ builder.Services
     .WithTools<DecompileTypeTool>()
     .WithTools<ListProjectFilesTool>()
     .WithTools<AnalyzeProjectTool>()
-    .WithTools<AnalyzeTool>();
+    .WithTools<AnalyzeFilesTool>();
 
 await builder.Build().RunAsync();
