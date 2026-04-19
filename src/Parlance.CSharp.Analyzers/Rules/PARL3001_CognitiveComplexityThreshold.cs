@@ -43,7 +43,8 @@ public sealed class PARL3001_CognitiveComplexityThreshold : DiagnosticAnalyzer
         category: "Maintainability",
         defaultSeverity: DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description: "Reports declarations whose control-flow nesting and interruption make the code harder to understand.");
+        description: "Reports declarations whose control-flow nesting and interruption make the code harder to understand.",
+        helpLinkUri: "https://github.com/netinlet/Parlance/blob/main/docs/rules/PARL3001.md");
 
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [Rule];
 

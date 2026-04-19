@@ -5,8 +5,7 @@ namespace Parlance.CSharp.Analyzers.Metrics;
 /// that consume them. Every tweakable value that appeared as an inline literal
 /// in the walker or rule code belongs here, so that thresholds and increment
 /// weights are reviewed and changed in one place rather than hunted down
-/// across files. See <c>feedback_no_magic_numbers.md</c> in project memory and
-/// the hardening plan (Part 3, Task T3) for the rationale.
+/// across files.
 /// </summary>
 internal static class ComplexityDefaults
 {
@@ -40,8 +39,8 @@ internal static class ComplexityDefaults
     /// <summary>
     /// Increment added by a <c>break</c> statement. 0 (Sonar S3776) and 1
     /// (JetBrains Cognitive Complexity plugin) are both defensible readings
-    /// of the Sonar white paper. Parlance chose 1 for JetBrains parity; see
-    /// the hardening plan D1 and the PARL3001 contract doc.
+    /// of the Sonar white paper. Parlance chose 1 for JetBrains parity; flip
+    /// to 0 here to switch to Sonar parity.
     /// </summary>
     public const int BreakIncrement = 1;
 

@@ -32,7 +32,7 @@ internal sealed record CognitiveComplexityResult(
 /// accessors, constructors, operators, and expression-bodied members using a
 /// Roslyn <see cref="CSharpSyntaxWalker"/>. The scoring rules follow the
 /// Sonar white paper and the JetBrains Cognitive Complexity plugin, with
-/// Parlance-specific divergences documented in the PARL3001 contract doc.
+/// Parlance-specific divergences documented in <c>docs/rules/PARL3001.md</c>.
 /// Internal because this assembly ships only an analyzer surface; consumers
 /// access complexity through diagnostics, not through a direct metric API.
 /// </summary>
@@ -243,10 +243,9 @@ internal static class CognitiveComplexityMetric
 
         public override void VisitBreakStatement(BreakStatementSyntax node)
         {
-            // 0 (Sonar S3776) and 1 (JetBrains cognitive plugin) are both
-            // defensible readings of the Sonar white paper. Parlance chose 1
-            // for JetBrains parity — see ComplexityDefaults.BreakIncrement
-            // and the PARL3001 contract doc's "Break scoring decision" section.
+            // The +1 vs 0 tradeoff and the rationale for our choice live on
+            // ComplexityDefaults.BreakIncrement — flip the constant there to
+            // change behavior, don't touch this site.
             RecordFlatIncrement(node.BreakKeyword, ComplexityDefaults.BreakIncrement, "+1");
             base.VisitBreakStatement(node);
         }
