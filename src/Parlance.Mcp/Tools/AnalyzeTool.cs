@@ -50,46 +50,31 @@ public sealed class AnalyzeTool
     }
 }
 
-public sealed record AnalyzeToolResult
+public readonly record struct AnalyzeToolResult(
+    string Status,
+    string? Error,
+    string? CurationSet,
+    AnalyzeSummary? Summary,
+    ImmutableList<AnalyzeDiagnostic>? Diagnostics)
 {
-    public string Status { get; init; } = "error";
-    public string? Error { get; init; }
-    public string? CurationSet { get; init; }
-    public AnalyzeSummary? Summary { get; init; }
-    public ImmutableList<AnalyzeDiagnostic>? Diagnostics { get; init; }
+    public static AnalyzeToolResult LoadFailed(string message) => new(
+        "load_failed", message, null, null, null);
 
-    public static AnalyzeToolResult LoadFailed(string message) => new()
-    {
-        Status = "load_failed",
-        Error = message
-    };
-
-    public static AnalyzeToolResult NotLoaded() => new()
-    {
-        Status = "not_loaded",
-        Error = "Workspace is still loading"
-    };
+    public static AnalyzeToolResult NotLoaded() => new(
+        "not_loaded", "Workspace is still loading", null, null, null);
 
     public static AnalyzeToolResult Success(
-        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics) => new()
-        {
-            Status = "success",
-            CurationSet = curationSet,
-            Summary = summary,
-            Diagnostics = diagnostics
-        };
+        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics) => new(
+        "success", null, curationSet, summary, diagnostics);
 
-    public static AnalyzeToolResult Failed(string message) => new()
-    {
-        Status = "error",
-        Error = message
-    };
+    public static AnalyzeToolResult Failed(string message) => new(
+        "error", message, null, null, null);
 }
 
-public sealed record AnalyzeSummary(
+public readonly record struct AnalyzeSummary(
     int Total, int Errors, int Warnings, int Suggestions, double Score);
 
-public sealed record AnalyzeDiagnostic(
+public readonly record struct AnalyzeDiagnostic(
     string RuleId, string Severity, string Message,
     string File, int Line,
     string? FixClassification, string? Rationale);

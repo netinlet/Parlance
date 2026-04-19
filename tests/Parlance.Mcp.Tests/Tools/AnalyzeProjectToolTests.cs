@@ -69,9 +69,9 @@ public sealed class AnalyzeProjectToolTests : IAsyncLifetime
             _holder, _service, "Parlance.Abstractions", null, 1, CancellationToken.None);
 
         Assert.Equal("success", result.Status);
-        Assert.NotNull(result.Summary);
+        Assert.True(result.Summary.HasValue);
         Assert.NotNull(result.Diagnostics);
-        Assert.True(result.Summary.Score >= 0);
+        Assert.True(result.Summary.Value.Score >= 0);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class AnalyzeProjectToolTests : IAsyncLifetime
             _holder, _service, null, null, 1, CancellationToken.None);
 
         Assert.Equal("success", result.Status);
-        Assert.NotNull(result.Summary);
+        Assert.True(result.Summary.HasValue);
         Assert.NotNull(result.Diagnostics);
     }
 
