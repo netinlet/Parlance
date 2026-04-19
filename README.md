@@ -8,7 +8,7 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 
 ## Features
 
-18 MCP tools across 6 categories:
+20 MCP tools across 6 categories:
 
 **Navigation (7)**
 - `describe-type` — members, signatures, base types, interfaces
@@ -31,14 +31,32 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 - `get-refactorings` — available refactorings at a location
 - `preview-code-action` — preview a fix or refactoring before applying
 
-**Analysis (1)**
-- `analyze` — run curated analyzer rules, get enriched diagnostics
+**Analysis (2)**
+- `analyze-files` — run curated analyzer rules for explicit files
+- `analyze-project` — run curated analyzer rules for a project or loaded solution
 
-**Workspace (1)**
+**Workspace (2)**
 - `workspace-status` — health, loaded projects, target frameworks, project graph
+- `list-project-files` — list Roslyn-loaded files, with optional project and wildcard path filters
 
 **Decompilation (1)**
 - `decompile-type` — inspect types from NuGet packages
+
+### MCP analysis workflows
+
+Use `analyze-files` when a shell command already produced the file list. It accepts absolute paths or workspace-relative paths.
+
+Examples:
+
+```bash
+# Analyze C# files in the current directory
+ls *.cs
+
+# Analyze C# files changed on the current branch vs main
+git diff --name-only main...HEAD -- '*.cs'
+```
+
+Pass the resulting paths as the `files` argument to `analyze-files`. Parlance does not run git for this workflow.
 
 ## Requirements
 
