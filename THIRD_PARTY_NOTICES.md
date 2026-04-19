@@ -5,18 +5,15 @@ runtime software from third parties. This file reproduces the attributions
 required by those third parties' licenses, plus informational entries for
 source-available projects Parlance reviewed but did not copy from.
 
-Vendored copies of each upstream project live under `artifacts/` in this
-repository; the `Upstream path` entries below point to the exact `LICENSE`
-(or equivalent) file a reviewer should consult.
-
 ---
 
 ## JetBrains Cognitive Complexity plugin — MIT
 
 - **Upstream project:** <https://github.com/matkoch/resharper-cognitive-complexity>
-- **Upstream path (vendored):** `artifacts/jetbrains-plugin-cognitivecomplexity/`
-- **License file:** `artifacts/jetbrains-plugin-cognitivecomplexity/LICENSE`
-- **How Parlance uses it:** algorithm and fixture reference for `PARL3001` cognitive complexity. Parlance does not copy source code; it recreates fixture scenarios in Parlance-owned tests and implements the scoring rules on top of Roslyn's `CSharpSyntaxWalker`. Source-use record: `docs/research/2026-04-16-complexity-metrics-quality-gates.md` § 2.1.
+- **How Parlance uses it:** algorithm and fixture reference for `PARL3001`
+  cognitive complexity. Parlance does not copy source code; it recreates
+  fixture scenarios in Parlance-owned tests and implements the scoring rules
+  on top of Roslyn's `CSharpSyntaxWalker`.
 
 ```
 MIT License
@@ -47,15 +44,16 @@ SOFTWARE.
 ## SonarAnalyzer for .NET — Sonar Source-Available License v1 (SSALv1)
 
 - **Upstream project:** <https://github.com/SonarSource/sonar-dotnet>
-- **Upstream path (vendored):** `artifacts/sonar-dotnet/`
-- **Relevant source:** `artifacts/sonar-dotnet/analyzers/src/SonarAnalyzer.CSharp/Metrics/CSharpCognitiveComplexityMetric.cs`, `artifacts/sonar-dotnet/analyzers/src/SonarAnalyzer.Core/Metrics/CognitiveComplexity.cs`.
-- **How Parlance uses it:** *review for algorithmic ideas only — no source is copied or adapted.* SSALv1 is not an OSI-open-source license; it permits source visibility and modification for internal use but imposes field-of-use restrictions. Parlance deliberately re-implements cognitive complexity independently on top of Roslyn rather than porting Sonar code. Source-use record: `docs/research/2026-04-16-complexity-metrics-quality-gates.md` § 2.3.
+- **License:** <https://sonarsource.com/license/ssal/>
+- **How Parlance uses it:** *reviewed for algorithmic ideas only — no source
+  is copied or adapted.* SSALv1 is not an OSI-open-source license; it permits
+  source visibility and modification for internal use but imposes
+  field-of-use restrictions. Parlance deliberately re-implements cognitive
+  complexity independently on top of Roslyn rather than porting Sonar code.
 
 This entry is informational. No redistribution of SonarAnalyzer source is
 required or performed by Parlance. The SSALv1 header appears at the top of
-each SonarAnalyzer source file; the canonical license text is available at
-<https://sonarsource.com/license/ssal/>. An abridged form of the header — as
-it appears on each reviewed source file — is:
+each SonarAnalyzer source file; an abridged form, as it appears upstream, is:
 
 ```
 SonarAnalyzer for .NET
