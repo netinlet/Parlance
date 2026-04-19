@@ -7,19 +7,20 @@ using Parlance.CSharp.Workspace;
 namespace Parlance.Mcp.Tools;
 
 [McpServerToolType]
-public sealed class AnalyzeFilesTool
+public sealed class AnalyzeTool
 {
     private const string Description =
-        "Analyze explicit C# files loaded in the current Roslyn workspace. " +
-        "Pass absolute paths or workspace-relative paths. " +
+        "Analyze C# files loaded in the current Roslyn workspace. " +
+        "Pass absolute paths or relative paths to .cs files, .csproj files, or .sln files. " +
+        "Relative paths are resolved from the workspace root. " +
         "Shell examples: analyze files from the current directory with `ls *.cs`; " +
         "analyze files changed on the current branch vs main with " +
         "`git diff --name-only main...HEAD -- '*.cs'`, then pass those paths as files. " +
         "This tool does not run git or discover changed files.";
 
-    [McpServerTool(Name = "analyze-files", ReadOnly = true)]
+    [McpServerTool(Name = "analyze", ReadOnly = true)]
     [Description(Description)]
-    public static async Task<AnalyzeToolResult> AnalyzeFiles(
+    public static async Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
         string[] files,
@@ -34,9 +35,8 @@ public sealed class AnalyzeFilesTool
 
         try
         {
-            var resolvedFiles = files
-                .Select(f => ResolveFilePath(holder.Session.WorkspacePath, f))
-                .ToImmutableList();
+            var workspaceRoot = Path.GetDirectoryName(holder.Session.WorkspacePath) ?? holder.Session.WorkspacePath;
+            var resolvedFiles = AnalysisFileResolver.ResolveTargets(holder.Session, files, workspaceRoot);
             var options = new AnalyzeOptions(curationSet, maxDiagnostics);
             var result = await analysis.AnalyzeFilesAsync(resolvedFiles, options, ct);
 
@@ -58,14 +58,6 @@ public sealed class AnalyzeFilesTool
             return AnalyzeToolResult.Failed(ex.Message);
         }
     }
-
-    private static string ResolveFilePath(string workspacePath, string filePath) =>
-        Path.IsPathRooted(filePath)
-            ? Path.GetFullPath(filePath)
-            : Path.GetFullPath(Path.Combine(GetWorkspaceRoot(workspacePath), filePath));
-
-    private static string GetWorkspaceRoot(string workspacePath) =>
-        Path.GetDirectoryName(workspacePath) ?? workspacePath;
 }
 
 public readonly record struct AnalyzeToolResult(

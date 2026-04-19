@@ -73,13 +73,10 @@ internal static class AnalyzeCommand
             // Holder takes ownership; it disposes the session when the DI container disposes.
             holder.SetSession(session);
 
-            var allFiles = session.CurrentSolution.Projects
-                .SelectMany(p => p.Documents)
-                .Select(d => d.FilePath)
-                .OfType<string>()
-                .Where(p => File.Exists(p) &&
-                            !p.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}"))
-                .ToImmutableList();
+            var allFiles = AnalysisFileResolver.ResolveTargets(
+                session,
+                [path],
+                Path.GetDirectoryName(Path.GetFullPath(path)));
 
             var suppression = suppress.Length > 0 ? RuleSuppression.From(suppress) : null;
 

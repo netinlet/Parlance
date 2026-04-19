@@ -11,7 +11,7 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class AnalyzeFilesToolTests : IAsyncLifetime
+public sealed class AnalyzeToolTests : IAsyncLifetime
 {
     private WorkspaceSessionHolder _holder = null!;
     private WorkspaceQueryService _query = null!;
@@ -34,14 +34,17 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
     public async Task DisposeAsync() => await _session.DisposeAsync();
 
     [Fact]
-    public void AnalyzeFiles_HasExplicitToolNameAndShellExamples()
+    public void Analyze_HasExplicitToolNameAndShellExamples()
     {
-        var method = typeof(AnalyzeFilesTool).GetMethod(nameof(AnalyzeFilesTool.AnalyzeFiles))!;
+        var method = typeof(AnalyzeTool).GetMethod(nameof(AnalyzeTool.Analyze))!;
         var tool = method.GetCustomAttribute<McpServerToolAttribute>()!;
         var description = method.GetCustomAttribute<DescriptionAttribute>()!.Description;
 
-        Assert.Equal("analyze-files", tool.Name);
-        Assert.Contains("workspace-relative", description);
+        Assert.Equal("analyze", tool.Name);
+        Assert.Contains("relative paths", description);
+        Assert.Contains("workspace root", description);
+        Assert.Contains(".csproj", description);
+        Assert.Contains(".sln", description);
         Assert.Contains("ls *.cs", description);
         Assert.Contains("git diff --name-only main...HEAD -- '*.cs'", description);
     }
@@ -56,7 +59,7 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
             holder, query, curationProvider,
             NullLogger<AnalysisService>.Instance);
 
-        var result = AnalyzeFilesTool.AnalyzeFiles(
+        var result = AnalyzeTool.Analyze(
             holder, service,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
@@ -74,7 +77,7 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
             holder, query, curationProvider,
             NullLogger<AnalysisService>.Instance);
 
-        var result = AnalyzeFilesTool.AnalyzeFiles(
+        var result = AnalyzeTool.Analyze(
             holder, service,
             ["test.cs"], null, null, CancellationToken.None).Result;
 
@@ -87,7 +90,7 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
         var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
         var filePath = Path.Combine(solutionDir, "src", "Parlance.Abstractions", "Diagnostic.cs");
 
-        var result = await AnalyzeFilesTool.AnalyzeFiles(
+        var result = await AnalyzeTool.Analyze(
             _holder, _service,
             [filePath], null, null, CancellationToken.None);
 
@@ -99,7 +102,7 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
     [Fact]
     public async Task Analyze_WorkspaceRelativeFile_ReturnsResults()
     {
-        var result = await AnalyzeFilesTool.AnalyzeFiles(
+        var result = await AnalyzeTool.Analyze(
             _holder, _service,
             ["src/Parlance.Mcp/Program.cs"], null, null, CancellationToken.None);
 
@@ -107,5 +110,45 @@ public sealed class AnalyzeFilesToolTests : IAsyncLifetime
         Assert.True(result.Summary.HasValue);
         Assert.True(result.Summary.Value.Total > 0);
         Assert.NotNull(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task Analyze_ProjectPath_ExpandsToProjectFiles()
+    {
+        var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
+        var projectPath = Path.Combine(solutionDir, "src", "Parlance.Mcp", "Parlance.Mcp.csproj");
+
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [projectPath], null, 1, CancellationToken.None);
+
+        Assert.Equal("success", result.Status);
+        Assert.True(result.Summary.HasValue);
+        Assert.True(result.Summary.Value.Total > 0);
+        Assert.NotNull(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task Analyze_SolutionPath_ExpandsToSolutionFiles()
+    {
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [TestPaths.FindSolutionPath()], null, 1, CancellationToken.None);
+
+        Assert.Equal("success", result.Status);
+        Assert.True(result.Summary.HasValue);
+        Assert.True(result.Summary.Value.Total > 0);
+        Assert.NotNull(result.Diagnostics);
+    }
+
+    [Fact]
+    public async Task Analyze_UnloadedProjectTarget_ReturnsError()
+    {
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [Path.Combine(Path.GetTempPath(), "Other.csproj")], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.Contains("not loaded", result.Error);
     }
 }
