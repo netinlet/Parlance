@@ -103,9 +103,11 @@ The Parlance Obsidian vault is the source of truth for *all* documentation
 — research, plans, rule drafts, contributor guides. The repo's `docs/` tree
 holds only the subset that has been explicitly published from the vault.
 
-**Vault location** (default): `/mnt/c/Users/doug/ObsidianVault/NotesMain/20-Projects/Parlance/`
-Override with `PARLANCE_VAULT_PATH`. Subfolders: `Research/`, `Rules/`,
-`Plans/`, `Contributor/`, `Superpowers/`.
+**Vault location:** set `PARLANCE_VAULT_PATH` to the absolute path of your
+vault's Parlance folder. Configure it in your shell or in a `.env` file at the
+repo root (see `.env.example`). Both `tools/docs/publish.sh` and
+`tools/docs/setup-vault-link.sh` read this variable. Subfolders: `Research/`,
+`Rules/`, `Plans/`, `Contributor/`, `Superpowers/`.
 
 ### Workflows
 
