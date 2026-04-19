@@ -54,24 +54,53 @@ while IFS= read -r -d '' file; do
     [[ -z "$publish_path" ]] && continue
 
     vault_rel="${file#"$VAULT/"}"
-    target="$REPO_ROOT/$publish_path"
-    mkdir -p "$(dirname "$target")"
 
+    # Reject absolute paths or paths containing `..` — the publish target
+    # must stay inside the repo, no matter what a vault note declares.
+    case "$publish_path" in
+        /*)
+            echo "error: $vault_rel: parlance_publish must be a relative path, got '$publish_path'" >&2
+            exit 1
+            ;;
+    esac
+    case "/$publish_path/" in
+        */../*)
+            echo "error: $vault_rel: parlance_publish must not contain '..', got '$publish_path'" >&2
+            exit 1
+            ;;
+    esac
+
+    target="$REPO_ROOT/$publish_path"
+
+    # Extract the body and require the frontmatter to be closed by a second
+    # `---`. Without this, an unclosed frontmatter would silently produce an
+    # empty repo doc.
+    body_tmp="$(mktemp)"
+    if ! awk '
+        BEGIN { fm_count = 0; in_fm = 0; fm_done = 0; started = 0 }
+        /^---$/ {
+            fm_count++
+            if (fm_count == 1) { in_fm = 1; next }
+            if (fm_count == 2) { in_fm = 0; fm_done = 1; next }
+        }
+        fm_done {
+            if (!started && /^[[:space:]]*$/) next
+            started = 1
+            print
+        }
+        END { if (fm_count < 2) exit 2 }
+    ' "$file" > "$body_tmp"; then
+        rm -f "$body_tmp"
+        echo "error: $vault_rel: YAML frontmatter is missing the closing '---' delimiter" >&2
+        exit 1
+    fi
+
+    mkdir -p "$(dirname "$target")"
     {
         printf -- "<!-- generated from 20-Projects/Parlance/%s — edit in vault, run tools/docs/publish.sh -->\n\n" "$vault_rel"
-        awk '
-            BEGIN { in_fm = 0; fm_done = 0; started = 0 }
-            /^---$/ {
-                if (!in_fm && !fm_done) { in_fm = 1; next }
-                if (in_fm) { in_fm = 0; fm_done = 1; next }
-            }
-            fm_done {
-                if (!started && /^[[:space:]]*$/) next
-                started = 1
-                print
-            }
-        ' "$file"
+        cat "$body_tmp"
     } > "$target"
+    rm -f "$body_tmp"
 
     printf "  %s -> %s\n" "$vault_rel" "$publish_path"
     published=$((published + 1))
