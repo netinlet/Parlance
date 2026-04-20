@@ -22,7 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj"
                       PrivateAssets="none" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.101">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.202">
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
