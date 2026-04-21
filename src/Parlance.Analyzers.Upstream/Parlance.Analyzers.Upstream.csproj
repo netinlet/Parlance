@@ -24,8 +24,8 @@
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)'=='net8.0'">
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="8.0.0" GeneratePathProperty="true" ExcludeAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="4.9.2" GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.202" GeneratePathProperty="true" ExcludeAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="5.0.0" GeneratePathProperty="true" ExcludeAssets="all" />
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0" GeneratePathProperty="true" ExcludeAssets="all" />
   </ItemGroup>
 
@@ -40,7 +40,7 @@
          That version is not in the NuGet cache; we ship 10.0.0 instead. The custom AssemblyLoadContext
          Resolving handler returns it regardless of the requested version, which works because all
          types are type-forwarded to System.Runtime on net10.0. -->
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.0"
+    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.6"
                       GeneratePathProperty="true" ExcludeAssets="all" />
   </ItemGroup>
 
