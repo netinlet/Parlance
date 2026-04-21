@@ -5,9 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test
 
 ```bash
-# Build individual projects (not the full solution — Parlance.CSharp.Package is pack-only and breaks dotnet build)
-dotnet build src/Parlance.Cli/Parlance.Cli.csproj
-dotnet build src/Parlance.Mcp/Parlance.Mcp.csproj
+# Build the whole solution
+dotnet build Parlance.sln
 
 # Run all tests
 dotnet test Parlance.sln
@@ -24,8 +23,6 @@ dotnet format Parlance.sln --verify-no-changes
 # Run MCP server (stdio transport)
 dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln
 ```
-
-**Note:** `dotnet build Parlance.sln` fails because `Parlance.CSharp.Package` has `NoBuild=true` (pack-only metapackage). Build individual projects instead.
 
 ## Architecture
 
