@@ -20,7 +20,7 @@ ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.cspr
 .PHONY: help bootstrap restore local-feed \
 	agent-install agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	format build build-cli build-mcp test test-results-dir coverage-report ci \
-	pack-tool release-artifacts clean-agent
+	pack-tool release-artifacts clean-agent clean clean-all
 
 help:
 	@printf '%s\n' \
@@ -30,6 +30,8 @@ help:
 		'  make test              # run agent tests and dotnet tests' \
 		'  make ci                # local equivalent of CI' \
 		'  make pack-tool         # pack the parlance dotnet tool into artifacts/tool' \
+		'  make clean             # remove repo build outputs' \
+		'  make clean-all         # clean outputs plus local feed and test artifacts' \
 		'' \
 		'Agent targets:' \
 		'  make agent-install' \
@@ -123,3 +125,11 @@ release-artifacts: pack-tool
 clean-agent:
 	rm -rf "$(AGENT_CORE_DIR)/out-ts" "$(AGENT_CORE_DIR)/dist"
 	rm -rf "$(AGENT_ADAPTER_DIR)/out-ts" "$(AGENT_ADAPTER_DIR)/dist"
+
+clean: clean-agent
+	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null
+	find src tests tools -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
+	rm -rf "$(ARTIFACTS_DIR)" "$(TEST_RESULTS_DIR)"
+
+clean-all: clean
+	rm -rf "$(LOCAL_FEED)"
