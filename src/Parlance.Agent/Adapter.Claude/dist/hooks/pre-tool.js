@@ -236,10 +236,6 @@ function flipToPre(event) {
   return event;
 }
 
-// ../Core/src/storage/kibble.ts
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
-
 // ../Core/src/storage/paths.ts
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
@@ -247,6 +243,8 @@ var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 var kibbleDir = (root) => join(parlanceDir(root), "kibble");
 
 // ../Core/src/storage/kibble.ts
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { join as join2 } from "node:path";
 function appendFeedbackRecord(root, record) {
   const dayDir = join2(kibbleDir(root), record.date);
   mkdirSync(dayDir, { recursive: true });

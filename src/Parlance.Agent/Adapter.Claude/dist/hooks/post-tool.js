@@ -236,16 +236,14 @@ function flipToPre(event) {
   return event;
 }
 
-// ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-
 // ../Core/src/storage/paths.ts
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
 // ../Core/src/storage/session-state.ts
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
   if (!existsSync(path)) return null;
