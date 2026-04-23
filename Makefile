@@ -1,0 +1,125 @@
+SHELL := bash
+
+.DEFAULT_GOAL := help
+
+DOTNET ?= dotnet
+NPM ?= npm
+
+CONFIGURATION ?= Release
+LOCAL_FEED ?= /tmp/parlance-local-feed
+TEST_RESULTS_DIR ?= $(CURDIR)/.ci/test-results
+ARTIFACTS_DIR ?= $(CURDIR)/artifacts
+TOOL_ARTIFACTS_DIR ?= $(ARTIFACTS_DIR)/tool
+
+AGENT_CORE_DIR := src/Parlance.Agent/Core
+AGENT_ADAPTER_DIR := src/Parlance.Agent/Adapter.Claude
+CLI_PROJECT := src/Parlance.Cli/Parlance.Cli.csproj
+MCP_PROJECT := src/Parlance.Mcp/Parlance.Mcp.csproj
+ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj
+
+.PHONY: help bootstrap restore local-feed \
+	agent-install agent-typecheck agent-test agent-build agent-ci agent-dist-check \
+	format build build-cli build-mcp test test-results-dir coverage-report ci \
+	pack-tool release-artifacts clean-agent
+
+help:
+	@printf '%s\n' \
+		'Common targets:' \
+		'  make bootstrap         # restore .NET deps + npm deps for agent workspaces' \
+		'  make build             # build agent bundles and the .NET solution' \
+		'  make test              # run agent tests and dotnet tests' \
+		'  make ci                # local equivalent of CI' \
+		'  make pack-tool         # pack the parlance dotnet tool into artifacts/tool' \
+		'' \
+		'Agent targets:' \
+		'  make agent-install' \
+		'  make agent-typecheck' \
+		'  make agent-test' \
+		'  make agent-build' \
+		'  make agent-dist-check' \
+		'' \
+		'.NET targets:' \
+		'  make restore' \
+		'  make format' \
+		'  make build-cli' \
+		'  make build-mcp' \
+		'  make test'
+
+bootstrap: restore agent-install
+
+local-feed:
+	rm -rf "$(LOCAL_FEED)"
+	mkdir -p "$(LOCAL_FEED)"
+	$(DOTNET) pack "$(ANALYZER_PROJECT)" --output "$(LOCAL_FEED)" --configuration "$(CONFIGURATION)"
+	$(DOTNET) nuget remove source parlance-local >/dev/null 2>&1 || true
+	$(DOTNET) nuget add source "$(LOCAL_FEED)" --name parlance-local
+
+restore: local-feed
+	$(DOTNET) restore Parlance.sln
+
+agent-install:
+	$(MAKE) -C "$(AGENT_CORE_DIR)" install
+	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" install
+
+agent-typecheck:
+	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck
+	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" typecheck
+
+agent-test:
+	$(MAKE) -C "$(AGENT_CORE_DIR)" test
+	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" test
+
+agent-build:
+	$(MAKE) -C "$(AGENT_CORE_DIR)" build
+	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" build
+
+agent-ci: agent-typecheck agent-build agent-test
+
+agent-dist-check: agent-build
+	git diff --exit-code -- "$(AGENT_CORE_DIR)/dist" "$(AGENT_ADAPTER_DIR)/dist"
+
+format:
+	$(DOTNET) format Parlance.sln --verify-no-changes --verbosity diagnostic
+
+build: agent-build
+	$(DOTNET) build Parlance.sln --configuration "$(CONFIGURATION)" --no-restore
+
+build-cli: agent-build
+	$(DOTNET) build "$(CLI_PROJECT)" --configuration "$(CONFIGURATION)" --no-restore
+
+build-mcp:
+	$(DOTNET) build "$(MCP_PROJECT)" --configuration "$(CONFIGURATION)" --no-restore
+
+test-results-dir:
+	rm -rf "$(TEST_RESULTS_DIR)"
+	mkdir -p "$(TEST_RESULTS_DIR)"
+
+test: agent-test test-results-dir
+	$(DOTNET) test Parlance.sln \
+		--configuration "$(CONFIGURATION)" \
+		--no-build \
+		--collect:"XPlat Code Coverage" \
+		--results-directory "$(TEST_RESULTS_DIR)"
+
+coverage-report:
+	$(DOTNET) tool install --global dotnet-reportgenerator-globaltool
+	reportgenerator \
+		"-reports:$(TEST_RESULTS_DIR)/**/coverage.cobertura.xml" \
+		"-targetdir:$(TEST_RESULTS_DIR)/CoverageReport" \
+		-reporttypes:'Cobertura;HtmlSummary;MarkdownSummaryGithub'
+
+ci: restore agent-ci agent-dist-check format build test
+
+pack-tool: restore agent-build
+	rm -rf "$(TOOL_ARTIFACTS_DIR)"
+	mkdir -p "$(TOOL_ARTIFACTS_DIR)"
+	$(DOTNET) pack "$(CLI_PROJECT)" \
+		--configuration "$(CONFIGURATION)" \
+		--no-restore \
+		-o "$(TOOL_ARTIFACTS_DIR)"
+
+release-artifacts: pack-tool
+
+clean-agent:
+	rm -rf "$(AGENT_CORE_DIR)/out-ts" "$(AGENT_CORE_DIR)/dist"
+	rm -rf "$(AGENT_ADAPTER_DIR)/out-ts" "$(AGENT_ADAPTER_DIR)/dist"

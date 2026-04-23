@@ -27,14 +27,14 @@
 
   <ItemGroup>
     <Content Include="..\..\src\Parlance.Agent\Core\dist\**\*.js">
-      <Pack>true</Pack>
+      <Pack>false</Pack>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>bundles/Parlance.Agent.Core/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <TargetPath>bundles/Parlance.Agent.Core/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
     <Content Include="..\..\src\Parlance.Agent\Adapter.Claude\dist\**\*.js">
-      <Pack>true</Pack>
+      <Pack>false</Pack>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>bundles/Parlance.Agent.Adapter.Claude/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <TargetPath>bundles/Parlance.Agent.Adapter.Claude/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
   </ItemGroup>
 
