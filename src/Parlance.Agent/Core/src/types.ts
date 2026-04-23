@@ -175,4 +175,14 @@ export interface SessionSummary {
   usage: UsageTotals;
 }
 
+export interface BenchResultRecord {
+  task_id: string;
+  variant: string;
+  started_at: string;
+  ended_at: string;
+  session_id: string;
+  adapter: string;
+  usage: UsageTotals;
+}
+
 export {};
