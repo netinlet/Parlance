@@ -18,9 +18,9 @@ MCP_PROJECT := src/Parlance.Mcp/Parlance.Mcp.csproj
 ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj
 
 .PHONY: help bootstrap restore local-feed \
-	agent-install agent-typecheck agent-test agent-build agent-ci agent-dist-check \
+	agent-install-deps agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	format build build-cli build-mcp test test-results-dir coverage-report ci \
-	pack-tool release-artifacts clean-agent clean clean-all
+	pack-tool release-artifacts clean-agent clean clean-all clean-generated
 
 help:
 	@printf '%s\n' \
@@ -31,10 +31,11 @@ help:
 		'  make ci                # local equivalent of CI' \
 		'  make pack-tool         # pack the parlance dotnet tool into artifacts/tool' \
 		'  make clean             # remove repo build outputs' \
+		'  make clean-generated   # remove generated agent bundles too' \
 		'  make clean-all         # clean outputs plus local feed and test artifacts' \
 		'' \
 		'Agent targets:' \
-		'  make agent-install' \
+		'  make agent-install-deps' \
 		'  make agent-typecheck' \
 		'  make agent-test' \
 		'  make agent-build' \
@@ -47,7 +48,7 @@ help:
 		'  make build-mcp' \
 		'  make test'
 
-bootstrap: restore agent-install
+bootstrap: restore agent-install-deps
 
 local-feed:
 	rm -rf "$(LOCAL_FEED)"
@@ -59,7 +60,7 @@ local-feed:
 restore: local-feed
 	$(DOTNET) restore Parlance.sln
 
-agent-install:
+agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" install
 
@@ -110,9 +111,9 @@ coverage-report:
 		"-targetdir:$(TEST_RESULTS_DIR)/CoverageReport" \
 		-reporttypes:'Cobertura;HtmlSummary;MarkdownSummaryGithub'
 
-ci: restore agent-ci agent-dist-check format build test
+ci: restore agent-install-deps agent-ci agent-dist-check format build test
 
-pack-tool: restore agent-build
+pack-tool: restore agent-install-deps agent-build
 	rm -rf "$(TOOL_ARTIFACTS_DIR)"
 	mkdir -p "$(TOOL_ARTIFACTS_DIR)"
 	$(DOTNET) pack "$(CLI_PROJECT)" \
@@ -123,13 +124,16 @@ pack-tool: restore agent-build
 release-artifacts: pack-tool
 
 clean-agent:
-	rm -rf "$(AGENT_CORE_DIR)/out-ts" "$(AGENT_CORE_DIR)/dist"
-	rm -rf "$(AGENT_ADAPTER_DIR)/out-ts" "$(AGENT_ADAPTER_DIR)/dist"
+	rm -rf "$(AGENT_CORE_DIR)/out-ts"
+	rm -rf "$(AGENT_ADAPTER_DIR)/out-ts"
 
 clean: clean-agent
 	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null
 	find src tests tools -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 	rm -rf "$(ARTIFACTS_DIR)" "$(TEST_RESULTS_DIR)"
 
-clean-all: clean
+clean-generated:
+	rm -rf "$(AGENT_CORE_DIR)/dist" "$(AGENT_ADAPTER_DIR)/dist"
+
+clean-all: clean clean-generated
 	rm -rf "$(LOCAL_FEED)"
