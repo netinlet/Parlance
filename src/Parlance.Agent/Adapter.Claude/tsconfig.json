@@ -7,7 +7,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "rootDir": "src",
     "outDir": "out-ts",
     "baseUrl": ".",
     "paths": {
