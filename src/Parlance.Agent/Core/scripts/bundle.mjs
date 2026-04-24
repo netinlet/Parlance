@@ -1,8 +1,9 @@
 import { build } from 'esbuild';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const root = new URL('..', import.meta.url).pathname;
+const root = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(root, 'dist');
 
 if (existsSync(distDir)) rmSync(distDir, { recursive: true });

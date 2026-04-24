@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { postTool, preRead, preTool } from '../../src/events.js';
+import { postRead, postTool, preRead, preTool } from '../../src/events.js';
 import { emptySessionState, evaluateEvent } from '../../src/policy/evaluate.js';
 import type { AgentContext } from '../../src/types.js';
 
@@ -45,5 +45,15 @@ describe('evaluateEvent', () => {
     const evaluation = evaluateEvent(postTool('post-mcp-tool', 'mcp__parlance__describe-type', {}, 120), ctx, state);
     const effect = evaluation.effects.find((e) => e.kind === 'persist-tool-usage');
     expect(effect && effect.kind === 'persist-tool-usage' && effect.record.is_mcp_parlance).toBe(true);
+  });
+
+  it('post-read on .cs increments native_fallbacks in next_state', () => {
+    const evaluation = evaluateEvent(postRead('Foo.cs', 700), ctx, state);
+    expect(evaluation.next_state?.native_fallbacks).toBe(1);
+  });
+
+  it('returns next_state: null for events that do not change state', () => {
+    const evaluation = evaluateEvent(preRead('README.md'), ctx, state);
+    expect(evaluation.next_state).toBeNull();
   });
 });

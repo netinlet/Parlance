@@ -30,11 +30,13 @@
     <Content Include="..\..\src\Parlance.Agent\Core\dist\**\*.js">
       <Pack>false</Pack>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <TargetPath>bundles/Parlance.Agent.Core/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
     <Content Include="..\..\src\Parlance.Agent\Adapter.Claude\dist\**\*.js">
       <Pack>false</Pack>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <TargetPath>bundles/Parlance.Agent.Adapter.Claude/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
   </ItemGroup>

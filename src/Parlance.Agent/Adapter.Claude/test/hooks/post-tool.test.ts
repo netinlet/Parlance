@@ -54,6 +54,7 @@ describe('post-tool hook', () => {
     const session = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
     expect(session.tool_calls).toHaveLength(1);
     expect(session.tool_calls[0].is_native_fallback).toBe(true);
+    expect(session.native_fallbacks).toBe(1);
     expect(session.read_tokens).toBe(1000);
   });
 

@@ -1,4 +1,4 @@
-import { estimateTokens } from '../telemetry/estimate.js';
+import { estimateTokensFromLength } from '../telemetry/estimate.js';
 import { classifyFallback } from './fallback.js';
 import { isParlanceTool, matchRoutingRule } from './routing.js';
 import type { AgentContext, AgentEvent, EventEvaluation, SessionState, ToolEvent, ToolUsageRecord } from '../types.js';
@@ -22,7 +22,7 @@ export function emptySessionState(ctx: AgentContext, transcript_ref: string | nu
 export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: SessionState): EventEvaluation {
   const guidance: EventEvaluation['guidance'] = [];
   const effects: EventEvaluation['effects'] = [];
-  let next = state;
+  let next: SessionState | null = null;
 
   if (event.kind.startsWith('pre-')) {
     const match = matchRoutingRule(event);
@@ -47,7 +47,7 @@ export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: Sessi
             session_id: ctx.session_id,
           },
         });
-        next = { ...next, native_fallbacks: next.native_fallbacks + 1 };
+        next = { ...state, native_fallbacks: state.native_fallbacks + 1 };
       }
     }
   }
@@ -62,11 +62,12 @@ export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: Sessi
     const record = toUsageRecord(event);
     effects.push({ kind: 'persist-tool-usage', record });
     next = {
-      ...next,
-      parlance_calls: next.parlance_calls + (record.is_mcp_parlance ? 1 : 0),
-      read_tokens: next.read_tokens + (event.kind === 'post-read' ? record.output_tokens : 0),
-      write_tokens: next.write_tokens + (event.kind === 'post-write' ? record.output_tokens : 0),
-      tool_calls: [...next.tool_calls, record],
+      ...state,
+      parlance_calls: state.parlance_calls + (record.is_mcp_parlance ? 1 : 0),
+      native_fallbacks: state.native_fallbacks + (record.is_native_fallback ? 1 : 0),
+      read_tokens: state.read_tokens + (event.kind === 'post-read' ? record.output_tokens : 0),
+      write_tokens: state.write_tokens + (event.kind === 'post-write' ? record.output_tokens : 0),
+      tool_calls: [...state.tool_calls, record],
     };
   }
 
@@ -77,7 +78,6 @@ function toUsageRecord(event: AgentEvent): ToolUsageRecord {
   const is_native_fallback = matchRoutingRule(flipToPre(event)) !== null;
 
   if (event.kind === 'post-read' || event.kind === 'post-write') {
-    const bytes = event.content_bytes ?? 0;
     return {
       at: event.at,
       event_kind: event.kind,
@@ -85,7 +85,7 @@ function toUsageRecord(event: AgentEvent): ToolUsageRecord {
       target: event.path,
       is_mcp_parlance: false,
       is_native_fallback,
-      output_tokens: estimateTokens('x'.repeat(bytes), 'code'),
+      output_tokens: estimateTokensFromLength(event.content_bytes ?? 0, 'code'),
     };
   }
 
@@ -97,7 +97,7 @@ function toUsageRecord(event: AgentEvent): ToolUsageRecord {
       target: `${event.pattern} (glob=${event.glob ?? ''} type=${event.file_type ?? ''})`,
       is_mcp_parlance: false,
       is_native_fallback,
-      output_tokens: estimateTokens('x'.repeat(event.result_bytes ?? 0), 'code'),
+      output_tokens: estimateTokensFromLength(event.result_bytes ?? 0, 'code'),
     };
   }
 
@@ -109,7 +109,7 @@ function toUsageRecord(event: AgentEvent): ToolUsageRecord {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokens('x'.repeat(toolEvent.output_bytes ?? 0), 'code'),
+    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, 'code'),
   };
 }
 

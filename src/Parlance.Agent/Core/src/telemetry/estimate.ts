@@ -21,7 +21,12 @@ const PROSE_EXTENSIONS = new Set(['.md', '.txt', '.rst', '.adoc']);
 
 export function estimateTokens(content: string, kind: ContentKind): number {
   if (!content) return 0;
-  return Math.round(content.length / RATIOS[kind]);
+  return estimateTokensFromLength(content.length, kind);
+}
+
+export function estimateTokensFromLength(length: number, kind: ContentKind): number {
+  if (length <= 0) return 0;
+  return Math.round(length / RATIOS[kind]);
 }
 
 export function classifyPath(path: string): ContentKind {
