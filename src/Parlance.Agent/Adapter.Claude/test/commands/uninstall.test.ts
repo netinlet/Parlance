@@ -17,11 +17,11 @@ afterEach(() => {
 });
 
 describe('uninstall', () => {
-  it('removes settings.json hook entries and CLAUDE.md snippet', async () => {
+  it('removes settings.local.json hook entries and CLAUDE.md snippet', async () => {
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runUninstall(['--project', root]);
 
-    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.json'), 'utf8'));
+    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.local.json'), 'utf8'));
     for (const event of Object.keys(settings.hooks ?? {})) {
       for (const matcher of settings.hooks[event]) {
         expect(matcher.hooks.some((hook: { command?: string }) => hook.command?.includes('.parlance/hooks/'))).toBe(false);

@@ -84,7 +84,7 @@ async function runInstall(argv) {
   writeFileSync(routingFile(root), generateRoutingDoc());
   writeMcpJson(root, resolve(root, args.solution), args.mcpCommand);
   mkdirSync(join2(root, ".claude"), { recursive: true });
-  writeSettingsJson(join2(root, ".claude/settings.json"));
+  writeSettingsJson(join2(root, ".claude/settings.local.json"));
   writeClaudeMdSnippet(join2(root, "CLAUDE.md"));
   process.stderr.write(`parlance agent (claude) installed at ${root}
 `);
@@ -197,7 +197,7 @@ async function runUninstall(argv) {
     if (argv[index] === "--purge") purge = true;
   }
   const root = resolve2(project);
-  const settingsPath = join3(root, ".claude/settings.json");
+  const settingsPath = join3(root, ".claude/settings.local.json");
   if (existsSync2(settingsPath)) {
     const settings = JSON.parse(readFileSync2(settingsPath, "utf8"));
     const hooks = settings.hooks;

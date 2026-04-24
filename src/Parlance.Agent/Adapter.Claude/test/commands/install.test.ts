@@ -16,9 +16,9 @@ afterEach(() => {
 });
 
 describe('install command', () => {
-  it('creates .claude/settings.json, .mcp.json, .parlance/hooks/', async () => {
+  it('creates .claude/settings.local.json, .mcp.json, .parlance/hooks/', async () => {
     expect(await runInstall(['--project', root, '--solution', 'App.sln'])).toBe(0);
-    expect(existsSync(join(root, '.claude/settings.json'))).toBe(true);
+    expect(existsSync(join(root, '.claude/settings.local.json'))).toBe(true);
     expect(existsSync(join(root, '.mcp.json'))).toBe(true);
     expect(existsSync(join(root, '.parlance/hooks/session-start.js'))).toBe(true);
     expect(existsSync(join(root, '.parlance/tool-routing.md'))).toBe(true);
@@ -26,7 +26,7 @@ describe('install command', () => {
 
   it('preserves foreign hooks and is idempotent', async () => {
     mkdirSync(join(root, '.claude'), { recursive: true });
-    writeFileSync(join(root, '.claude/settings.json'), JSON.stringify({
+    writeFileSync(join(root, '.claude/settings.local.json'), JSON.stringify({
       hooks: {
         PreToolUse: [{
           matcher: 'Bash',
@@ -38,7 +38,7 @@ describe('install command', () => {
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runInstall(['--project', root, '--solution', 'App.sln']);
 
-    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.json'), 'utf8'));
+    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.local.json'), 'utf8'));
     const pre = settings.hooks.PreToolUse as { matcher: string; hooks: { command?: string }[] }[];
     expect(pre.some((matcher) => matcher.matcher === 'Bash')).toBe(true);
     expect(pre.filter((matcher) => matcher.hooks.some((hook) => hook.command?.includes('.parlance/hooks/pre-tool.js')))).toHaveLength(1);

@@ -10,6 +10,11 @@ LOCAL_FEED ?= /tmp/parlance-local-feed
 TEST_RESULTS_DIR ?= $(CURDIR)/.ci/test-results
 ARTIFACTS_DIR ?= $(CURDIR)/artifacts
 TOOL_ARTIFACTS_DIR ?= $(ARTIFACTS_DIR)/tool
+TARGET_PROJECT ?= /absolute/path/to/target-repo
+SOLUTION ?= YourSolution.sln
+TOOL_VERSION ?= 0.1.0
+TOOL_PACKAGE_ID ?= Parlance.Cli
+TOOL_COMMAND_NAME ?= parlance
 
 AGENT_CORE_DIR := src/Parlance.Agent/Core
 AGENT_ADAPTER_DIR := src/Parlance.Agent/Adapter.Claude
@@ -19,6 +24,7 @@ ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.cspr
 
 .PHONY: help bootstrap restore local-feed \
 	agent-install-deps agent-typecheck agent-test agent-build agent-ci agent-dist-check \
+	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
 	format build build-cli build-mcp test test-results-dir coverage-report ci \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
 
@@ -30,6 +36,10 @@ help:
 		'  make test              # run agent tests and dotnet tests' \
 		'  make ci                # local equivalent of CI' \
 		'  make pack-tool         # pack the parlance dotnet tool into artifacts/tool' \
+		'  make tool-install-local    # install the packed tool from artifacts/tool' \
+		'  make tool-reinstall-local  # reinstall the packed tool from artifacts/tool' \
+		'  make tool-uninstall-local  # remove the globally installed tool' \
+		'  make tool-install-command  # print the exact dotnet tool install command' \
 		'  make clean             # remove repo build outputs' \
 		'  make clean-generated   # remove generated agent bundles too' \
 		'  make clean-all         # clean outputs plus local feed and test artifacts' \
@@ -40,6 +50,7 @@ help:
 		'  make agent-test' \
 		'  make agent-build' \
 		'  make agent-dist-check' \
+		'  make agent-install-command TARGET_PROJECT=/repo SOLUTION=App.sln' \
 		'' \
 		'.NET targets:' \
 		'  make restore' \
@@ -63,6 +74,35 @@ restore: local-feed
 agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" install
+
+agent-install-command:
+	@printf '%s\n' \
+		'dotnet run --project "$(CURDIR)/$(CLI_PROJECT)" -- \' \
+		'  agent install --for claude -- \' \
+		'  --project "$(TARGET_PROJECT)" \' \
+		'  --solution "$(SOLUTION)"'
+
+tool-install-command:
+	@printf '%s\n' \
+		'dotnet tool install -g $(TOOL_PACKAGE_ID) \' \
+		'  --add-source "$(TOOL_ARTIFACTS_DIR)" \' \
+		'  --version "$(TOOL_VERSION)"' \
+		'' \
+		'# installed command: $(TOOL_COMMAND_NAME)'
+
+tool-install-local: pack-tool
+	dotnet tool install -g "$(TOOL_PACKAGE_ID)" \
+		--add-source "$(TOOL_ARTIFACTS_DIR)" \
+		--version "$(TOOL_VERSION)"
+
+tool-reinstall-local: pack-tool
+	-dotnet tool uninstall -g "$(TOOL_PACKAGE_ID)"
+	dotnet tool install -g "$(TOOL_PACKAGE_ID)" \
+		--add-source "$(TOOL_ARTIFACTS_DIR)" \
+		--version "$(TOOL_VERSION)"
+
+tool-uninstall-local:
+	dotnet tool uninstall -g "$(TOOL_PACKAGE_ID)"
 
 agent-typecheck:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck

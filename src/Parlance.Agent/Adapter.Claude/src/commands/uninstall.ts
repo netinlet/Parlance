@@ -15,7 +15,7 @@ export async function runUninstall(argv: string[]): Promise<number> {
   }
 
   const root = resolve(project);
-  const settingsPath = join(root, '.claude/settings.json');
+  const settingsPath = join(root, '.claude/settings.local.json');
   if (existsSync(settingsPath)) {
     const settings = JSON.parse(readFileSync(settingsPath, 'utf8')) as Record<string, unknown>;
     const hooks = settings.hooks as Record<string, { hooks: { command?: string }[] }[]> | undefined;

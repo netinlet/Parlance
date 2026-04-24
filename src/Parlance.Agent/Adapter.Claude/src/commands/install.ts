@@ -36,7 +36,7 @@ export async function runInstall(argv: string[]): Promise<number> {
 
   writeMcpJson(root, resolve(root, args.solution), args.mcpCommand);
   mkdirSync(join(root, '.claude'), { recursive: true });
-  writeSettingsJson(join(root, '.claude/settings.json'));
+  writeSettingsJson(join(root, '.claude/settings.local.json'));
   writeClaudeMdSnippet(join(root, 'CLAUDE.md'));
 
   process.stderr.write(`parlance agent (claude) installed at ${root}\n`);
