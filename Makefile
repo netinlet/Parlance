@@ -4,6 +4,7 @@ SHELL := bash
 
 DOTNET ?= dotnet
 NPM ?= npm
+NODE20_NPM ?= npx -p node@20 -p npm@10 npm
 
 CONFIGURATION ?= Release
 LOCAL_FEED ?= /tmp/parlance-local-feed
@@ -23,7 +24,7 @@ MCP_PROJECT := src/Parlance.Mcp/Parlance.Mcp.csproj
 ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj
 
 .PHONY: help bootstrap restore local-feed \
-	agent-install-deps agent-typecheck agent-test agent-build agent-ci agent-dist-check \
+	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
 	format build build-cli build-mcp test test-results-dir coverage-report ci \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
@@ -46,6 +47,8 @@ help:
 		'' \
 		'Agent targets:' \
 		'  make agent-install-deps' \
+		'  make agent-lock-refresh  # refresh agent package-lock.json files with Node 20 / npm 10' \
+		'  make agent-lock-check    # verify agent lockfiles are stable under Node 20 / npm 10' \
 		'  make agent-typecheck' \
 		'  make agent-test' \
 		'  make agent-build' \
@@ -74,6 +77,13 @@ restore: local-feed
 agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" install
+
+agent-lock-refresh:
+	cd "$(AGENT_CORE_DIR)" && rm -rf node_modules && $(NODE20_NPM) install --package-lock-only
+	cd "$(AGENT_ADAPTER_DIR)" && rm -rf node_modules && $(NODE20_NPM) install --package-lock-only
+
+agent-lock-check: agent-lock-refresh
+	git diff --exit-code -- "$(AGENT_CORE_DIR)/package-lock.json" "$(AGENT_ADAPTER_DIR)/package-lock.json"
 
 agent-install-command:
 	@printf '%s\n' \
