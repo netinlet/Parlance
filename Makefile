@@ -104,15 +104,15 @@ tool-reinstall-local: pack-tool
 tool-uninstall-local:
 	dotnet tool uninstall -g "$(TOOL_PACKAGE_ID)"
 
-agent-typecheck:
+agent-typecheck: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" typecheck
 
-agent-test:
+agent-test: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" test
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" test
 
-agent-build:
+agent-build: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" build
 	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" build
 
@@ -151,9 +151,9 @@ coverage-report:
 		"-targetdir:$(TEST_RESULTS_DIR)/CoverageReport" \
 		-reporttypes:'Cobertura;HtmlSummary;MarkdownSummaryGithub'
 
-ci: restore agent-install-deps agent-ci agent-dist-check format build test
+ci: restore agent-ci agent-dist-check format build test
 
-pack-tool: restore agent-install-deps agent-build
+pack-tool: restore agent-build
 	rm -rf "$(TOOL_ARTIFACTS_DIR)"
 	mkdir -p "$(TOOL_ARTIFACTS_DIR)"
 	$(DOTNET) pack "$(CLI_PROJECT)" \
