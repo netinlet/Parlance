@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Parlance.Analysis\Parlance.Analysis.csproj" />
     <ProjectReference Include="..\Parlance.CSharp.Workspace\Parlance.CSharp.Workspace.csproj" />
     <ProjectReference Include="..\Parlance.Analyzers.Upstream\Parlance.Analyzers.Upstream.csproj" />
+    <ProjectReference Include="..\Parlance.Mcp\Parlance.Mcp.csproj" />
   </ItemGroup>
 
   <ItemGroup>
