@@ -47,7 +47,6 @@ export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: Sessi
             session_id: ctx.session_id,
           },
         });
-        next = { ...state, native_fallbacks: state.native_fallbacks + 1 };
       }
     }
   }

@@ -56,4 +56,16 @@ describe('evaluateEvent', () => {
     const evaluation = evaluateEvent(preRead('README.md'), ctx, state);
     expect(evaluation.next_state).toBeNull();
   });
+
+  it('pre-read does not mutate state (counting happens on post-read only)', () => {
+    const evaluation = evaluateEvent(preRead('Foo.cs'), ctx, state);
+    expect(evaluation.next_state).toBeNull();
+  });
+
+  it('pre+post pair for a .cs Read increments native_fallbacks exactly once', () => {
+    const pre = evaluateEvent(preRead('Foo.cs'), ctx, state);
+    const afterPre = pre.next_state ?? state;
+    const post = evaluateEvent(postRead('Foo.cs', 700), ctx, afterPre);
+    expect(post.next_state?.native_fallbacks).toBe(1);
+  });
 });

@@ -12,7 +12,7 @@ var benchStateFile = (root) => join(parlanceDir(root), "bench", "_active.json");
 var benchResultsFile = (root) => join(parlanceDir(root), "bench", "results.jsonl");
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
@@ -26,9 +26,7 @@ function readSessionState(root) {
 function writeSessionState(root, state) {
   const path = sessionFile(root);
   mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.tmp`;
-  writeFileSync(temp, JSON.stringify(state, null, 2));
-  renameSync(temp, path);
+  writeFileSync(path, JSON.stringify(state, null, 2));
 }
 
 // src/transcript.ts

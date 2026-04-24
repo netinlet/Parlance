@@ -174,7 +174,6 @@ function evaluateEvent(event, ctx, state) {
             session_id: ctx.session_id
           }
         });
-        next = { ...state, native_fallbacks: state.native_fallbacks + 1 };
       }
     }
   }
@@ -285,7 +284,7 @@ function slugify(value) {
 }
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync as mkdirSync2, readFileSync as readFileSync2, renameSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
@@ -299,9 +298,7 @@ function readSessionState(root) {
 function writeSessionState(root, state) {
   const path = sessionFile(root);
   mkdirSync2(dirname(path), { recursive: true });
-  const temp = `${path}.tmp`;
-  writeFileSync2(temp, JSON.stringify(state, null, 2));
-  renameSync(temp, path);
+  writeFileSync2(path, JSON.stringify(state, null, 2));
 }
 
 // src/render.ts

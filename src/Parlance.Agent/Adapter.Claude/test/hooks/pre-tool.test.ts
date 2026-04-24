@@ -44,7 +44,7 @@ function run(stdin: string): { status: number; stderr: string } {
 }
 
 describe('pre-tool hook', () => {
-  it('Read on .cs warns, increments native_fallbacks, writes kibble', () => {
+  it('Read on .cs writes kibble (counter increments on post-tool, not pre-tool)', () => {
     run(JSON.stringify({
       hook_event_name: 'PreToolUse',
       session_id: 's1',
@@ -54,7 +54,7 @@ describe('pre-tool hook', () => {
     }));
 
     const session = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
-    expect(session.native_fallbacks).toBe(1);
+    expect(session.native_fallbacks).toBe(0);
     const dirs = readdirSync(join(root, '.parlance/kibble'));
     expect(dirs.length).toBe(1);
   });

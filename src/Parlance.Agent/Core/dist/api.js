@@ -222,7 +222,6 @@ function evaluateEvent(event, ctx, state) {
             session_id: ctx.session_id
           }
         });
-        next = { ...state, native_fallbacks: state.native_fallbacks + 1 };
       }
     }
   }

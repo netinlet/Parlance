@@ -5,7 +5,7 @@ import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node
 import { dirname as dirname2 } from "node:path";
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 // ../Core/src/storage/paths.ts

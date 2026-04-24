@@ -78,14 +78,12 @@ var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function writeSessionState(root, state) {
   const path = sessionFile(root);
   mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.tmp`;
-  writeFileSync(temp, JSON.stringify(state, null, 2));
-  renameSync(temp, path);
+  writeFileSync(path, JSON.stringify(state, null, 2));
 }
 
 // src/capabilities.ts

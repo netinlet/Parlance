@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { SessionState, SessionSummary, ToolUsageRecord } from '../types.js';
 import { ledgerFile, sessionFile } from './paths.js';
@@ -16,9 +16,7 @@ export function readSessionState(root: string): SessionState | null {
 export function writeSessionState(root: string, state: SessionState): void {
   const path = sessionFile(root);
   mkdirSync(dirname(path), { recursive: true });
-  const temp = `${path}.tmp`;
-  writeFileSync(temp, JSON.stringify(state, null, 2));
-  renameSync(temp, path);
+  writeFileSync(path, JSON.stringify(state, null, 2));
 }
 
 export function appendToolUsageRecord(root: string, record: ToolUsageRecord): void {
