@@ -74,7 +74,7 @@ internal static class AgentCommand
     }
 
     private static Task<int> RunCoreAsync(string subcommand, string[] passthrough) =>
-        RunNodeAsync(Path.Combine(Bundles.Root, "Parlance.Agent.Core", "cli.js"), [subcommand, .. passthrough]);
+        RunNodeAsync(Bundles.CliPath("Parlance.Agent.Core"), [subcommand, .. passthrough]);
 
     private static Task<int> RunAdapterAsync(string adapter, string subcommand, string[] passthrough)
     {
@@ -90,7 +90,7 @@ internal static class AgentCommand
             return Task.FromResult(2);
         }
 
-        return RunNodeAsync(Path.Combine(Bundles.Root, folder, "cli.js"), [subcommand, .. passthrough]);
+        return RunNodeAsync(Bundles.CliPath(folder), [subcommand, .. passthrough]);
     }
 
     private static async Task<int> RunNodeAsync(string jsPath, string[] args)
@@ -126,23 +126,25 @@ internal static class AgentCommand
 
     private static class Bundles
     {
-        public static string Root
+        public static string CliPath(string bundleKey)
         {
-            get
+            var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+            var packed = Path.Combine(assemblyDir, "bundles", bundleKey, "cli.js");
+            if (File.Exists(packed)) return packed;
+
+            var directory = new DirectoryInfo(assemblyDir);
+            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Parlance.sln")))
             {
-                var assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-                var packed = Path.Combine(assemblyDir, "bundles");
-                if (Directory.Exists(packed)) return packed;
-
-                var directory = new DirectoryInfo(assemblyDir);
-                while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Parlance.sln")))
-                {
-                    directory = directory.Parent;
-                }
-
-                if (directory is null) throw new InvalidOperationException("can't locate Parlance.sln");
-                return Path.Combine(directory.FullName, "src", "Parlance.Agent");
+                directory = directory.Parent;
             }
+
+            if (directory is null) throw new InvalidOperationException("can't locate Parlance.sln");
+
+            // Repo layout strips the "Parlance.Agent." prefix: Parlance.Agent.Core -> Core/dist, Parlance.Agent.Adapter.Claude -> Adapter.Claude/dist.
+            var devFolder = bundleKey.StartsWith("Parlance.Agent.", StringComparison.Ordinal)
+                ? bundleKey["Parlance.Agent.".Length..]
+                : bundleKey;
+            return Path.Combine(directory.FullName, "src", "Parlance.Agent", devFolder, "dist", "cli.js");
         }
     }
 }
