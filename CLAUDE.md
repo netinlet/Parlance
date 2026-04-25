@@ -5,12 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test
 
 ```bash
-# Build individual projects (not the full solution — Parlance.CSharp.Package is pack-only and breaks dotnet build)
-dotnet build src/Parlance.Cli/Parlance.Cli.csproj
-dotnet build src/Parlance.Mcp/Parlance.Mcp.csproj
+# Repo bootstrap (restore .NET + npm deps)
+make bootstrap
+
+# Build everything
+make build
 
 # Run all tests
-dotnet test Parlance.sln
+make test
+
+# Local CI equivalent
+make ci
 
 # Run a specific test project
 dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj
@@ -19,13 +24,17 @@ dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Test
 dotnet test tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj --filter "Analyze_SingleFile_ShowsDiagnostics"
 
 # Check formatting (CI enforces this)
-dotnet format Parlance.sln --verify-no-changes
+make format
+
+# Rebuild and verify committed agent bundles are fresh
+make agent-dist-check
+
+# Pack the parlance dotnet tool
+make pack-tool
 
 # Run MCP server (stdio transport)
 dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln
 ```
-
-**Note:** `dotnet build Parlance.sln` fails because `Parlance.CSharp.Package` has `NoBuild=true` (pack-only metapackage). Build individual projects instead.
 
 ## Architecture
 
@@ -96,6 +105,49 @@ public sealed class MyTool
 - **No consts for single-use strings.** YAGNI.
 - **Logging:** `Microsoft.Extensions.Logging` with structured logging throughout. MCP logs to stderr.
 - Do not push commits. Do not attribute commits.
+
+## Working with docs
+
+The Parlance Obsidian vault is the source of truth for *all* documentation
+— research, plans, rule drafts, contributor guides. The repo's `docs/` tree
+holds only the subset that has been explicitly published from the vault.
+
+**Vault location:** set `PARLANCE_VAULT_PATH` to the absolute path of your
+vault's Parlance folder. Configure it in your shell or in a `.env` file at the
+repo root (see `.env.example`). Both `tools/docs/publish.sh` and
+`tools/docs/setup-vault-link.sh` read this variable. Subfolders: `Research/`,
+`Rules/`, `Plans/`, `Contributor/`, `Superpowers/`.
+
+### Workflows
+
+| Need | How |
+|---|---|
+| Search vault notes | `obsidian-cli` skill |
+| Read a vault note | `obsidian-cli` skill |
+| Author a new vault note | `obsidian-cli` skill, or `Write` to the vault path directly |
+| Publish vault doc → repo | Add `parlance_publish: <repo-path>` to the vault doc's frontmatter, run `tools/docs/publish.sh` |
+| Pull updated vault docs into the repo on this branch | `tools/docs/publish.sh` (re-runs all manifested entries) |
+| Set up `docs/superpowers` symlink on a fresh clone | `tools/docs/setup-vault-link.sh` |
+
+### Publication contract
+
+- **Vault is source.** Repo docs under `docs/` carry a generated-marker
+  comment at the top: `<!-- generated from 20-Projects/Parlance/... -->`. Do
+  not edit those repo files directly — `tools/docs/publish.sh` overwrites them
+  on next run. Edit the vault original.
+- **Frontmatter declares the publish target.** A vault note publishes if and
+  only if it has a `parlance_publish: <repo-path>` key in YAML frontmatter.
+  Notes without it stay in the vault.
+- **Superpowers output lands in the vault automatically.** `docs/superpowers/`
+  is a symlink to the vault `Superpowers/` folder, so brainstorms, plans,
+  reviews, etc. flow there with no extra steps.
+
+### When to publish from vault
+
+Promote a vault doc to the repo only when it is contributor-facing and
+maintained: rule references (`docs/rules/PARLxxxx.md`), contributor guides,
+shipped design docs. Research notes, in-progress plans, and exploration stay
+vault-only.
 
 ## Agent Guidance: dotnet-skills
 

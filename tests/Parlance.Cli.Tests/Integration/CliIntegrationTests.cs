@@ -137,4 +137,29 @@ public sealed class CliIntegrationTests
         var (exitCode, _, _) = await RunCliAsync("rules", "--bogus");
         Assert.NotEqual(0, exitCode);
     }
+
+    [Fact]
+    public async Task Mcp_MissingSolutionPath_ExitCode2()
+    {
+        var tempDir = Directory.CreateTempSubdirectory("parlance-cli-mcp-");
+        try
+        {
+            var previous = Environment.CurrentDirectory;
+            Environment.CurrentDirectory = tempDir.FullName;
+            try
+            {
+                var (exitCode, _, stderr) = await RunCliAsync("mcp");
+                Assert.Equal(2, exitCode);
+                Assert.Contains("Solution path is required", stderr);
+            }
+            finally
+            {
+                Environment.CurrentDirectory = previous;
+            }
+        }
+        finally
+        {
+            tempDir.Delete(recursive: true);
+        }
+    }
 }

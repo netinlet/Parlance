@@ -43,6 +43,7 @@ public sealed class AnalyzerLoaderTests
             .ToHashSet();
 
         Assert.Contains("PARL9003", allIds);
+        Assert.Contains("PARL3001", allIds);
     }
 
     [Fact]
@@ -55,6 +56,7 @@ public sealed class AnalyzerLoaderTests
             .ToHashSet();
 
         Assert.Contains("PARL9003", allIds);
+        Assert.Contains("PARL3001", allIds);
     }
 
     [Fact]

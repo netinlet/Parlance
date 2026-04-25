@@ -1,3 +1,5 @@
+<!-- generated from 20-Projects/Parlance/Contributor/modern-csharp-design-philosophy.md — edit in vault, run tools/docs/publish.sh -->
+
 # Modern C# Design Philosophy for PARL Rules
 
 Last updated: 2026-03-08

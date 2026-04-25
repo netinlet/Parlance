@@ -105,15 +105,34 @@ Options:
 ## Building
 
 ```bash
-# Build individual projects (dotnet build Parlance.sln fails — Parlance.CSharp.Package is pack-only)
-dotnet build src/Parlance.Cli/Parlance.Cli.csproj
-dotnet build src/Parlance.Mcp/Parlance.Mcp.csproj
+# One-time setup for local development / CI parity
+make bootstrap
 
-# Run tests
-dotnet test Parlance.sln
+# Build agent bundles + .NET solution
+make build
 
-# Check formatting
-dotnet format Parlance.sln --verify-no-changes
+# Run all tests
+make test
+
+# Local CI equivalent
+make ci
+
+# Pack the `parlance` dotnet tool to artifacts/tool/
+make pack-tool
+```
+
+Useful narrower targets:
+
+```bash
+# Just the TypeScript agent workspaces
+make agent-ci
+
+# Just the CLI or MCP projects
+make build-cli
+make build-mcp
+
+# Verify committed dist bundles match source
+make agent-dist-check
 ```
 
 ## License

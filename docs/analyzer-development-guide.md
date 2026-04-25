@@ -1,3 +1,5 @@
+<!-- generated from 20-Projects/Parlance/Contributor/analyzer-development-guide.md — edit in vault, run tools/docs/publish.sh -->
+
 # Analyzer Development Guide
 
 Last updated: 2026-03-06
