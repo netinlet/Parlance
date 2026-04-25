@@ -41,6 +41,38 @@ SOFTWARE.
 
 ---
 
+## JetBrains ReSharper Cyclomatic Complexity PowerToy — Apache-2.0
+
+- **Upstream project:** <https://github.com/JetBrains/resharper-cyclomatic-complexity>
+- **How Parlance uses it:** algorithmic and fixture reference for the internal
+  cyclomatic complexity metric (`src/Parlance.CSharp.Analyzers/Metrics/Experimental/CyclomaticComplexityMetric.cs`). Parlance does not copy
+  ReSharper PSI source; the metric is a clean-room Roslyn `ControlFlowGraph`
+  predicate counter. Upstream test fixtures (`SomeComplexMethod`,
+  `ManySequentialIfs`, `ManyDeclarations`, `BoolAssignments`) are adapted —
+  branch structure and literal names preserved so the computed score can be
+  verified against the upstream gold value — and the adaptation is documented
+  inline at the test fixture declaration.
+
+```
+Copyright 2017–2019 JetBrains s.r.o.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+```
+
+The full Apache License 2.0 text is available at the URL above.
+
+---
+
 ## SonarAnalyzer for .NET — Sonar Source-Available License v1 (SSALv1)
 
 - **Upstream project:** <https://github.com/SonarSource/sonar-dotnet>
