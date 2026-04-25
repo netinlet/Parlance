@@ -66,8 +66,6 @@ function describe(event) {
 }
 
 // src/commands/install.ts
-var MARKER_BEGIN = "<!-- parlance-agent:begin -->";
-var MARKER_END = "<!-- parlance-agent:end -->";
 var HOOK_MARKER = ".parlance/hooks/";
 async function runInstall(argv) {
   const args = parseArgs(argv);
@@ -85,7 +83,6 @@ async function runInstall(argv) {
   writeMcpJson(root, resolve(root, args.solution), args.mcpCommand);
   mkdirSync(join2(root, ".claude"), { recursive: true });
   writeSettingsJson(join2(root, ".claude/settings.local.json"));
-  writeClaudeMdSnippet(join2(root, "CLAUDE.md"));
   process.stderr.write(`parlance agent (claude) installed at ${root}
 `);
   return 0;
@@ -159,35 +156,12 @@ function matcher(matcherValue, script, timeout) {
     }]
   };
 }
-function writeClaudeMdSnippet(path) {
-  const snippet = [
-    MARKER_BEGIN,
-    "",
-    "## Parlance Agent",
-    "",
-    "This project uses `parlance agent` (Claude Code adapter). Claude hooks steer",
-    "tool choice toward Parlance MCP tools on C# targets; routing rules live at",
-    "`.parlance/tool-routing.md`, session summaries at `.parlance/session-log.md`,",
-    "gap journal at `.parlance/kibble/`. Reports: `parlance agent report`.",
-    "",
-    MARKER_END,
-    ""
-  ].join("\n");
-  if (!existsSync(path)) {
-    writeFileSync(path, snippet);
-    return;
-  }
-  const body = readFileSync(path, "utf8");
-  if (body.includes(MARKER_BEGIN)) return;
-  writeFileSync(path, body.endsWith("\n") ? body + snippet : `${body}
-${snippet}`);
-}
 
 // src/commands/uninstall.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join3, resolve as resolve2 } from "node:path";
-var MARKER_BEGIN2 = "<!-- parlance-agent:begin -->";
-var MARKER_END2 = "<!-- parlance-agent:end -->";
+var MARKER_BEGIN = "<!-- parlance-agent:begin -->";
+var MARKER_END = "<!-- parlance-agent:end -->";
 var HOOK_MARKER2 = ".parlance/hooks/";
 async function runUninstall(argv) {
   let project = process.cwd();
@@ -212,7 +186,7 @@ async function runUninstall(argv) {
   const claudeMdPath = join3(root, "CLAUDE.md");
   if (existsSync2(claudeMdPath)) {
     const body = readFileSync2(claudeMdPath, "utf8");
-    const pattern = new RegExp(`${escapeRegex(MARKER_BEGIN2)}[\\s\\S]*?${escapeRegex(MARKER_END2)}\\n?`, "g");
+    const pattern = new RegExp(`${escapeRegex(MARKER_BEGIN)}[\\s\\S]*?${escapeRegex(MARKER_END)}\\n?`, "g");
     writeFileSync2(claudeMdPath, body.replace(pattern, "").replace(/\n{3,}/g, "\n\n"));
   }
   const mcpPath = join3(root, ".mcp.json");

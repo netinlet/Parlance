@@ -18,6 +18,24 @@ afterEach(() => {
 
 describe('uninstall', () => {
   it('removes settings.local.json hook entries and CLAUDE.md snippet', async () => {
+    writeFileSync(
+      join(root, 'CLAUDE.md'),
+      [
+        '# Project',
+        '',
+        '<!-- parlance-agent:begin -->',
+        '',
+        '## Parlance Agent',
+        '',
+        'Legacy snippet.',
+        '',
+        '<!-- parlance-agent:end -->',
+        '',
+        'Body.',
+        '',
+      ].join('\n'),
+    );
+
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runUninstall(['--project', root]);
 
@@ -30,6 +48,7 @@ describe('uninstall', () => {
 
     const body = readFileSync(join(root, 'CLAUDE.md'), 'utf8');
     expect(body).not.toContain('parlance-agent:begin');
+    expect(body).toContain('Body.');
   });
 
   it('--purge removes .parlance/', async () => {
