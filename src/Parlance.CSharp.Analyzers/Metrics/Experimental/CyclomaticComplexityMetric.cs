@@ -211,7 +211,7 @@ internal static class CyclomaticComplexityMetric
     {
         return operation switch
         {
-            // Method/accessor/operator/destructor/lambda bodies, including expression-bodied forms.
+            // Method/accessor/operator/destructor bodies, including expression-bodied forms.
             IMethodBodyOperation methodBody => ControlFlowGraph.Create(methodBody),
 
             // Constructors with explicit `: this(...)` or `: base(...)` initializers are wrapped
