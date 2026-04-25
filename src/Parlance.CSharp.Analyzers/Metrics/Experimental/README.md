@@ -1,6 +1,6 @@
 # Experimental Metrics
 
-Metrics under this folder are **consumer-facing only** — other analyzers, curation
+Metrics under this folder are **internal-only** — other analyzers, curation
 rules, or engine code may call them, but they are **not part of the published
 API surface** and carry no backward-compatibility guarantee.
 
