@@ -51,8 +51,7 @@ SOFTWARE.
   `ManySequentialIfs`, `ManyDeclarations`, `BoolAssignments`) are adapted —
   branch structure and literal names preserved so the computed score can be
   verified against the upstream gold value — and the adaptation is documented
-  inline at the test fixture declaration. Source-use record:
-  `docs/research/2026-04-16-parl3002-quality-gates.md`.
+  inline at the test fixture declaration.
 
 ```
 Copyright 2017–2019 JetBrains s.r.o.

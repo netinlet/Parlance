@@ -30,16 +30,10 @@ rather than requiring a reader to chase the `internal` keyword.
 ### `CyclomaticComplexityMetric`
 
 McCabe cyclomatic complexity via Roslyn's lowered `ControlFlowGraph`, counted as
-π + 1 (predicate blocks plus one). See:
-
-- `CyclomaticComplexityMetric.cs` — the implementation and a long file-header
-  explanation of the algorithm choice.
-- `docs/research/2026-04-16-parl3002-cyclomatic-complexity-contract.md` — the
-  behavioral contract, including the decision to ship the metric without an
-  accompanying `PARL3002` diagnostic (platform rule `CA1502` already reports at
-  the IL level).
-- `docs/research/2026-04-16-parl3002-analysis.md` — the spike log and the
-  "single CFG path, no syntactic fallback" rationale.
+π + 1 (predicate blocks plus one). The implementation and a long file-header
+explanation of the algorithm choice live in `CyclomaticComplexityMetric.cs`.
+Behavioral contract, spike log, fixture port matrix, and source-use record live
+in the Parlance Obsidian vault under `Research/2026-04-16-parl3002-*`.
 
 ## Intended consumers
 
@@ -58,8 +52,8 @@ McCabe cyclomatic complexity via Roslyn's lowered `ControlFlowGraph`, counted as
 2. Keep the calculation single-path. A metric that silently falls back to a
    different algorithm produces path-dependent numbers, which makes threshold
    consumers unreliable. Return an explicit "skipped" result instead.
-3. Write a contract doc under `docs/research/` before the first consumer wires
-   the metric into a diagnostic.
+3. Write a contract doc in the Parlance Obsidian vault under `Research/`
+   before the first consumer wires the metric into a diagnostic.
 4. Put a file-level comment on the implementation explaining the theory and
    any Roslyn-specific quirks — readers should not have to reconstruct the
    decision from commit history.

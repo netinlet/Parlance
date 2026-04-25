@@ -40,8 +40,8 @@ namespace Parlance.CSharp.Analyzers.Metrics.Experimental;
 //  basic block with a non-null `ConditionalSuccessor`, even when its two targets happen
 //  to be the same block.
 //
-//  This was confirmed by the spike in docs/research/2026-04-16-parl3002-analysis.md,
-//  using the upstream ReSharper fixture `ManySequentialIfs` (83 empty `if` statements):
+//  This was confirmed by a spike using the upstream ReSharper fixture
+//  `ManySequentialIfs` (83 empty `if` statements):
 //    - E − N + 2      →  1   (wrong — graph collapsed)
 //    - π + 1          →  84  (correct — matches ReSharper and CA1502 gold value)
 //
@@ -73,7 +73,7 @@ namespace Parlance.CSharp.Analyzers.Metrics.Experimental;
 //  exactly the kind of path-dependent metric that makes threshold-based diagnostics
 //  unreliable: the same method could cross or not cross a threshold depending on which
 //  algorithm happened to run. An honest "skip" is better than a plausible-looking wrong
-//  answer. See docs/research/2026-04-16-parl3002-analysis.md § "Fallback decision".
+//  answer.
 //
 //  Best-effort on parse errors
 //  ---------------------------

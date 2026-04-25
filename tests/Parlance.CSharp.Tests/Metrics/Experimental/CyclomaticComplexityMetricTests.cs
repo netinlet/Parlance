@@ -117,8 +117,7 @@ public sealed class CyclomaticComplexityMetricTests
     // Adapted from the JetBrains ReSharper Cyclomatic Complexity PowerToy fixture
     // `ComplexMethodWithDefaultSettings.cs` (Apache-2.0). Branch structure and
     // literal names are preserved so the Parlance score (12) can be verified
-    // against the upstream gold. Attribution and full lineage in
-    // `THIRD_PARTY_NOTICES.md` and in `docs/research/2026-04-16-parl3002-quality-gates.md`.
+    // against the upstream gold. Attribution in `THIRD_PARTY_NOTICES.md`.
     private const string ComplexMethodSource = """
         class C
         {
