@@ -5,11 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test
 
 ```bash
-# Build the whole solution
-dotnet build Parlance.sln
+# Repo bootstrap (restore .NET + npm deps)
+make bootstrap
+
+# Build everything
+make build
 
 # Run all tests
-dotnet test Parlance.sln
+make test
+
+# Local CI equivalent
+make ci
 
 # Run a specific test project
 dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj
@@ -18,7 +24,13 @@ dotnet test tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Test
 dotnet test tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj --filter "Analyze_SingleFile_ShowsDiagnostics"
 
 # Check formatting (CI enforces this)
-dotnet format Parlance.sln --verify-no-changes
+make format
+
+# Rebuild and verify committed agent bundles are fresh
+make agent-dist-check
+
+# Pack the parlance dotnet tool
+make pack-tool
 
 # Run MCP server (stdio transport)
 dotnet run --project src/Parlance.Mcp -- --solution-path /path/to/Solution.sln

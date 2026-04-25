@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "strict": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "outDir": "out-ts",
+    "baseUrl": ".",
+    "paths": {
+      "@parlance/agent-core": [
+        "../Core/src/api.ts"
+      ],
+      "@parlance/agent-core/*": [
+        "../Core/src/*"
+      ]
+    }
+  },
+  "include": [
+    "src/**/*.ts"
+  ]
+}
