@@ -37,6 +37,7 @@
     post-tool.js
     stop.js
   codex/
+    mcp-setup.md
     events/
       bash.jsonl
 .codex/
@@ -281,15 +282,12 @@ Expected: hook entrypoints bundle into `dist/hooks/`.
 - Create `.parlance/`, `.parlance/hooks/`, and `.parlance/codex/events/`.
 - Copy hook bundles into `.parlance/hooks/`.
 - Write `.parlance/tool-routing.md`.
+- Write `.parlance/codex/mcp-setup.md` with `codex mcp add parlance -- parlance mcp --solution-path <solution>`.
 - Create or update `.codex/hooks.json`.
 - Create or update `.codex/config.toml` with `codex_hooks = true`.
 - Preserve foreign hooks.
 - Be idempotent.
 - Fail if `.codex` exists and is not a directory.
-
-**Open point to verify against Codex docs before implementation:**
-
-Confirm exact Codex MCP config format. Do not assume Claude `.mcp.json` applies to Codex.
 
 **Verification:**
 

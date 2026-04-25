@@ -40,6 +40,7 @@ export async function runInstall(argv: string[]): Promise<number> {
 
   copyHookBundles(hooksDir(root));
   writeFileSync(routingFile(root), generateRoutingDoc());
+  writeMcpSetupDoc(root, resolve(root, args.solution));
   writeHooksJson(join(codexDir, 'hooks.json'));
   writeConfigToml(join(codexDir, 'config.toml'));
 
@@ -100,7 +101,7 @@ function writeHooksJson(path: string): void {
 
   for (const [event, nextMatchers] of Object.entries(ours)) {
     const bucket = existing.hooks[event] ?? [];
-    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
+    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => (hook.command ?? '').includes(HOOK_MARKER)));
     existing.hooks[event] = [...preserved, ...nextMatchers];
   }
 
@@ -124,6 +125,25 @@ function writeConfigToml(path: string): void {
   const existing = existsSync(path) ? readFileSync(path, 'utf8') : '';
   const next = withCodexHooksFeature(existing);
   writeFileSync(path, next);
+}
+
+function writeMcpSetupDoc(root: string, solutionAbs: string): void {
+  const path = join(parlanceDir(root), 'codex', 'mcp-setup.md');
+  const command = `codex mcp add parlance -- parlance mcp --solution-path ${JSON.stringify(solutionAbs)}`;
+  const body = [
+    '# Parlance MCP Setup for Codex',
+    '',
+    'Run this command in your Codex shell to register the Parlance MCP server:',
+    '',
+    '```bash',
+    command,
+    '```',
+    '',
+    'After registration, restart Codex or follow any instructions printed by the Codex CLI.',
+    '',
+  ].join('\n');
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, body);
 }
 
 export function withCodexHooksFeature(existing: string): string {

@@ -128,10 +128,13 @@ dotnet run --project src/Parlance.Cli -- \
 
 The Codex adapter writes `.codex/hooks.json` and enables `[features] codex_hooks = true`
 in `.codex/config.toml`. If `.codex` already exists as a file, installation fails
-without replacing it. Codex Bash hook events are recorded in
-`.parlance/codex/events/bash.jsonl` with bounded, redacted command/output metadata
-for future tuning. `PostToolUse` records telemetry only; it does not replace Codex
-tool results for normal Parlance routing guidance.
+without replacing it. The `--solution` path is used to write
+`.parlance/codex/mcp-setup.md`, which contains the `codex mcp add parlance -- parlance mcp --solution-path ...`
+command to run in your Codex shell after hook installation. Codex Bash hook
+events are recorded in `.parlance/codex/events/bash.jsonl` with bounded,
+redacted command/output metadata for future tuning. `PostToolUse` records
+telemetry only; it does not replace Codex tool results for normal Parlance
+routing guidance.
 
 ## Building
 

@@ -2,6 +2,7 @@ import {
   postSearch,
   postTool,
   postWrite,
+  preRead,
   preSearch,
   preTool,
   preWrite,
@@ -105,7 +106,10 @@ function fromPost(env: CodexHookEnvelope): AgentEvent | null {
   if (tool === 'Bash') return postBash(input, outputBytes);
   if (tool === 'apply_patch') {
     const paths = pathsFromPatchCommand(commandFromInput(input));
-    if (paths.length === 1) return postWrite(paths[0], 0);
+    if (paths.length === 1) {
+      const writtenBytes = estimatePatchWrittenBytes(commandFromInput(input));
+      if (writtenBytes > 0) return postWrite(paths[0], writtenBytes);
+    }
     return postTool('post-native-tool', tool, input, outputBytes);
   }
   if (tool.startsWith('mcp__parlance__')) return postTool('post-mcp-tool', tool, input, outputBytes);
@@ -118,9 +122,11 @@ function preBash(input: Record<string, unknown>): AgentEvent {
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === 'search') {
-    return preSearch({ pattern: command, path: undefined, glob: undefined, file_type: undefined });
+    return preSearch(searchFromBashCommand(command));
   }
   if (classification.kind === 'read') {
+    const path = readPathFromBashCommand(command);
+    if (path) return preRead(path);
     return preTool('pre-native-tool', 'Bash', input);
   }
   return preTool('pre-native-tool', 'Bash', input);
@@ -130,7 +136,7 @@ function postBash(input: Record<string, unknown>, outputBytes: number): AgentEve
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === 'search') {
-    return postSearch({ pattern: command, result_bytes: outputBytes });
+    return postSearch({ ...searchFromBashCommand(command), result_bytes: outputBytes });
   }
   return postTool('post-native-tool', 'Bash', input, outputBytes);
 }
@@ -184,4 +190,70 @@ function pathsFromPatchCommand(command: string): string[] {
     if (path && path !== '/dev/null') paths.add(path);
   }
   return [...paths];
+}
+
+function estimatePatchWrittenBytes(command: string): number {
+  let bytes = 0;
+  for (const line of command.split('\n')) {
+    if (line.startsWith('+++') || line.startsWith('***')) continue;
+    if (!line.startsWith('+')) continue;
+    bytes += Buffer.byteLength(`${line.slice(1)}\n`, 'utf8');
+  }
+  return bytes;
+}
+
+function searchFromBashCommand(command: string): { pattern: string; path?: string; glob?: string; file_type?: string } {
+  const args = shellWords(command);
+  const tool = args[0];
+  if ((tool === 'rg' || tool === 'grep') && args.length > 1) {
+    let pattern = '';
+    let path: string | undefined;
+    let glob: string | undefined;
+
+    for (let index = 1; index < args.length; index += 1) {
+      const arg = args[index];
+      if (arg === '--glob' || arg === '-g') {
+        glob = args[index + 1];
+        index += 1;
+        continue;
+      }
+      if (arg.startsWith('-')) continue;
+      if (!pattern) {
+        pattern = arg;
+        continue;
+      }
+      if (!path) path = arg;
+    }
+
+    return {
+      pattern: pattern || command,
+      path,
+      glob,
+      file_type: glob?.endsWith('.cs') ? 'cs' : undefined,
+    };
+  }
+
+  return { pattern: command };
+}
+
+function readPathFromBashCommand(command: string): string | undefined {
+  const args = shellWords(command);
+  const tool = args[0];
+  if (!tool) return undefined;
+
+  const candidates = args.slice(1).filter((arg) => !arg.startsWith('-') && !/^\d+,\d+p$/.test(arg));
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index])) return candidates[index];
+  }
+  return undefined;
+}
+
+function shellWords(command: string): string[] {
+  const words: string[] = [];
+  const pattern = /"([^"]*)"|'([^']*)'|(\S+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(command)) !== null) {
+    words.push(match[1] ?? match[2] ?? match[3]);
+  }
+  return words;
 }

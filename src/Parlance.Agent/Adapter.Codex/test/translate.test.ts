@@ -47,6 +47,34 @@ describe('translate', () => {
     });
 
     expect(translated?.event.kind).toBe('pre-search');
+    expect(translated && 'pattern' in translated.event && translated.event.pattern).toBe('Foo');
+    expect(translated && 'path' in translated.event && translated.event.path).toBe('src');
+  });
+
+  it('PreToolUse Bash rg with glob -> pre-search with glob', () => {
+    const translated = translate({
+      hook_event_name: 'PreToolUse',
+      session_id: 's1',
+      cwd: '/p',
+      tool_name: 'Bash',
+      tool_input: { command: 'rg Foo --glob "*.cs" src' },
+    });
+
+    expect(translated?.event.kind).toBe('pre-search');
+    expect(translated && 'glob' in translated.event && translated.event.glob).toBe('*.cs');
+  });
+
+  it('PreToolUse Bash cat C# file -> pre-read', () => {
+    const translated = translate({
+      hook_event_name: 'PreToolUse',
+      session_id: 's1',
+      cwd: '/p',
+      tool_name: 'Bash',
+      tool_input: { command: 'cat src/Foo.cs' },
+    });
+
+    expect(translated?.event.kind).toBe('pre-read');
+    expect(translated && 'path' in translated.event && translated.event.path).toBe('src/Foo.cs');
   });
 
   it('PreToolUse Bash unknown -> pre-native-tool', () => {
@@ -73,6 +101,8 @@ describe('translate', () => {
     });
 
     expect(translated?.event.kind).toBe('post-search');
+    expect(translated && 'pattern' in translated.event && translated.event.pattern).toBe('Foo');
+    expect(translated && 'path' in translated.event && translated.event.path).toBe('src');
     expect(translated && 'result_bytes' in translated.event && translated.event.result_bytes).toBe(8);
   });
 
@@ -112,6 +142,33 @@ describe('translate', () => {
 
     expect(translated?.event.kind).toBe('pre-write');
     expect(translated && 'path' in translated.event && translated.event.path).toBe('Foo.cs');
+  });
+
+  it('PostToolUse apply_patch with one path estimates written bytes', () => {
+    const translated = translate({
+      hook_event_name: 'PostToolUse',
+      session_id: 's1',
+      cwd: '/p',
+      tool_name: 'apply_patch',
+      tool_input: { command: '*** Begin Patch\n*** Update File: Foo.cs\n@@\n+hello\n+world\n*** End Patch' },
+    });
+
+    expect(translated?.event.kind).toBe('post-write');
+    expect(translated && 'content_bytes' in translated.event && translated.event.content_bytes).toBe(12);
+  });
+
+  it('PostToolUse apply_patch with unknown bytes falls back to native tool', () => {
+    const translated = translate({
+      hook_event_name: 'PostToolUse',
+      session_id: 's1',
+      cwd: '/p',
+      tool_name: 'apply_patch',
+      tool_input: { command: '*** Begin Patch\n*** Update File: Foo.cs\n@@\n context only\n*** End Patch' },
+      tool_response: { content: 'ok' },
+    });
+
+    expect(translated?.event.kind).toBe('post-native-tool');
+    expect(translated && 'tool_name' in translated.event && translated.event.tool_name).toBe('apply_patch');
   });
 
   it('classifies common Bash commands', () => {

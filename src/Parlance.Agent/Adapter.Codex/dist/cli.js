@@ -88,6 +88,7 @@ async function runInstall(argv) {
   mkdirSync(codexDir, { recursive: true });
   copyHookBundles(hooksDir(root));
   writeFileSync(routingFile(root), generateRoutingDoc());
+  writeMcpSetupDoc(root, resolve(root, args.solution));
   writeHooksJson(join2(codexDir, "hooks.json"));
   writeConfigToml(join2(codexDir, "config.toml"));
   process.stderr.write(`parlance agent (codex) installed at ${root}
@@ -136,7 +137,7 @@ function writeHooksJson(path) {
   };
   for (const [event, nextMatchers] of Object.entries(ours)) {
     const bucket = existing.hooks[event] ?? [];
-    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
+    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => (hook.command ?? "").includes(HOOK_MARKER)));
     existing.hooks[event] = [...preserved, ...nextMatchers];
   }
   writeFileSync(path, JSON.stringify(existing, null, 2));
@@ -157,6 +158,24 @@ function writeConfigToml(path) {
   const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
   const next = withCodexHooksFeature(existing);
   writeFileSync(path, next);
+}
+function writeMcpSetupDoc(root, solutionAbs) {
+  const path = join2(parlanceDir(root), "codex", "mcp-setup.md");
+  const command = `codex mcp add parlance -- parlance mcp --solution-path ${JSON.stringify(solutionAbs)}`;
+  const body = [
+    "# Parlance MCP Setup for Codex",
+    "",
+    "Run this command in your Codex shell to register the Parlance MCP server:",
+    "",
+    "```bash",
+    command,
+    "```",
+    "",
+    "After registration, restart Codex or follow any instructions printed by the Codex CLI.",
+    ""
+  ].join("\n");
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, body);
 }
 function withCodexHooksFeature(existing) {
   const normalized = existing.replace(/\r\n/g, "\n");
@@ -197,7 +216,10 @@ async function runUninstall(argv) {
     const settings = JSON.parse(readFileSync2(hooksPath, "utf8"));
     if (settings.hooks) {
       for (const key of Object.keys(settings.hooks)) {
-        settings.hooks[key] = settings.hooks[key].filter((entry) => !entry.hooks.some((hook) => (hook.command ?? "").includes(HOOK_MARKER2)));
+        settings.hooks[key] = settings.hooks[key].map((entry) => ({
+          ...entry,
+          hooks: entry.hooks.filter((hook) => !(hook.command ?? "").includes(HOOK_MARKER2))
+        })).filter((entry) => entry.hooks.length > 0);
         if (settings.hooks[key].length === 0) delete settings.hooks[key];
       }
       if (Object.keys(settings.hooks).length === 0) delete settings.hooks;

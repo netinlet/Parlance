@@ -40,6 +40,27 @@ describe('uninstall command', () => {
     expect(existsSync(join(root, '.parlance/codex/events'))).toBe(true);
   });
 
+  it('preserves foreign hooks inside a mixed matcher entry', async () => {
+    await runInstall(['--project', root, '--solution', 'App.sln']);
+
+    const hooksPath = join(root, '.codex/hooks.json');
+    const settings = JSON.parse(readFileSync(hooksPath, 'utf8'));
+    settings.hooks.PreToolUse = [{
+      matcher: 'Bash',
+      hooks: [
+        { type: 'command', command: 'node "$(git rev-parse --show-toplevel)/.parlance/hooks/pre-tool.js"' },
+        { type: 'command', command: 'echo foreign' },
+      ],
+    }];
+    writeFileSync(hooksPath, JSON.stringify(settings, null, 2));
+
+    await runUninstall(['--project', root]);
+
+    const next = JSON.parse(readFileSync(hooksPath, 'utf8'));
+    expect(next.hooks.PreToolUse).toHaveLength(1);
+    expect(next.hooks.PreToolUse[0].hooks).toEqual([{ type: 'command', command: 'echo foreign' }]);
+  });
+
   it('--purge removes .parlance', async () => {
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runUninstall(['--project', root, '--purge']);

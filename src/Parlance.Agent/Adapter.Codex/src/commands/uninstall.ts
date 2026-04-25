@@ -18,7 +18,12 @@ export async function runUninstall(argv: string[]): Promise<number> {
     const settings = JSON.parse(readFileSync(hooksPath, 'utf8')) as { hooks?: Record<string, { hooks: { command?: string }[] }[]> };
     if (settings.hooks) {
       for (const key of Object.keys(settings.hooks)) {
-        settings.hooks[key] = settings.hooks[key].filter((entry) => !entry.hooks.some((hook) => (hook.command ?? '').includes(HOOK_MARKER)));
+        settings.hooks[key] = settings.hooks[key]
+          .map((entry) => ({
+            ...entry,
+            hooks: entry.hooks.filter((hook) => !(hook.command ?? '').includes(HOOK_MARKER)),
+          }))
+          .filter((entry) => entry.hooks.length > 0);
         if (settings.hooks[key].length === 0) delete settings.hooks[key];
       }
       if (Object.keys(settings.hooks).length === 0) delete settings.hooks;

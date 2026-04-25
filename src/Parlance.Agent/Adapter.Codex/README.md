@@ -29,11 +29,22 @@ and with what fidelity.
 - `.codex/config.toml`
 - `.parlance/hooks/*.js`
 - `.parlance/tool-routing.md`
+- `.parlance/codex/mcp-setup.md`
 - `.parlance/codex/events/bash.jsonl` parent directory
 
 Codex hooks are experimental and require `[features] codex_hooks = true`. The
 installer updates that feature flag while preserving unrelated config. If
 `.codex` exists as a file, installation fails and leaves it untouched.
+
+The `--solution` path is used to generate `.parlance/codex/mcp-setup.md` with a
+Codex CLI command of this shape:
+
+```bash
+codex mcp add parlance -- parlance mcp --solution-path /absolute/path/to/App.sln
+```
+
+Run that command in your Codex shell after installing hooks, then restart Codex
+or follow any instructions printed by the Codex CLI.
 
 `PostToolUse` is telemetry-only for normal Parlance guidance. The adapter does
 not return `decision: "block"` or `continue: false`, because those Codex outputs
