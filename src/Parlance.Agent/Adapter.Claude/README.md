@@ -7,7 +7,7 @@ Responsibilities:
 - render core `EventEvaluation` guidance into Claude-visible outputs (stderr + exit code)
 - parse Claude Code JSONL transcripts into agent-neutral `UsageTotals`
 - write/remove the Claude Code-specific install artifacts (`.claude/settings.local.json`,
-  `.mcp.json`, `CLAUDE.md` snippet, `.parlance/hooks/*.js`)
+  `.mcp.json`, `.parlance/hooks/*.js`, `.parlance/tool-routing.md`)
 
 This package is the **only** place in the repo that knows about Claude Code
 hook event names, `.claude/settings.local.json`, or `~/.claude/projects/*.jsonl`.
