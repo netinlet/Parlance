@@ -4,8 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { generateRoutingDoc } from '@parlance/agent-core';
 import { hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
 
-const MARKER_BEGIN = '<!-- parlance-agent:begin -->';
-const MARKER_END = '<!-- parlance-agent:end -->';
 const HOOK_MARKER = '.parlance/hooks/';
 
 interface InstallArgs {
@@ -37,8 +35,6 @@ export async function runInstall(argv: string[]): Promise<number> {
   writeMcpJson(root, resolve(root, args.solution), args.mcpCommand);
   mkdirSync(join(root, '.claude'), { recursive: true });
   writeSettingsJson(join(root, '.claude/settings.local.json'));
-  writeClaudeMdSnippet(join(root, 'CLAUDE.md'));
-
   process.stderr.write(`parlance agent (claude) installed at ${root}\n`);
   return 0;
 }
@@ -122,29 +118,4 @@ function matcher(matcherValue: string, script: string, timeout: number): HookMat
       timeout,
     }],
   };
-}
-
-function writeClaudeMdSnippet(path: string): void {
-  const snippet = [
-    MARKER_BEGIN,
-    '',
-    '## Parlance Agent',
-    '',
-    'This project uses `parlance agent` (Claude Code adapter). Claude hooks steer',
-    'tool choice toward Parlance MCP tools on C# targets; routing rules live at',
-    '`.parlance/tool-routing.md`, session summaries at `.parlance/session-log.md`,',
-    'gap journal at `.parlance/kibble/`. Reports: `parlance agent report`.',
-    '',
-    MARKER_END,
-    '',
-  ].join('\n');
-
-  if (!existsSync(path)) {
-    writeFileSync(path, snippet);
-    return;
-  }
-
-  const body = readFileSync(path, 'utf8');
-  if (body.includes(MARKER_BEGIN)) return;
-  writeFileSync(path, body.endsWith('\n') ? body + snippet : `${body}\n${snippet}`);
 }

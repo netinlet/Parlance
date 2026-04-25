@@ -44,14 +44,20 @@ describe('install command', () => {
     expect(pre.filter((matcher) => matcher.hooks.some((hook) => hook.command?.includes('.parlance/hooks/pre-tool.js')))).toHaveLength(1);
   });
 
-  it('CLAUDE.md snippet appended once', async () => {
-    writeFileSync(join(root, 'CLAUDE.md'), '# Project\n\nBody.\n');
+  it('does not modify an existing CLAUDE.md', async () => {
+    const original = '# Project\n\nBody.\n';
+    writeFileSync(join(root, 'CLAUDE.md'), original);
 
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runInstall(['--project', root, '--solution', 'App.sln']);
 
     const body = readFileSync(join(root, 'CLAUDE.md'), 'utf8');
-    expect(body).toContain('Body.');
-    expect((body.match(/<!-- parlance-agent:begin -->/g) ?? []).length).toBe(1);
+    expect(body).toBe(original);
+  });
+
+  it('does not create CLAUDE.md when missing', async () => {
+    await runInstall(['--project', root, '--solution', 'App.sln']);
+
+    expect(existsSync(join(root, 'CLAUDE.md'))).toBe(false);
   });
 });
