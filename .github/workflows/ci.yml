@@ -39,6 +39,7 @@ jobs:
           cache-dependency-path: |
             src/Parlance.Agent/Core/package-lock.json
             src/Parlance.Agent/Adapter.Claude/package-lock.json
+            src/Parlance.Agent/Adapter.Codex/package-lock.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v5

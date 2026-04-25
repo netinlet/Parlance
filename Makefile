@@ -18,7 +18,8 @@ TOOL_PACKAGE_ID ?= Parlance.Cli
 TOOL_COMMAND_NAME ?= parlance
 
 AGENT_CORE_DIR := src/Parlance.Agent/Core
-AGENT_ADAPTER_DIR := src/Parlance.Agent/Adapter.Claude
+AGENT_ADAPTER_DIRS := src/Parlance.Agent/Adapter.Claude src/Parlance.Agent/Adapter.Codex
+AGENT_DIST_DIRS := $(AGENT_CORE_DIR)/dist src/Parlance.Agent/Adapter.Claude/dist src/Parlance.Agent/Adapter.Codex/dist
 CLI_PROJECT := src/Parlance.Cli/Parlance.Cli.csproj
 MCP_PROJECT := src/Parlance.Mcp/Parlance.Mcp.csproj
 ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj
@@ -76,19 +77,24 @@ restore: local-feed
 
 agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
-	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" install
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" install; done
 
 agent-lock-refresh:
 	cd "$(AGENT_CORE_DIR)" && rm -rf node_modules && $(NODE20_NPM) install --package-lock-only
-	cd "$(AGENT_ADAPTER_DIR)" && rm -rf node_modules && $(NODE20_NPM) install --package-lock-only
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do cd "$(CURDIR)/$$dir" && rm -rf node_modules && $(NODE20_NPM) install --package-lock-only; done
 
 agent-lock-check: agent-lock-refresh
-	git diff --exit-code -- "$(AGENT_CORE_DIR)/package-lock.json" "$(AGENT_ADAPTER_DIR)/package-lock.json"
+	git diff --exit-code -- "$(AGENT_CORE_DIR)/package-lock.json" src/Parlance.Agent/Adapter.Claude/package-lock.json src/Parlance.Agent/Adapter.Codex/package-lock.json
 
 agent-install-command:
 	@printf '%s\n' \
 		'dotnet run --project "$(CURDIR)/$(CLI_PROJECT)" -- \' \
 		'  agent install --for claude -- \' \
+		'  --project "$(TARGET_PROJECT)" \' \
+		'  --solution "$(SOLUTION)"' \
+		'' \
+		'dotnet run --project "$(CURDIR)/$(CLI_PROJECT)" -- \' \
+		'  agent install --for codex -- \' \
 		'  --project "$(TARGET_PROJECT)" \' \
 		'  --solution "$(SOLUTION)"'
 
@@ -116,20 +122,20 @@ tool-uninstall-local:
 
 agent-typecheck: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck
-	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" typecheck
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" typecheck; done
 
 agent-test: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" test
-	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" test
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" test; done
 
 agent-build: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" build
-	$(MAKE) -C "$(AGENT_ADAPTER_DIR)" build
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" build; done
 
 agent-ci: agent-typecheck agent-build agent-test
 
 agent-dist-check: agent-build
-	git diff --exit-code -- "$(AGENT_CORE_DIR)/dist" "$(AGENT_ADAPTER_DIR)/dist"
+	git diff --exit-code -- $(AGENT_DIST_DIRS)
 
 format:
 	$(DOTNET) format Parlance.sln --verify-no-changes --verbosity diagnostic
@@ -175,7 +181,7 @@ release-artifacts: pack-tool
 
 clean-agent:
 	rm -rf "$(AGENT_CORE_DIR)/out-ts"
-	rm -rf "$(AGENT_ADAPTER_DIR)/out-ts"
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do rm -rf "$$dir/out-ts"; done
 
 clean: clean-agent
 	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null
@@ -183,7 +189,7 @@ clean: clean-agent
 	rm -rf "$(ARTIFACTS_DIR)" "$(TEST_RESULTS_DIR)"
 
 clean-generated:
-	rm -rf "$(AGENT_CORE_DIR)/dist" "$(AGENT_ADAPTER_DIR)/dist"
+	rm -rf $(AGENT_DIST_DIRS)
 
 clean-all: clean clean-generated
 	rm -rf "$(LOCAL_FEED)"

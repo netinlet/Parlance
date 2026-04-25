@@ -81,6 +81,7 @@ internal static class AgentCommand
         var folder = adapter.ToLowerInvariant() switch
         {
             "claude" => "Parlance.Agent.Adapter.Claude",
+            "codex" => "Parlance.Agent.Adapter.Codex",
             _ => string.Empty
         };
 
