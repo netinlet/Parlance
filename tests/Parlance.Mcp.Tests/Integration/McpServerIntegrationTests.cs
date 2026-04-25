@@ -123,14 +123,14 @@ public sealed class McpServerIntegrationTests
     {
         await using var client = await CreateClientAsync(SolutionPath);
         var result = await client.CallToolAsync("find-implementations",
-            new Dictionary<string, object?> { ["typeName"] = "IAnalysisEngine" });
+            new Dictionary<string, object?> { ["typeName"] = "IOutputFormatter" });
 
         Assert.True(result.IsError is not true);
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
         using var doc = JsonDocument.Parse(textBlock.Text!);
         var root = doc.RootElement;
         Assert.Equal("found", root.GetProperty("status").GetString());
-        Assert.Equal("Parlance.Abstractions.IAnalysisEngine", root.GetProperty("targetType").GetString());
+        Assert.Equal("Parlance.Cli.Formatting.IOutputFormatter", root.GetProperty("targetType").GetString());
         Assert.True(root.GetProperty("count").GetInt32() > 0);
         var impls = root.GetProperty("implementations");
         Assert.True(impls.GetArrayLength() > 0);
@@ -143,7 +143,7 @@ public sealed class McpServerIntegrationTests
     {
         await using var client = await CreateClientAsync(SolutionPath);
         var result = await client.CallToolAsync("find-references",
-            new Dictionary<string, object?> { ["symbolName"] = "IAnalysisEngine" });
+            new Dictionary<string, object?> { ["symbolName"] = "WorkspaceSessionHolder" });
 
         Assert.True(result.IsError is not true);
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));
@@ -156,7 +156,7 @@ public sealed class McpServerIntegrationTests
     public async Task OutlineFile_ReturnsTypes()
     {
         await using var client = await CreateClientAsync(SolutionPath);
-        var filePath = Path.Combine(RepoRoot, "src", "Parlance.Abstractions", "IAnalysisEngine.cs");
+        var filePath = Path.Combine(RepoRoot, "src", "Parlance.Abstractions", "Diagnostic.cs");
         var result = await client.CallToolAsync("outline-file",
             new Dictionary<string, object?> { ["filePath"] = filePath });
 
@@ -172,7 +172,7 @@ public sealed class McpServerIntegrationTests
     {
         await using var client = await CreateClientAsync(SolutionPath);
         var result = await client.CallToolAsync("safe-to-delete",
-            new Dictionary<string, object?> { ["symbolName"] = "IAnalysisEngine" });
+            new Dictionary<string, object?> { ["symbolName"] = "WorkspaceSessionHolder" });
 
         Assert.True(result.IsError is not true);
         var textBlock = Assert.IsType<TextContentBlock>(Assert.Single(result.Content));

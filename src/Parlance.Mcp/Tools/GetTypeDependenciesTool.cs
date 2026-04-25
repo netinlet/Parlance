@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -15,10 +14,8 @@ public sealed class GetTypeDependenciesTool
                  "scoped to solution-defined types only.")]
     public static async Task<GetTypeDependenciesResult> GetTypeDependencies(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<GetTypeDependenciesTool> logger, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "get-type-dependencies");
-
         if (holder.LoadFailure is { } failure)
             return GetTypeDependenciesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -36,7 +33,8 @@ public sealed class GetTypeDependenciesTool
             return GetTypeDependenciesResult.NotFound(typeName);
 
         // Get all solution assembly names to filter out framework types
-        var solutionAssemblies = holder.Session.CurrentSolution.Projects
+        var solution = holder.Session.CurrentSolution;
+        var solutionAssemblies = solution.Projects
             .Select(p => p.AssemblyName)
             .ToHashSet();
 
@@ -148,13 +146,8 @@ public sealed class GetTypeDependenciesTool
             }
         }
 
-        return new GetTypeDependenciesResult(
-            Status: "found",
-            TypeName: typeSymbol.ToDisplayString(),
-            Dependencies: depsBuilder.ToImmutable(),
-            Dependents: dependentsBuilder.ToImmutable(),
-            Candidates: [],
-            Message: null);
+        return GetTypeDependenciesResult.Found(
+            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable());
     }
 }
 
@@ -174,6 +167,10 @@ public sealed record GetTypeDependenciesResult(
     public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", typeName, [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+    public static GetTypeDependenciesResult Found(
+        string typeName, ImmutableList<TypeDependencyEntry> dependencies,
+        ImmutableList<TypeDependencyEntry> dependents) => new(
+        "found", typeName, dependencies, dependents, [], null);
 }
 
 public sealed record TypeDependencyEntry(string Name, string FullyQualifiedName, string Relationship);

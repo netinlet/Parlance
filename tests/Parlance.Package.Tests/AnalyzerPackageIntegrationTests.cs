@@ -26,12 +26,24 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
         Directory.CreateDirectory(_artifactsDir);
         Directory.CreateDirectory(_tempDir);
 
-        // Create a NuGet.config pointing to local feed + nuget.org
-        // Must exist before packing the bundle, which needs to restore Parlance.CSharp.Analyzers from the local feed
+        // Create a NuGet.config pointing to local feed + nuget.org.
+        // Must exist before packing the bundle, which needs to restore Parlance.CSharp.Analyzers from the local feed.
+        //
+        // globalPackagesFolder isolates the per-test packages cache so that a
+        // stale extraction of Parlance.CSharp.Analyzers.0.1.0 (or the bundle)
+        // in the user's ~/.nuget/packages does not mask a freshly-packed nupkg.
+        // Without this, running these tests against an older cached 0.1.0
+        // silently loads the older analyzer DLL and tests that assert the
+        // presence of newer diagnostics (e.g. PARL3001) spuriously fail.
+        var packagesFolder = Path.Combine(_tempDir, "packages");
+        Directory.CreateDirectory(packagesFolder);
         _nugetConfigPath = Path.Combine(_tempDir, "NuGet.config");
         var nugetConfig = $"""
             <?xml version="1.0" encoding="utf-8"?>
             <configuration>
+              <config>
+                <add key="globalPackagesFolder" value="{packagesFolder}" />
+              </config>
               <packageSources>
                 <clear />
                 <add key="LocalFeed" value="{_artifactsDir}" />
@@ -67,7 +79,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task AnalyzerPackage_ReportsParl0004_WhenIsFollowedByCast()
+    public async Task AnalyzerPackage_ReportsParl9003_WhenDefaultExpressionUsed()
     {
         var projectDir = CreateTestProject("AnalyzerTest", "Parlance.CSharp.Analyzers", "0.1.0");
         WriteViolationCode(projectDir);
@@ -77,7 +89,7 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             allowFailure: true,
             restoreFirst: projectDir);
 
-        Assert.Contains("PARL0004", output);
+        Assert.Contains("PARL9003", output);
     }
 
     [Fact]
@@ -91,7 +103,35 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             allowFailure: true,
             restoreFirst: projectDir);
 
-        Assert.Contains("PARL0004", output);
+        Assert.Contains("PARL9003", output);
+    }
+
+    [Fact]
+    public async Task AnalyzerPackage_ReportsParl3001_WhenCognitiveComplexityExceedsThreshold()
+    {
+        var projectDir = CreateTestProject("Parl3001AnalyzerTest", "Parlance.CSharp.Analyzers", "0.1.0");
+        WriteComplexCode(projectDir);
+
+        var output = await RunDotnet(
+            $"build \"{Path.Combine(projectDir, "Test.csproj")}\" --no-restore",
+            allowFailure: true,
+            restoreFirst: projectDir);
+
+        Assert.Contains("PARL3001", output);
+    }
+
+    [Fact]
+    public async Task BundlePackage_ReportsParl3001_WhenCognitiveComplexityExceedsThreshold()
+    {
+        var projectDir = CreateTestProject("Parl3001BundleTest", "Parlance.CSharp", "0.1.0");
+        WriteComplexCode(projectDir);
+
+        var output = await RunDotnet(
+            $"build \"{Path.Combine(projectDir, "Test.csproj")}\" --no-restore",
+            allowFailure: true,
+            restoreFirst: projectDir);
+
+        Assert.Contains("PARL3001", output);
     }
 
     [Fact]
@@ -142,29 +182,55 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
             """;
         File.WriteAllText(Path.Combine(projectDir, "Test.csproj"), csproj);
 
+        // Elevate PARL9003 to warning so it appears in dotnet build output
+        // (default severity is Info, which dotnet build suppresses)
+        var editorConfig = """
+            is_global = true
+            dotnet_diagnostic.PARL9003.severity = warning
+            """;
+        File.WriteAllText(Path.Combine(projectDir, ".editorconfig"), editorConfig);
+
         return projectDir;
     }
 
     private static void WriteViolationCode(string projectDir)
     {
-        // Code that triggers PARL0004: is-followed-by-cast pattern
+        // Code that triggers PARL9003: default(T) instead of default literal
         var code = """
             namespace TestApp;
 
             public class Example
             {
-                public string Describe(object obj)
+                public int GetDefault()
                 {
-                    if (obj is string)
-                    {
-                        var s = (string)obj;
-                        return s;
-                    }
-                    return string.Empty;
+                    return default(int);
                 }
             }
             """;
         File.WriteAllText(Path.Combine(projectDir, "Example.cs"), code);
+    }
+
+    private static void WriteComplexCode(string projectDir)
+    {
+        // Code that triggers PARL3001: cognitive complexity > 15.
+        // 16 sequential `if` statements at nesting 0 produce a score of 16 (one
+        // per `if`), which exceeds the default threshold of 15.
+        var conditions = string.Join(
+            Environment.NewLine,
+            Enumerable.Range(1, 16).Select(i => $"        if (n == {i}) {{ }}"));
+
+        var code = $$"""
+            namespace TestApp;
+
+            public class Example
+            {
+                public void Complex(int n)
+                {
+            {{conditions}}
+                }
+            }
+            """;
+        File.WriteAllText(Path.Combine(projectDir, "Complex.cs"), code);
     }
 
     private async Task<string> RunDotnet(string arguments, bool allowFailure = false, string? restoreFirst = null)

@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -11,14 +10,14 @@ namespace Parlance.Mcp.Tools;
 public sealed class DescribeTypeTool
 {
     [McpServerTool(Name = "describe-type", ReadOnly = true)]
-    [Description("Resolve a type by name and return its members, base types, interfaces, and accessibility. " +
+    [Description("Get a type's members, signatures, base types, and interfaces. " +
+                 "Works for both source-defined types and types from NuGet packages. " +
+                 "Use this first for understanding a type's shape. " +
                  "Use a fully qualified name to disambiguate (e.g., 'Parlance.Abstractions.Diagnostic').")]
     public static async Task<DescribeTypeResult> DescribeType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<DescribeTypeTool> logger, string typeName, CancellationToken ct)
+        string typeName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "describe-type");
-
         if (holder.LoadFailure is { } failure)
             return DescribeTypeResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -57,23 +56,13 @@ public sealed class DescribeTypeTool
             .Select(i => i.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
             .ToImmutableList();
 
-        return new DescribeTypeResult(
-            Status: "found",
-            Name: type.Name,
-            FullyQualifiedName: type.ToDisplayString(),
-            Kind: type.TypeKind.ToString(),
-            Accessibility: type.DeclaredAccessibility.ToString(),
-            IsSealed: type.IsSealed,
-            IsAbstract: type.IsAbstract,
-            IsStatic: type.IsStatic,
-            ProjectName: resolved.Project.Name,
-            FilePath: type.Locations.FirstOrDefault()?.GetLineSpan().Path,
-            Line: type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
-            BaseTypes: [.. baseTypes],
-            Interfaces: interfaces,
-            Members: members,
-            Candidates: [],
-            Message: null);
+        return DescribeTypeResult.Found(
+            type.Name, type.ToDisplayString(), type.TypeKind.ToString(),
+            type.DeclaredAccessibility.ToString(), type.IsSealed, type.IsAbstract, type.IsStatic,
+            resolved.Project.Name,
+            type.Locations.FirstOrDefault()?.GetLineSpan().Path,
+            type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
+            [.. baseTypes], interfaces, members);
     }
 }
 
@@ -101,6 +90,15 @@ public sealed record DescribeTypeResult(
         "ambiguous", typeName, null, null, null, false, false, false,
         null, null, null, [], [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+
+    public static DescribeTypeResult Found(
+        string name, string fullyQualifiedName, string kind, string accessibility,
+        bool isSealed, bool isAbstract, bool isStatic, string projectName,
+        string? filePath, int? line,
+        ImmutableList<string> baseTypes, ImmutableList<string> interfaces,
+        ImmutableList<MemberEntry> members) => new(
+        "found", name, fullyQualifiedName, kind, accessibility, isSealed, isAbstract, isStatic,
+        projectName, filePath, line, baseTypes, interfaces, members, [], null);
 }
 
 public sealed record MemberEntry(

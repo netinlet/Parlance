@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -14,10 +13,8 @@ public sealed class FindReferencesTool
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
     public static async Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<FindReferencesTool> logger, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "find-references");
-
         if (holder.LoadFailure is { } failure)
             return FindReferencesResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -75,13 +72,7 @@ public sealed class FindReferencesTool
             .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
             .ToImmutableList();
 
-        return new FindReferencesResult(
-            Status: "found",
-            SymbolName: targetSymbol.ToDisplayString(),
-            TotalCount: totalCount,
-            FileGroups: fileGroups,
-            Candidates: [],
-            Message: null);
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups);
     }
 }
 
@@ -100,6 +91,8 @@ public sealed record FindReferencesResult(
     public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+    public static FindReferencesResult Found(string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups) => new(
+        "found", symbolName, totalCount, fileGroups, [], null);
 }
 
 public sealed record ReferenceFileGroup(string FilePath, ImmutableList<ReferenceLocation> Locations);

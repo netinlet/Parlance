@@ -17,7 +17,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     {
         logger.LogDebug("FindSymbols: {Name}, Filter: {Filter}, IgnoreCase: {IgnoreCase}", name, filter, ignoreCase);
 
-        var solutionAssemblyNames = Session.CurrentSolution.Projects
+        var solution = Session.CurrentSolution;
+        var solutionAssemblyNames = solution.Projects
             .Select(p => p.AssemblyName).ToHashSet();
 
         // FindDeclarationsAsync matches by simple (unqualified) name only.
@@ -27,7 +28,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var simpleName = isQualified ? name[(name.LastIndexOf('.') + 1)..] : name;
 
         var results = new List<ResolvedSymbol>();
-        await foreach (var (project, _) in GetCompilationsAsync(ct))
+        foreach (var project in solution.Projects)
         {
             var declarations = await SymbolFinder.FindDeclarationsAsync(project, simpleName, ignoreCase, filter, ct);
             results.AddRange(declarations.Select(s => new ResolvedSymbol(s, project)));
@@ -61,9 +62,42 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         return string.Join(".", parts).EndsWith(qualifiedName, comparison);
     }
 
+    public async Task<(ImmutableList<ResolvedSymbol> Results, int TotalCount)> SearchSymbolsAsync(
+        string query, SymbolFilter? kindFilter = null, int maxResults = 25,
+        CancellationToken ct = default)
+    {
+        logger.LogDebug("SearchSymbols: {Query}, Kind: {Kind}, Max: {Max}", query, kindFilter, maxResults);
+
+        var solution = Session.CurrentSolution;
+        var results = new List<ResolvedSymbol>(maxResults);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var totalCount = 0;
+
+        foreach (var project in solution.Projects)
+        {
+            var declarations = await SymbolFinder.FindDeclarationsAsync(
+                project, query, ignoreCase: true, filter: kindFilter ?? SymbolFilter.All, ct);
+
+            foreach (var symbol in declarations)
+            {
+                if (!symbol.CanBeReferencedByName)
+                    continue;
+                if (!seen.Add(symbol.ToDisplayString()))
+                    continue;
+
+                totalCount++;
+                if (results.Count < maxResults)
+                    results.Add(new ResolvedSymbol(symbol, project));
+            }
+        }
+
+        return (results.ToImmutableList(), totalCount);
+    }
+
     public async Task<Compilation?> GetCompilationAsync(string projectName, CancellationToken ct = default)
     {
-        var project = Session.CurrentSolution.Projects.FirstOrDefault(p => p.Name == projectName);
+        var solution = Session.CurrentSolution;
+        var project = solution.Projects.FirstOrDefault(p => p.Name == projectName);
         return project is null ? null : await GetCompilationAsync(project, ct);
     }
 
@@ -76,7 +110,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
     public async IAsyncEnumerable<(Project Project, Compilation Compilation)> GetCompilationsAsync(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        foreach (var project in Session.CurrentSolution.Projects)
+        var solution = Session.CurrentSolution;
+        foreach (var project in solution.Projects)
         {
             Compilation compilation;
             try
@@ -95,10 +130,11 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
     public async Task<SemanticModel?> GetSemanticModelAsync(string filePath, CancellationToken ct = default)
     {
-        var docId = Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+        var solution = Session.CurrentSolution;
+        var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
         if (docId is null) return null;
 
-        var document = Session.CurrentSolution.GetDocument(docId);
+        var document = solution.GetDocument(docId);
         if (document is null) return null;
 
         var compilation = await GetCompilationAsync(document.Project, ct);
@@ -118,6 +154,100 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         logger.LogDebug("FindImplementations: {Symbol}", symbol.ToDisplayString());
         var implementations = await SymbolFinder.FindImplementationsAsync(symbol, Session.CurrentSolution, cancellationToken: ct);
         return [.. implementations];
+    }
+
+    private const int MaxSubtypesPerLevel = 50;
+
+    public async Task<TypeHierarchyResult> GetTypeHierarchyAsync(
+        INamedTypeSymbol typeSymbol, int maxDepth = 1, CancellationToken ct = default)
+    {
+        logger.LogDebug("GetTypeHierarchy: {Type}, MaxDepth: {Depth}", typeSymbol.ToDisplayString(), maxDepth);
+
+        var supertypes = GetSupertypes(typeSymbol, maxDepth);
+        var subtypes = await GetSubtypesAsync(typeSymbol, maxDepth, 1, ct);
+
+        return new TypeHierarchyResult(supertypes, subtypes.Nodes, subtypes.Truncated);
+    }
+
+    private static ImmutableList<HierarchyNode> GetSupertypes(INamedTypeSymbol typeSymbol, int maxDepth, int currentDepth = 1)
+    {
+        if (currentDepth > maxDepth)
+            return [];
+
+        var nodes = new List<HierarchyNode>();
+
+        // Base class
+        if (typeSymbol.BaseType is { } baseType && baseType.SpecialType != SpecialType.System_Object)
+        {
+            var children = currentDepth < maxDepth
+                ? GetSupertypes(baseType, maxDepth, currentDepth + 1)
+                : [];
+            nodes.Add(ToHierarchyNode(baseType, "base_class", children));
+        }
+        else if (typeSymbol.BaseType is { SpecialType: SpecialType.System_Object } objectType)
+        {
+            // Include object but don't recurse past it
+            nodes.Add(ToHierarchyNode(objectType, "base_class", []));
+        }
+
+        // Direct interfaces (not inherited ones)
+        foreach (var iface in typeSymbol.Interfaces)
+        {
+            var children = currentDepth < maxDepth
+                ? GetSupertypes(iface, maxDepth, currentDepth + 1)
+                : [];
+            nodes.Add(ToHierarchyNode(iface, "interface", children));
+        }
+
+        return [.. nodes];
+    }
+
+    private async Task<(ImmutableList<HierarchyNode> Nodes, bool Truncated)> GetSubtypesAsync(
+        ISymbol typeSymbol, int maxDepth, int currentDepth, CancellationToken ct)
+    {
+        if (currentDepth > maxDepth)
+            return ([], false);
+
+        var implementations = await FindImplementationsAsync(typeSymbol, ct);
+        var truncated = implementations.Count > MaxSubtypesPerLevel;
+        var capped = implementations.Take(MaxSubtypesPerLevel).ToList();
+
+        // Relationship describes how the child relates to the parent:
+        // if the parent is an interface, children "implement" it; if a class, children "extend" it
+        var relationship = typeSymbol is INamedTypeSymbol { TypeKind: TypeKind.Interface } ? "interface" : "base_class";
+
+        var nodes = new List<HierarchyNode>();
+        foreach (var impl in capped)
+        {
+            var children = ImmutableList<HierarchyNode>.Empty;
+            if (currentDepth < maxDepth && impl is INamedTypeSymbol namedImpl)
+            {
+                var (childNodes, childTruncated) = await GetSubtypesAsync(namedImpl, maxDepth, currentDepth + 1, ct);
+                children = childNodes;
+                truncated = truncated || childTruncated;
+            }
+
+            nodes.Add(ToHierarchyNode(impl, relationship, children));
+        }
+
+        return ([.. nodes], truncated);
+    }
+
+    private static HierarchyNode ToHierarchyNode(ISymbol symbol, string relationship, ImmutableList<HierarchyNode> children)
+    {
+        var loc = symbol.Locations.FirstOrDefault();
+        var span = loc?.GetLineSpan();
+        var kind = symbol is INamedTypeSymbol namedType
+            ? namedType.TypeKind.ToString()
+            : symbol.Kind.ToString();
+        return new HierarchyNode(
+            symbol.Name,
+            symbol.ToDisplayString(),
+            kind,
+            relationship,
+            span?.Path,
+            span is null ? null : span.Value.StartLinePosition.Line + 1,
+            children);
     }
 
     public async Task<ISymbol?> GetSymbolAtPositionAsync(string filePath, int line, int column, CancellationToken ct = default)

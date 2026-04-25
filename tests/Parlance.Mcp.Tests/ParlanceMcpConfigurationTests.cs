@@ -82,6 +82,37 @@ public sealed class ParlanceMcpConfigurationTests
         Assert.Contains("--log-level requires a value", ex.Message);
     }
 
+    [Fact]
+    public void FromArgs_DefaultAnalyticsPath_IsRelativeToSolution()
+    {
+        var solutionPath = GetSolutionPath();
+        var config = ParlanceMcpConfiguration.FromArgs(["--solution-path", solutionPath]);
+
+        var expected = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(solutionPath))!, ".parlance", "logs");
+        Assert.Equal(expected, config.AnalyticsPath);
+    }
+
+    [Fact]
+    public void FromArgs_ExplicitAnalyticsPath_Overrides()
+    {
+        var solutionPath = GetSolutionPath();
+        var customPath = Path.Combine(Path.GetTempPath(), "my-analytics");
+        var config = ParlanceMcpConfiguration.FromArgs(
+            ["--solution-path", solutionPath, "--analytics-path", customPath]);
+
+        Assert.Equal(Path.GetFullPath(customPath), config.AnalyticsPath);
+    }
+
+    [Fact]
+    public void FromArgs_AnalyticsPathFlagWithoutValue_ThrowsDescriptiveError()
+    {
+        var solutionPath = GetSolutionPath();
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => ParlanceMcpConfiguration.FromArgs(["--solution-path", solutionPath, "--analytics-path"]));
+
+        Assert.Contains("--analytics-path requires a value", ex.Message);
+    }
+
     private static string GetSolutionPath()
     {
         var dir = Directory.GetCurrentDirectory();

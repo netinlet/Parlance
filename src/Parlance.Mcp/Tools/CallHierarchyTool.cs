@@ -3,7 +3,6 @@ using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,10 +15,8 @@ public sealed class CallHierarchyTool
     [Description("Returns callers (incoming calls) and callees (outgoing calls) for a method, one level deep.")]
     public static async Task<CallHierarchyResult> GetCallHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<CallHierarchyTool> logger, string methodName, CancellationToken ct)
+        string methodName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "call-hierarchy");
-
         if (holder.LoadFailure is { } failure)
             return CallHierarchyResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -114,13 +111,8 @@ public sealed class CallHierarchyTool
             }
         }
 
-        return new CallHierarchyResult(
-            Status: "found",
-            TargetMethod: targetSymbol.ToDisplayString(),
-            Callers: callersBuilder.ToImmutable(),
-            Callees: calleesBuilder.ToImmutable(),
-            Candidates: [],
-            Message: null);
+        return CallHierarchyResult.Found(
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable());
     }
 }
 
@@ -137,6 +129,9 @@ public sealed record CallHierarchyResult(
     public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", methodName, [], [], candidates,
         $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
+    public static CallHierarchyResult Found(
+        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees) => new(
+        "found", targetMethod, callers, callees, [], null);
 }
 
 public sealed record HierarchyEntry(

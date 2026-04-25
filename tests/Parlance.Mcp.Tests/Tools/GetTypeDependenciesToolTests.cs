@@ -27,7 +27,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
     {
         // WorkspaceQueryService has dependencies on WorkspaceSessionHolder and ILogger
         var result = await GetTypeDependenciesTool.GetTypeDependencies(
-            _holder, _query, NullLogger<GetTypeDependenciesTool>.Instance,
+            _holder, _query,
             "WorkspaceQueryService", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -41,7 +41,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
     {
         // WorkspaceQueryService is referenced by many tools via DI
         var result = await GetTypeDependenciesTool.GetTypeDependencies(
-            _holder, _query, NullLogger<GetTypeDependenciesTool>.Instance,
+            _holder, _query,
             "WorkspaceQueryService", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -53,7 +53,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
     {
         // No framework types (like System.Object, System.String) should appear as dependencies
         var result = await GetTypeDependenciesTool.GetTypeDependencies(
-            _holder, _query, NullLogger<GetTypeDependenciesTool>.Instance,
+            _holder, _query,
             "WorkspaceQueryService", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -65,7 +65,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
     public async Task GetTypeDependencies_NotFound_ReturnsNotFound()
     {
         var result = await GetTypeDependenciesTool.GetTypeDependencies(
-            _holder, _query, NullLogger<GetTypeDependenciesTool>.Instance,
+            _holder, _query,
             "ThisTypeDoesNotExistAnywhere", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -80,7 +80,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetTypeDependenciesTool.GetTypeDependencies(
-            holder, query, NullLogger<GetTypeDependenciesTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -96,7 +96,7 @@ public sealed class GetTypeDependenciesToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = GetTypeDependenciesTool.GetTypeDependencies(
-            holder, query, NullLogger<GetTypeDependenciesTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

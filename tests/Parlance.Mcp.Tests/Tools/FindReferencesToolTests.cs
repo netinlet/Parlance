@@ -26,7 +26,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
     public async Task FindReferences_FindsReferencesOfKnownSymbol()
     {
         var result = await FindReferencesTool.FindReferences(
-            _holder, _query, NullLogger<FindReferencesTool>.Instance,
+            _holder, _query,
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -45,7 +45,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
     public async Task FindReferences_NotFound_ReturnsNotFound()
     {
         var result = await FindReferencesTool.FindReferences(
-            _holder, _query, NullLogger<FindReferencesTool>.Instance,
+            _holder, _query,
             "ThisSymbolDoesNotExistAnywhere", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -60,7 +60,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = FindReferencesTool.FindReferences(
-            holder, query, NullLogger<FindReferencesTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -76,7 +76,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = FindReferencesTool.FindReferences(
-            holder, query, NullLogger<FindReferencesTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

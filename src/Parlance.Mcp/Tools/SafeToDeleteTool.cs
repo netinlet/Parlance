@@ -1,7 +1,6 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -15,10 +14,8 @@ public sealed class SafeToDeleteTool
                  "Returns safe=true only if there are zero references.")]
     public static async Task<SafeToDeleteResult> CheckSafeToDelete(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<SafeToDeleteTool> logger, string symbolName, CancellationToken ct)
+        string symbolName, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "safe-to-delete");
-
         if (holder.LoadFailure is { } failure)
             return SafeToDeleteResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -52,14 +49,8 @@ public sealed class SafeToDeleteTool
             }
         }
 
-        return new SafeToDeleteResult(
-            Status: "found",
-            SymbolName: symbol.ToDisplayString(),
-            Safe: totalCount == 0,
-            ReferenceCount: totalCount,
-            SampleLocations: [.. locations],
-            Candidates: [],
-            Message: null);
+        return SafeToDeleteResult.Found(
+            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations]);
     }
 }
 
@@ -78,6 +69,10 @@ public sealed record SafeToDeleteResult(
     public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, false, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+    public static SafeToDeleteResult Found(
+        string symbolName, bool safe, int referenceCount,
+        ImmutableList<DeleteReferenceLocation> sampleLocations) => new(
+        "found", symbolName, safe, referenceCount, sampleLocations, [], null);
 }
 
 public sealed record DeleteReferenceLocation(string? FilePath, int Line);

@@ -1,6 +1,8 @@
+using Parlance.Analysis;
+
 namespace Parlance.Cli.Formatting;
 
 internal interface IOutputFormatter
 {
-    string Format(AnalysisOutput output);
+    string Format(FileAnalysisResult result);
 }

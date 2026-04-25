@@ -31,6 +31,15 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            src/Parlance.Agent/Core/package-lock.json
+            src/Parlance.Agent/Adapter.Claude/package-lock.json
+
       - name: Cache NuGet packages
         uses: actions/cache@v5
         with:
@@ -40,44 +49,38 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Pack analyzers into local feed
-        run: |
-          dotnet pack src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj \
-            --output /tmp/parlance-local-feed \
-            --configuration Release
-          dotnet nuget add source /tmp/parlance-local-feed --name parlance-local
+        run: make local-feed
 
       - name: Restore dependencies
-        run: dotnet restore Parlance.sln
+        run: make restore
+
+      - name: Validate agent workspaces
+        run: make agent-ci
+
+      - name: Verify committed agent bundles are fresh
+        run: make agent-dist-check
 
       - name: Verify code formatting
-        run: dotnet format Parlance.sln --verify-no-changes --verbosity diagnostic
+        run: make format
 
       - name: Build solution
-        run: dotnet build Parlance.sln --configuration Release --no-restore
+        run: make build
 
       - name: Prepare test results directory
-        run: |
-          rm -rf "$TEST_RESULTS_DIR"
-          mkdir -p "$TEST_RESULTS_DIR"
+        run: make test-results-dir
 
       - name: Run tests
-        run: >
-          dotnet test Parlance.sln
-          --configuration Release
-          --no-build
-          --collect:"XPlat Code Coverage"
-          --results-directory "$TEST_RESULTS_DIR"
+        run: make test
 
       - name: Generate coverage report
         if: success()
         run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          reportgenerator "-reports:${TEST_RESULTS_DIR}/**/coverage.cobertura.xml" "-targetdir:${TEST_RESULTS_DIR}/CoverageReport" -reporttypes:'Cobertura;HtmlSummary;MarkdownSummaryGithub'
+          make coverage-report
           cat "${TEST_RESULTS_DIR}/CoverageReport/SummaryGithub.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test artifacts
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: ${{ env.TEST_RESULTS_DIR }}

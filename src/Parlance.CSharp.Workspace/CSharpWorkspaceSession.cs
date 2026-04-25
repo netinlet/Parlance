@@ -12,7 +12,7 @@ using Parlance.CSharp.Workspace.Internal;
 
 namespace Parlance.CSharp.Workspace;
 
-public sealed class CSharpWorkspaceSession : IAsyncDisposable
+public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
 {
     // Load-only after LoadAsync completes. Never use _workspace.CurrentSolution as a
     // source of truth — it is not updated after the initial load. Use CurrentSolution instead.
@@ -232,6 +232,14 @@ public sealed class CSharpWorkspaceSession : IAsyncDisposable
             },
             options ?? new WorkspaceOpenOptions(),
             ct);
+    }
+
+    public void Dispose()
+    {
+        _watcher?.Dispose();
+        _solutionLock.Dispose();
+        _workspace.Dispose();
+        _logger.LogInformation("Workspace session disposed (sync): {Path}", WorkspacePath);
     }
 
     public async ValueTask DisposeAsync()

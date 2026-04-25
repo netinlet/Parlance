@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
 using Parlance.CSharp.Workspace;
 
@@ -16,10 +15,8 @@ public sealed class OutlineFileTool
                  "Use absolute file paths.")]
     public static async Task<OutlineFileResult> OutlineFile(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        ILogger<OutlineFileTool> logger, string filePath, CancellationToken ct)
+        string filePath, CancellationToken ct)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "outline-file");
-
         if (holder.LoadFailure is { } failure)
             return OutlineFileResult.LoadFailed(failure.Message);
         if (!holder.IsLoaded)
@@ -76,12 +73,11 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return new OutlineFileResult("found", filePath, types, null);
+        return OutlineFileResult.Found(filePath, types);
     }
 }
 
-public sealed record OutlineFileResult(
-    string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
+public sealed record OutlineFileResult(string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
 {
     public static OutlineFileResult NotFound(string filePath) => new(
         "not_found", filePath, [], $"File '{filePath}' not found in workspace");
@@ -89,6 +85,8 @@ public sealed record OutlineFileResult(
         "not_loaded", null, [], "Workspace is still loading");
     public static OutlineFileResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
+    public static OutlineFileResult Found(string filePath, ImmutableList<OutlineType> types) => new(
+        "found", filePath, types, null);
 }
 
 public sealed record OutlineType(

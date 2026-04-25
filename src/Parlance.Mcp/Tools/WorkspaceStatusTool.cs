@@ -16,8 +16,6 @@ public sealed class WorkspaceStatusTool
         ParlanceMcpConfiguration configuration,
         ILogger<WorkspaceStatusTool> logger)
     {
-        using var _ = ToolDiagnostics.TimeToolCall(logger, "workspace-status");
-
         if (holder.LoadFailure is { } failure)
         {
             logger.LogWarning("Workspace load failed: {Message}", failure.Message);

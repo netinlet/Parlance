@@ -1,0 +1,5 @@
+#!/bin/sh
+if grep -qi "^Co-authored-by:" "$1"; then
+  echo "error: commit message contains Co-authored-by attribution — remove it and try again" >&2
+  exit 1
+fi

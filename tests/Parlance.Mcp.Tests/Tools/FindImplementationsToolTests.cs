@@ -26,12 +26,12 @@ public sealed class FindImplementationsToolTests : IAsyncLifetime
     public async Task FindImplementations_FindsImplementorsOfKnownInterface()
     {
         var result = await FindImplementationsTool.FindImplementations(
-            _holder, _query, NullLogger<FindImplementationsTool>.Instance,
-            "IAnalysisEngine", CancellationToken.None);
+            _holder, _query,
+            "IOutputFormatter", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.NotNull(result.TargetType);
-        Assert.Contains("IAnalysisEngine", result.TargetType);
+        Assert.Contains("IOutputFormatter", result.TargetType);
         Assert.NotEmpty(result.Implementations);
         Assert.All(result.Implementations, entry => Assert.NotNull(entry.FullyQualifiedName));
     }
@@ -40,7 +40,7 @@ public sealed class FindImplementationsToolTests : IAsyncLifetime
     public async Task FindImplementations_NotFound_ReturnsNotFound()
     {
         var result = await FindImplementationsTool.FindImplementations(
-            _holder, _query, NullLogger<FindImplementationsTool>.Instance,
+            _holder, _query,
             "IThisInterfaceDoesNotExist", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -54,7 +54,7 @@ public sealed class FindImplementationsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = FindImplementationsTool.FindImplementations(
-            holder, query, NullLogger<FindImplementationsTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -69,7 +69,7 @@ public sealed class FindImplementationsToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = FindImplementationsTool.FindImplementations(
-            holder, query, NullLogger<FindImplementationsTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);

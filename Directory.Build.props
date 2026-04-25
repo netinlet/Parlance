@@ -1,10 +1,10 @@
 <Project>
   <PropertyGroup>
     <Version>0.1.0</Version>
-    <Authors>NetInlet</Authors>
-    <Company>NetInlet</Company>
-    <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <RepositoryUrl>https://github.com/netinlet/parlance</RepositoryUrl>
+    <Authors>Doug Bryant</Authors>
+    <Company>Netinlet</Company>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/netinlet/Parlance</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 </Project>

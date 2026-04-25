@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "parlance": {
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project", "/absolute/path/to/parlance/src/Parlance.Mcp",
+        "--",
+        "--solution-path", "/absolute/path/to/YourSolution.sln"
+      ]
+    }
+  }
+}

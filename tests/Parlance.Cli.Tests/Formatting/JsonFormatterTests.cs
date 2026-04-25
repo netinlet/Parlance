@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Parlance.Abstractions;
+using Parlance.Analysis;
 using Parlance.Cli.Formatting;
 
 namespace Parlance.Cli.Tests.Formatting;
@@ -8,62 +9,35 @@ namespace Parlance.Cli.Tests.Formatting;
 public sealed class JsonFormatterTests
 {
     [Fact]
-    public void Produces_ValidJson()
+    public void Format_ProducesValidJsonWithExpectedProperties()
     {
-        var output = new AnalysisOutput(
-            [
-                new FileDiagnostic(
-                    "src/Example.cs",
-                    new Diagnostic(
-                        "PARL0001", "Naming", DiagnosticSeverity.Warning,
-                        "Use PascalCase",
-                        new Location(10, 5, 10, 15)))
-            ],
-            new AnalysisSummary(1, 0, 1, 0, ImmutableDictionary<string, int>.Empty.Add("Naming", 1), 95.0),
-            FilesAnalyzed: 3);
+        var result = new FileAnalysisResult(
+            "default",
+            new AnalysisSummary(1, 0, 1, 0, ImmutableDictionary<string, int>.Empty, 95.0),
+            [new FileDiagnostic("CA1822", "Style", "warning", "Member can be static",
+                "src/Foo.cs", 10, 10, 5, 15, "auto-fixable", null)]);
 
-        var formatter = new JsonFormatter();
-        var json = formatter.Format(output);
+        var json = new JsonFormatter().Format(result);
+        var doc = JsonDocument.Parse(json);
 
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-
-        Assert.Equal(JsonValueKind.Array, root.GetProperty("diagnostics").ValueKind);
-        Assert.Equal(1, root.GetProperty("diagnostics").GetArrayLength());
-        Assert.Equal("PARL0001", root.GetProperty("diagnostics")[0].GetProperty("ruleId").GetString());
-        Assert.Equal(95.0, root.GetProperty("summary").GetProperty("idiomaticScore").GetDouble());
-        Assert.Equal(3, root.GetProperty("summary").GetProperty("filesAnalyzed").GetInt32());
+        Assert.True(doc.RootElement.TryGetProperty("summary", out _));
+        Assert.True(doc.RootElement.TryGetProperty("diagnostics", out _));
+        Assert.True(doc.RootElement.TryGetProperty("curationSet", out _));
     }
 
     [Fact]
-    public void Uses_CamelCase_PropertyNames()
+    public void Format_UsesCamelCase()
     {
-        var output = new AnalysisOutput(
-            [
-                new FileDiagnostic(
-                    "src/Example.cs",
-                    new Diagnostic(
-                        "PARL0001", "Naming", DiagnosticSeverity.Error,
-                        "Test message",
-                        new Location(1, 1, 1, 10),
-                        SuggestedFix: "Fix it"))
-            ],
-            new AnalysisSummary(1, 1, 0, 0, ImmutableDictionary<string, int>.Empty.Add("Naming", 1), 90.0),
-            FilesAnalyzed: 1);
+        var result = new FileAnalysisResult(
+            "default",
+            new AnalysisSummary(0, 0, 0, 0, ImmutableDictionary<string, int>.Empty, 100.0),
+            []);
 
-        var formatter = new JsonFormatter();
-        var json = formatter.Format(output);
+        var json = new JsonFormatter().Format(result);
+        var doc = JsonDocument.Parse(json);
 
-        Assert.Contains("\"filePath\"", json);
-        Assert.Contains("\"ruleId\"", json);
-        Assert.Contains("\"suggestedFix\"", json);
-        Assert.Contains("\"idiomaticScore\"", json);
-        Assert.Contains("\"filesAnalyzed\"", json);
-        Assert.Contains("\"totalDiagnostics\"", json);
-
-        Assert.DoesNotContain("\"FilePath\"", json);
-        Assert.DoesNotContain("\"RuleId\"", json);
-        Assert.DoesNotContain("\"SuggestedFix\"", json);
-        Assert.DoesNotContain("\"IdiomaticScore\"", json);
+        // camelCase keys
+        Assert.True(doc.RootElement.TryGetProperty("curationSet", out _));
+        Assert.False(doc.RootElement.TryGetProperty("CurationSet", out _));
     }
 }

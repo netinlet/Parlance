@@ -26,7 +26,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
     public async Task DescribeType_FindsKnownType()
     {
         var result = await DescribeTypeTool.DescribeType(
-            _holder, _query, NullLogger<DescribeTypeTool>.Instance,
+            _holder, _query,
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -42,7 +42,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
     public async Task DescribeType_FullyQualifiedName_ResolvesUnambiguously()
     {
         var result = await DescribeTypeTool.DescribeType(
-            _holder, _query, NullLogger<DescribeTypeTool>.Instance,
+            _holder, _query,
             "Parlance.CSharp.Workspace.CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
@@ -54,7 +54,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
     {
         // "Diagnostic" exists in both Parlance.Abstractions and Microsoft.CodeAnalysis
         var result = await DescribeTypeTool.DescribeType(
-            _holder, _query, NullLogger<DescribeTypeTool>.Instance,
+            _holder, _query,
             "Diagnostic", CancellationToken.None);
 
         Assert.True(result.Status is "found" or "ambiguous",
@@ -69,7 +69,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
     public async Task DescribeType_NotFound_ReturnsNotFound()
     {
         var result = await DescribeTypeTool.DescribeType(
-            _holder, _query, NullLogger<DescribeTypeTool>.Instance,
+            _holder, _query,
             "ThisTypeDoesNotExist", CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
@@ -82,7 +82,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = DescribeTypeTool.DescribeType(
-            holder, query, NullLogger<DescribeTypeTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
@@ -96,7 +96,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
 
         var result = DescribeTypeTool.DescribeType(
-            holder, query, NullLogger<DescribeTypeTool>.Instance,
+            holder, query,
             "Anything", CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
