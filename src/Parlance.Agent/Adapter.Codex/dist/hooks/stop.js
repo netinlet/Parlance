@@ -335,7 +335,7 @@ async function main() {
         cache_write_tokens: 0
       }
     });
-    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) - ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
+    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) \u2014 ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
 `;
     const logPath = sessionLogFile(translated.context.project_root);
     mkdirSync2(dirname2(logPath), { recursive: true });

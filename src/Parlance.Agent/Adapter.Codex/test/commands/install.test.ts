@@ -72,6 +72,13 @@ describe('install command', () => {
     expect(body).toContain(join(root, 'App.sln'));
   });
 
+  it('uses --mcp-command in Codex MCP setup guidance', async () => {
+    await runInstall(['--project', root, '--solution', 'App.sln', '--mcp-command', '/opt/parlance/bin/parlance']);
+
+    const body = readFileSync(join(root, '.parlance/codex/mcp-setup.md'), 'utf8');
+    expect(body).toContain('codex mcp add parlance -- /opt/parlance/bin/parlance mcp --solution-path');
+  });
+
   it('enables codex_hooks without clobbering existing config', async () => {
     mkdirSync(join(root, '.codex'), { recursive: true });
     writeFileSync(join(root, '.codex/config.toml'), 'model = "gpt-5.4"\n\n[features]\nfoo = true\n');

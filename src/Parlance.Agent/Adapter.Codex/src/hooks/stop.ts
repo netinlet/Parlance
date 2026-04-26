@@ -37,7 +37,7 @@ async function main(): Promise<void> {
       },
     });
 
-    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) - ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out\n`;
+    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) — ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out\n`;
     const logPath = sessionLogFile(translated.context.project_root);
     mkdirSync(dirname(logPath), { recursive: true });
     appendFileSync(logPath, line);

@@ -40,7 +40,7 @@ export async function runInstall(argv: string[]): Promise<number> {
 
   copyHookBundles(hooksDir(root));
   writeFileSync(routingFile(root), generateRoutingDoc());
-  writeMcpSetupDoc(root, resolve(root, args.solution));
+  writeMcpSetupDoc(root, resolve(root, args.solution), args.mcpCommand ?? 'parlance');
   writeHooksJson(join(codexDir, 'hooks.json'));
   writeConfigToml(join(codexDir, 'config.toml'));
 
@@ -127,9 +127,9 @@ function writeConfigToml(path: string): void {
   writeFileSync(path, next);
 }
 
-function writeMcpSetupDoc(root: string, solutionAbs: string): void {
+function writeMcpSetupDoc(root: string, solutionAbs: string, mcpCommand: string): void {
   const path = join(parlanceDir(root), 'codex', 'mcp-setup.md');
-  const command = `codex mcp add parlance -- parlance mcp --solution-path ${JSON.stringify(solutionAbs)}`;
+  const command = `codex mcp add parlance -- ${shellQuote(mcpCommand)} mcp --solution-path ${shellQuote(solutionAbs)}`;
   const body = [
     '# Parlance MCP Setup for Codex',
     '',
@@ -144,6 +144,11 @@ function writeMcpSetupDoc(root: string, solutionAbs: string): void {
   ].join('\n');
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, body);
+}
+
+function shellQuote(value: string): string {
+  if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 export function withCodexHooksFeature(existing: string): string {
