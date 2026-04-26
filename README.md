@@ -102,6 +102,40 @@ Options:
 - `--fixable` — show only rules with auto-fixes
 - `-f, --format text|json` — output format (default: `text`)
 
+### Agent adapters
+
+Parlance can install lightweight lifecycle hooks for supported coding agents.
+The hooks nudge agents toward Parlance MCP tools for C# workspace questions and
+record session telemetry under `.parlance/`.
+
+**Claude Code:**
+
+```bash
+dotnet run --project src/Parlance.Cli -- \
+  agent install --for claude -- \
+  --project /path/to/repo \
+  --solution /path/to/repo/App.sln
+```
+
+**Codex:**
+
+```bash
+dotnet run --project src/Parlance.Cli -- \
+  agent install --for codex -- \
+  --project /path/to/repo \
+  --solution /path/to/repo/App.sln
+```
+
+The Codex adapter writes `.codex/hooks.json` and enables `[features] codex_hooks = true`
+in `.codex/config.toml`. If `.codex` already exists as a file, installation fails
+without replacing it. The `--solution` path is used to write
+`.parlance/codex/mcp-setup.md`, which contains the `codex mcp add parlance -- parlance mcp --solution-path ...`
+command to run in your Codex shell after hook installation. Codex Bash hook
+events are recorded in `.parlance/codex/events/bash.jsonl` with bounded,
+redacted command/output metadata for future tuning. `PostToolUse` records
+telemetry only; it does not replace Codex tool results for normal Parlance
+routing guidance.
+
 ## Building
 
 ```bash

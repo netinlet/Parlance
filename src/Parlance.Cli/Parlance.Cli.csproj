@@ -39,6 +39,12 @@
       <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
       <TargetPath>bundles/Parlance.Agent.Adapter.Claude/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
     </Content>
+    <Content Include="..\..\src\Parlance.Agent\Adapter.Codex\dist\**\*.js">
+      <Pack>false</Pack>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <TargetPath>bundles/Parlance.Agent.Adapter.Codex/%(RecursiveDir)%(Filename)%(Extension)</TargetPath>
+    </Content>
   </ItemGroup>
 
 </Project>
