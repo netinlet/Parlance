@@ -16,10 +16,20 @@ public sealed class GetTypeDependenciesTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string typeName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return GetTypeDependenciesResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetTypeDependenciesResult.NotLoaded();
+        CSharpWorkspaceSession session;
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return GetTypeDependenciesResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return GetTypeDependenciesResult.NotLoaded();
+            case WorkspaceState.Loaded loaded:
+                session = loaded.Session;
+                break;
+            default:
+                throw new InvalidOperationException("Unreachable");
+        }
 
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
@@ -33,7 +43,7 @@ public sealed class GetTypeDependenciesTool
             return GetTypeDependenciesResult.NotFound(typeName);
 
         // Get all solution assembly names to filter out framework types
-        var solution = holder.Session.CurrentSolution;
+        var solution = session.CurrentSolution;
         var solutionAssemblies = solution.Projects
             .Select(p => p.AssemblyName)
             .ToHashSet();

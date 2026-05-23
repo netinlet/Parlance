@@ -15,10 +15,14 @@ public sealed class FindImplementationsTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string typeName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return FindImplementationsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return FindImplementationsResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return FindImplementationsResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return FindImplementationsResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)

@@ -23,10 +23,14 @@ public sealed class SearchSymbolsTool
         int maxResults = 25,
         CancellationToken ct = default)
     {
-        if (holder.LoadFailure is { } failure)
-            return SearchSymbolsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return SearchSymbolsResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return SearchSymbolsResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return SearchSymbolsResult.NotLoaded();
+        }
 
         if (string.IsNullOrWhiteSpace(searchQuery))
             return SearchSymbolsResult.Error("searchQuery must not be blank.");

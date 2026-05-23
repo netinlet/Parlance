@@ -15,10 +15,14 @@ public sealed class FindReferencesTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string symbolName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return FindReferencesResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return FindReferencesResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return FindReferencesResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return FindReferencesResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)

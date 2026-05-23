@@ -16,10 +16,14 @@ public sealed class SafeToDeleteTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string symbolName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return SafeToDeleteResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return SafeToDeleteResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return SafeToDeleteResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return SafeToDeleteResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)

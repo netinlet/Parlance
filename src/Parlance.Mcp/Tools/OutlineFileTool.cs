@@ -17,10 +17,14 @@ public sealed class OutlineFileTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string filePath, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return OutlineFileResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return OutlineFileResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return OutlineFileResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return OutlineFileResult.NotLoaded();
+        }
 
         var semanticModel = await query.GetSemanticModelAsync(filePath, ct);
         if (semanticModel is null)

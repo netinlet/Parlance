@@ -17,10 +17,14 @@ public sealed class CallHierarchyTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string methodName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return CallHierarchyResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return CallHierarchyResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return CallHierarchyResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return CallHierarchyResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(methodName, SymbolFilter.Member, ct: ct);
         var methodSymbols = symbols.Where(s => s.Symbol is IMethodSymbol).ToImmutableList();

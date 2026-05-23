@@ -35,17 +35,27 @@ public sealed class GetRefactoringsTool
         if (endLine is not null && (endLine.Value < 1 || endColumn!.Value < 1))
             return GetRefactoringsResult.Error("endLine and endColumn must be >= 1 (1-based).");
 
-        if (holder.LoadFailure is { } failure)
-            return GetRefactoringsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetRefactoringsResult.NotLoaded();
+        CSharpWorkspaceSession session;
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return GetRefactoringsResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return GetRefactoringsResult.NotLoaded();
+            case WorkspaceState.Loaded loaded:
+                session = loaded.Session;
+                break;
+            default:
+                throw new InvalidOperationException("Unreachable");
+        }
 
         var refactorings = await codeActions.GetRefactoringsAsync(
             filePath, line, column, endLine, endColumn, ct);
 
         if (refactorings.IsEmpty)
         {
-            var docId = holder.Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
             if (docId is null)
                 return GetRefactoringsResult.NotFound(filePath);
             return GetRefactoringsResult.NoRefactorings(filePath);

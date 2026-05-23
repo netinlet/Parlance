@@ -25,10 +25,14 @@ public sealed class GotoDefinitionTool
         int? column = null,
         CancellationToken ct = default)
     {
-        if (holder.LoadFailure is { } failure)
-            return GotoDefinitionResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GotoDefinitionResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return GotoDefinitionResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return GotoDefinitionResult.NotLoaded();
+        }
 
         var hasPosition = filePath is not null && line is not null && column is not null;
         var hasPartialPosition = filePath is not null && (line is null || column is null);

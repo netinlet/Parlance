@@ -19,10 +19,14 @@ public sealed class GetSymbolDocsTool
         ILogger<GetSymbolDocsTool> logger,
         string symbolName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return GetSymbolDocsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetSymbolDocsResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return GetSymbolDocsResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return GetSymbolDocsResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)

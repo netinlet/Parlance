@@ -21,7 +21,7 @@ public sealed class AnalysisService(
         CancellationToken ct = default)
     {
         options ??= new AnalyzeOptions();
-        var session = holder.Session;
+        var session = holder.RequireSession();
         var solution = session.CurrentSolution;
 
         // Validate curation set up front

@@ -20,15 +20,25 @@ public sealed class AnalyzeTool
         int? maxDiagnostics = null,
         CancellationToken ct = default)
     {
-        if (holder.LoadFailure is { } failure)
-            return AnalyzeToolResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return AnalyzeToolResult.NotLoaded();
+        CSharpWorkspaceSession session;
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return AnalyzeToolResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return AnalyzeToolResult.NotLoaded();
+            case WorkspaceState.Loaded loaded:
+                session = loaded.Session;
+                break;
+            default:
+                throw new InvalidOperationException("Unreachable");
+        }
 
         // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
         // GetFullPath normalises .. segments for both relative and rooted inputs.
         // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
-        var workspaceRoot = Path.GetDirectoryName(holder.Session.WorkspacePath)!;
+        var workspaceRoot = Path.GetDirectoryName(session.WorkspacePath)!;
         var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)

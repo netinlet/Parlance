@@ -19,10 +19,14 @@ public sealed class GetTypeAtTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string filePath, int line, int column, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return GetTypeAtResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetTypeAtResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return GetTypeAtResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return GetTypeAtResult.NotLoaded();
+        }
 
         // Convert from 1-based (editor) to 0-based (Roslyn)
         var zeroLine = line - 1;

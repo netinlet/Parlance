@@ -9,7 +9,7 @@ namespace Parlance.CSharp.Workspace;
 
 public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger<WorkspaceQueryService> logger)
 {
-    private CSharpWorkspaceSession Session => holder.Session;
+    private CSharpWorkspaceSession Session => holder.RequireSession();
 
     public async Task<ImmutableList<ResolvedSymbol>> FindSymbolsAsync(
         string name, SymbolFilter filter = SymbolFilter.All, bool ignoreCase = false,

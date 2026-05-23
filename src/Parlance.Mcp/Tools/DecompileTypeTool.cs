@@ -21,10 +21,14 @@ public sealed class DecompileTypeTool
         ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return DecompileTypeResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return DecompileTypeResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return DecompileTypeResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return DecompileTypeResult.NotLoaded();
+        }
 
         await foreach (var (project, compilation) in query.GetCompilationsAsync(ct))
         {

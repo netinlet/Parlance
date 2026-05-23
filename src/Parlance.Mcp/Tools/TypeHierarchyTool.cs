@@ -26,10 +26,14 @@ public sealed class TypeHierarchyTool
         if (maxDepth < 1)
             return TypeHierarchyToolResult.Error("maxDepth must be >= 1.");
 
-        if (holder.LoadFailure is { } failure)
-            return TypeHierarchyToolResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return TypeHierarchyToolResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return TypeHierarchyToolResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return TypeHierarchyToolResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)

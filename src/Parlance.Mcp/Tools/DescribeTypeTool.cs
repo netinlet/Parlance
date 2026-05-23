@@ -18,10 +18,14 @@ public sealed class DescribeTypeTool
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string typeName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return DescribeTypeResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return DescribeTypeResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return DescribeTypeResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return DescribeTypeResult.NotLoaded();
+        }
 
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
 

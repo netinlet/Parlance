@@ -20,10 +20,14 @@ public sealed class PreviewCodeActionTool
         string actionId,
         CancellationToken ct = default)
     {
-        if (holder.LoadFailure is { } failure)
-            return PreviewCodeActionResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return PreviewCodeActionResult.NotLoaded();
+        switch (holder.State)
+        {
+            case WorkspaceState.LoadFailed failed:
+                return PreviewCodeActionResult.LoadFailed(failed.Failure.Message);
+            case WorkspaceState.NotLoaded:
+            case WorkspaceState.Disposed:
+                return PreviewCodeActionResult.NotLoaded();
+        }
 
         var preview = await codeActions.PreviewAsync(actionId, ct);
         if (preview is null)
