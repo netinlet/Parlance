@@ -79,4 +79,51 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
         Assert.NotNull(result.Summary);
         Assert.NotNull(result.Diagnostics);
     }
+
+    // Relative paths with .. that escape the workspace are rejected.
+    [Fact]
+    public async Task Analyze_RelativePathEscapingWorkspace_ReturnsError()
+    {
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [Path.Combine("..", "..", "..", "etc", "passwd")], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
+    }
+
+    // Rooted paths with .. traversal are normalised then rejected (bypass via absolute path).
+    [Fact]
+    public async Task Analyze_RootedPathWithTraversal_ReturnsError()
+    {
+        var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
+        var escapingPath = Path.Combine(solutionDir, "..", "etc", "passwd");
+
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [escapingPath], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
+    }
+
+    // Sibling-prefix paths are rejected (workspace-tmp/ is not under workspace/).
+    [Fact]
+    public async Task Analyze_SiblingPrefixPath_ReturnsError()
+    {
+        var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
+        var parentDir = Path.GetDirectoryName(solutionDir)!;
+        var siblingName = Path.GetFileName(solutionDir) + "-tmp";
+        var siblingPath = Path.Combine(parentDir, siblingName, "file.cs");
+
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [siblingPath], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
+    }
 }

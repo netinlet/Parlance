@@ -25,10 +25,24 @@ public sealed class AnalyzeTool
         if (!holder.IsLoaded)
             return AnalyzeToolResult.NotLoaded();
 
+        // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
+        // GetFullPath normalises .. segments for both relative and rooted inputs.
+        // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
+        var workspaceRoot = Path.GetDirectoryName(holder.Session.WorkspacePath)!;
+        var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var resolvedFiles = ImmutableList.CreateBuilder<string>();
+        foreach (var f in files)
+        {
+            var resolved = Path.IsPathRooted(f) ? Path.GetFullPath(f) : Path.GetFullPath(f, workspaceRoot);
+            if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
+                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.");
+            resolvedFiles.Add(resolved);
+        }
+
         try
         {
             var options = new AnalyzeOptions(curationSet, maxDiagnostics);
-            var result = await analysis.AnalyzeFilesAsync([.. files], options, ct);
+            var result = await analysis.AnalyzeFilesAsync(resolvedFiles.ToImmutable(), options, ct);
 
             return AnalyzeToolResult.Success(
                 result.CurationSet,

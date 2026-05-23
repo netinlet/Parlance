@@ -12,12 +12,13 @@ internal static class AnalyzeCommand
 {
     public static Command Create(IServiceProvider services)
     {
-        var pathArg = new Argument<string>("path") { Description = "Path to .sln or .csproj" };
+        var pathArg = new Argument<string>("path") { Description = "Path to .sln, .slnx, or .csproj" };
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
         formatOption.AcceptOnlyFromAmong("text", "json");
         var suppressOption = new Option<string[]>("--suppress") { Description = "Rule IDs to suppress" };
         suppressOption.DefaultValueFactory = _ => Array.Empty<string>();
+        suppressOption.AllowMultipleArgumentsPerToken = true;
         var maxDiagOption = new Option<int?>("--max-diagnostics") { Description = "Maximum number of diagnostics to report" };
         var curationSetOption = new Option<string?>("--curation-set") { Description = "Named curation set (default: project defaults)" };
 
@@ -37,9 +38,10 @@ internal static class AnalyzeCommand
             var curationSet = parseResult.GetValue(curationSetOption);
 
             if (!path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) &&
+                !path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) &&
                 !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
             {
-                await Console.Error.WriteLineAsync("Path must point to a .sln or .csproj file.");
+                await Console.Error.WriteLineAsync("Path must point to a .sln, .slnx, or .csproj file.");
                 Environment.ExitCode = 2;
                 return;
             }
@@ -59,7 +61,8 @@ internal static class AnalyzeCommand
             CSharpWorkspaceSession session;
             try
             {
-                session = path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase)
+                session = path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                          path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)
                     ? await CSharpWorkspaceSession.OpenSolutionAsync(path, openOptions, ct)
                     : await CSharpWorkspaceSession.OpenProjectAsync(path, openOptions, ct);
             }

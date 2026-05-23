@@ -27,7 +27,7 @@ ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.cspr
 .PHONY: help bootstrap restore local-feed \
 	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
-	format build build-cli build-mcp test test-results-dir coverage-report ci \
+	format build build-cli build-mcp test test-results-dir coverage-report ci dotnet-clean \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
 
 help:
@@ -61,7 +61,8 @@ help:
 		'  make format' \
 		'  make build-cli' \
 		'  make build-mcp' \
-		'  make test'
+		'  make test' \
+		'  make dotnet-clean      # dotnet clean only (no bin/obj wipe)'
 
 bootstrap: restore agent-install-deps
 
@@ -182,6 +183,9 @@ release-artifacts: pack-tool
 clean-agent:
 	rm -rf "$(AGENT_CORE_DIR)/out-ts"
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do rm -rf "$$dir/out-ts"; done
+
+dotnet-clean:
+	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)"
 
 clean: clean-agent
 	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null

@@ -95,7 +95,7 @@ public sealed class CliIntegrationTests
     {
         var (exitCode, _, stderr) = await RunCliAsync("analyze", "somefile.cs");
         Assert.Equal(2, exitCode);
-        Assert.Contains(".sln or .csproj", stderr);
+        Assert.Contains(".sln, .slnx, or .csproj", stderr);
     }
 
     [Fact]
