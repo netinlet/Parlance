@@ -12,29 +12,27 @@ public sealed class AnalyzeTool
     [McpServerTool(Name = "analyze", ReadOnly = true)]
     [Description("Run diagnostics on C# files. Returns analyzer findings with severity, " +
                  "fix classification, and rationale. Pass absolute file paths.")]
-    public static async Task<AnalyzeToolResult> Analyze(
+    public static Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
-        CancellationToken ct = default)
-    {
-        CSharpWorkspaceSession session;
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return AnalyzeToolResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return AnalyzeToolResult.NotLoaded();
-            case WorkspaceState.Loaded loaded:
-                session = loaded.Session;
-                break;
-            default:
-                throw new InvalidOperationException("Unreachable");
-        }
+        CancellationToken ct = default) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
+            loaded: session => RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct),
+            loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
 
+    private static async Task<AnalyzeToolResult> RunAsync(
+        AnalysisService analysis,
+        CSharpWorkspaceSession session,
+        string[] files,
+        string? curationSet,
+        int? maxDiagnostics,
+        CancellationToken ct)
+    {
         // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
         // GetFullPath normalises .. segments for both relative and rooted inputs.
         // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
