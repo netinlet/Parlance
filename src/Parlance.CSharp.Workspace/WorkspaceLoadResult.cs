@@ -15,4 +15,23 @@ public abstract record WorkspaceLoadResult
     public sealed record Success(CSharpWorkspaceSession Session) : WorkspaceLoadResult;
 
     public sealed record Failure(WorkspaceLoadFailure Reason) : WorkspaceLoadResult;
+
+    /// <summary>
+    /// Runs the matching side-effecting branch. Both handlers are required, so the
+    /// single unreachable lives here and adding a case is a compile error at call sites.
+    /// </summary>
+    public void Switch(Action<CSharpWorkspaceSession> onSuccess, Action<WorkspaceLoadFailure> onFailure)
+    {
+        switch (this)
+        {
+            case Success success:
+                onSuccess(success.Session);
+                break;
+            case Failure failure:
+                onFailure(failure.Reason);
+                break;
+            default:
+                throw new InvalidOperationException("Unreachable");
+        }
+    }
 }

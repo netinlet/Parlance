@@ -58,20 +58,23 @@ internal static class AnalyzeCommand
             var loggerFactory = services.GetRequiredService<ILoggerFactory>();
             var openOptions = new WorkspaceOpenOptions(Mode: WorkspaceMode.Report, LoggerFactory: loggerFactory);
 
-            CSharpWorkspaceSession session;
-            try
-            {
-                session = path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
-                          path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase)
-                    ? await CSharpWorkspaceSession.OpenSolutionAsync(path, openOptions, ct)
-                    : await CSharpWorkspaceSession.OpenProjectAsync(path, openOptions, ct);
-            }
-            catch (WorkspaceLoadException ex)
-            {
-                await Console.Error.WriteLineAsync($"Failed to load workspace: {ex.Message}");
-                Environment.ExitCode = 2;
+            var isSolution = path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
+                             path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
+            var outcome = isSolution
+                ? await CSharpWorkspaceSession.TryOpenSolutionAsync(path, openOptions, ct)
+                : await CSharpWorkspaceSession.TryOpenProjectAsync(path, openOptions, ct);
+
+            CSharpWorkspaceSession? session = null;
+            outcome.Switch(
+                onSuccess: s => session = s,
+                onFailure: reason =>
+                {
+                    Console.Error.WriteLine($"Failed to load workspace: {reason.Message}");
+                    Environment.ExitCode = 2;
+                });
+
+            if (session is null)
                 return;
-            }
 
             // Holder takes ownership; it disposes the session when the DI container disposes.
             holder.SetSession(session);
