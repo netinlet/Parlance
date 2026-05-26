@@ -48,6 +48,24 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Disposed_ReturnsNotLoaded()
+    {
+        var holder = new WorkspaceSessionHolder();
+        holder.Dispose();
+        var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
+        var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
+        var service = new AnalysisService(
+            holder, query, curationProvider,
+            NullLogger<AnalysisService>.Instance);
+
+        var result = AnalyzeTool.Analyze(
+            holder, service,
+            ["test.cs"], null, null, CancellationToken.None).Result;
+
+        Assert.Equal("not_loaded", result.Status);
+    }
+
+    [Fact]
     public void LoadFailed_ReturnsLoadFailed()
     {
         var holder = new WorkspaceSessionHolder();
