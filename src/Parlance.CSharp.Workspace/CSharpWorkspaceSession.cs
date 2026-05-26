@@ -234,6 +234,45 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             ct);
     }
 
+    /// <summary>
+    /// Opens a solution, returning the outcome as a value. A load failure
+    /// (file-not-found or MSBuild load error) becomes <see cref="WorkspaceLoadResult.Failure"/>.
+    /// Contract violations (null/blank path, Report mode + file watching) still throw.
+    /// </summary>
+    public static async Task<WorkspaceLoadResult> TryOpenSolutionAsync(
+        string solutionPath,
+        WorkspaceOpenOptions? options = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            return new WorkspaceLoadResult.Success(await OpenSolutionAsync(solutionPath, options, ct));
+        }
+        catch (WorkspaceLoadException ex)
+        {
+            return new WorkspaceLoadResult.Failure(new WorkspaceLoadFailure(ex.Message, ex.WorkspacePath));
+        }
+    }
+
+    /// <summary>
+    /// Opens a project, returning the outcome as a value. See
+    /// <see cref="TryOpenSolutionAsync"/> for the failure-vs-throw split.
+    /// </summary>
+    public static async Task<WorkspaceLoadResult> TryOpenProjectAsync(
+        string projectPath,
+        WorkspaceOpenOptions? options = null,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            return new WorkspaceLoadResult.Success(await OpenProjectAsync(projectPath, options, ct));
+        }
+        catch (WorkspaceLoadException ex)
+        {
+            return new WorkspaceLoadResult.Failure(new WorkspaceLoadFailure(ex.Message, ex.WorkspacePath));
+        }
+    }
+
     public void Dispose()
     {
         _watcher?.Dispose();
