@@ -13,7 +13,7 @@ public sealed class GotoDefinitionTool
     [Description("Go to the definition of a symbol. Provide either a symbolName for name-based lookup, " +
                  "or filePath + line + column (1-based) for position-based lookup. " +
                  "If both are provided, position takes precedence.")]
-    public static async Task<GotoDefinitionResult> GotoDefinition(
+    public static Task<GotoDefinitionResult> GotoDefinition(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         [Description("Symbol name to look up (e.g., 'MyClass' or 'Namespace.MyClass')")]
         string? symbolName = null,
@@ -23,17 +23,17 @@ public sealed class GotoDefinitionTool
         int? line = null,
         [Description("1-based column number (required with filePath)")]
         int? column = null,
-        CancellationToken ct = default)
-    {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return GotoDefinitionResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return GotoDefinitionResult.NotLoaded();
-        }
+        CancellationToken ct = default) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(GotoDefinitionResult.NotLoaded()),
+            loaded: _ => RunAsync(query, symbolName, filePath, line, column, ct),
+            loadFailed: failure => Task.FromResult(GotoDefinitionResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GotoDefinitionResult.NotLoaded()));
 
+    private static async Task<GotoDefinitionResult> RunAsync(
+        WorkspaceQueryService query, string? symbolName, string? filePath,
+        int? line, int? column, CancellationToken ct)
+    {
         var hasPosition = filePath is not null && line is not null && column is not null;
         var hasPartialPosition = filePath is not null && (line is null || column is null);
         var hasName = symbolName is not null;

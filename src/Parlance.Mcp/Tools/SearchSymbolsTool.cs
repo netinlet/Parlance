@@ -13,7 +13,7 @@ public sealed class SearchSymbolsTool
     [Description("Fuzzy search for symbols by name across the workspace. " +
                  "Returns matching types, methods, properties, and other symbols. " +
                  "Use this to discover symbols when you don't know the exact name.")]
-    public static async Task<SearchSymbolsResult> SearchSymbols(
+    public static Task<SearchSymbolsResult> SearchSymbols(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         [Description("Substring to search for (e.g., 'Handler', 'Parse')")]
         string searchQuery,
@@ -21,17 +21,16 @@ public sealed class SearchSymbolsTool
         string? kind = null,
         [Description("Maximum number of results to return (default 25)")]
         int maxResults = 25,
-        CancellationToken ct = default)
-    {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return SearchSymbolsResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return SearchSymbolsResult.NotLoaded();
-        }
+        CancellationToken ct = default) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(SearchSymbolsResult.NotLoaded()),
+            loaded: _ => RunAsync(query, searchQuery, kind, maxResults, ct),
+            loadFailed: failure => Task.FromResult(SearchSymbolsResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(SearchSymbolsResult.NotLoaded()));
 
+    private static async Task<SearchSymbolsResult> RunAsync(
+        WorkspaceQueryService query, string searchQuery, string? kind, int maxResults, CancellationToken ct)
+    {
         if (string.IsNullOrWhiteSpace(searchQuery))
             return SearchSymbolsResult.Error("searchQuery must not be blank.");
         if (maxResults < 1)

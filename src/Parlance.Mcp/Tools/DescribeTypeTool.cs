@@ -14,19 +14,18 @@ public sealed class DescribeTypeTool
                  "Works for both source-defined types and types from NuGet packages. " +
                  "Use this first for understanding a type's shape. " +
                  "Use a fully qualified name to disambiguate (e.g., 'Parlance.Abstractions.Diagnostic').")]
-    public static async Task<DescribeTypeResult> DescribeType(
+    public static Task<DescribeTypeResult> DescribeType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string typeName, CancellationToken ct)
-    {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return DescribeTypeResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return DescribeTypeResult.NotLoaded();
-        }
+        string typeName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(DescribeTypeResult.NotLoaded()),
+            loaded: _ => RunAsync(query, typeName, ct),
+            loadFailed: failure => Task.FromResult(DescribeTypeResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(DescribeTypeResult.NotLoaded()));
 
+    private static async Task<DescribeTypeResult> RunAsync(
+        WorkspaceQueryService query, string typeName, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
 
         if (symbols.IsEmpty)
