@@ -18,4 +18,11 @@ public static class AnalyzerLoader
             .SelectMany(a => a.DiscoverInstances<DiagnosticAnalyzer>())
             .ToImmutableArray();
     }
+
+    // Enumerates analyzers from explicit DLL files or directories (e.g. an analyzer package's
+    // own build output), bypassing the bundled analyzer set.
+    public static ImmutableArray<DiagnosticAnalyzer> LoadFromPaths(IEnumerable<string> paths) =>
+        AnalyzerDllScanner.ScanAssembliesFromPaths(paths)
+            .SelectMany(a => a.DiscoverInstances<DiagnosticAnalyzer>())
+            .ToImmutableArray();
 }

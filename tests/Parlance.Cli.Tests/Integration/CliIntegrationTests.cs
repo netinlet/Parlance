@@ -125,6 +125,45 @@ public sealed class CliIntegrationTests
     }
 
     [Fact]
+    public async Task Rules_JsonFormat_IncludesDescriptorFields()
+    {
+        var (exitCode, stdout, _) = await RunCliAsync("rules", "--format", "json");
+        Assert.Equal(0, exitCode);
+        var first = JsonDocument.Parse(stdout).RootElement.EnumerateArray().First();
+        Assert.True(first.TryGetProperty("severityRaw", out var severityRaw));
+        Assert.Contains(severityRaw.GetString(), new[] { "Hidden", "Info", "Warning", "Error" });
+        Assert.True(first.TryGetProperty("messageFormat", out _));
+        Assert.True(first.TryGetProperty("isEnabledByDefault", out var enabled));
+        Assert.Contains(enabled.ValueKind, new[] { JsonValueKind.True, JsonValueKind.False });
+        Assert.True(first.TryGetProperty("helpLinkUri", out _));
+        Assert.True(first.TryGetProperty("customTags", out var tags));
+        Assert.Equal(JsonValueKind.Array, tags.ValueKind);
+    }
+
+    [Fact]
+    public async Task Rules_AnalyzerPath_EnumeratesOnlyThatAssembly()
+    {
+        var analyzerDll = Path.Combine(
+            Path.GetDirectoryName(_cliDll)!, "analyzer-dlls", "net10.0", "Parlance.CSharp.Analyzers.dll");
+        Assert.True(File.Exists(analyzerDll), $"Expected analyzer DLL at {analyzerDll}");
+
+        var (exitCode, stdout, _) = await RunCliAsync("rules", "--analyzer", analyzerDll, "--format", "json");
+        Assert.Equal(0, exitCode);
+        var ids = JsonDocument.Parse(stdout).RootElement.EnumerateArray()
+            .Select(r => r.GetProperty("id").GetString()!).ToList();
+        Assert.NotEmpty(ids);
+        Assert.All(ids, id => Assert.StartsWith("PARL", id));
+    }
+
+    [Fact]
+    public async Task Rules_AnalyzerPathNotFound_ReturnsNonZeroExit()
+    {
+        var (exitCode, _, stderr) = await RunCliAsync("rules", "--analyzer", "/no/such/analyzer.dll");
+        Assert.NotEqual(0, exitCode);
+        Assert.Contains("not found", stderr);
+    }
+
+    [Fact]
     public async Task Rules_InvalidFormat_ReturnsNonZeroExit()
     {
         var (exitCode, _, _) = await RunCliAsync("rules", "--format", "nope");
