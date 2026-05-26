@@ -11,19 +11,18 @@ public sealed class FindReferencesTool
 {
     [McpServerTool(Name = "find-references", ReadOnly = true)]
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
-    public static async Task<FindReferencesResult> FindReferences(
+    public static Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string symbolName, CancellationToken ct)
-    {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return FindReferencesResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return FindReferencesResult.NotLoaded();
-        }
+        string symbolName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(FindReferencesResult.NotLoaded()),
+            loaded: _ => RunAsync(query, symbolName, ct),
+            loadFailed: failure => Task.FromResult(FindReferencesResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(FindReferencesResult.NotLoaded()));
 
+    private static async Task<FindReferencesResult> RunAsync(
+        WorkspaceQueryService query, string symbolName, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
             return FindReferencesResult.NotFound(symbolName);

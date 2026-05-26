@@ -13,19 +13,18 @@ public sealed class CallHierarchyTool
 {
     [McpServerTool(Name = "call-hierarchy", ReadOnly = true)]
     [Description("Returns callers (incoming calls) and callees (outgoing calls) for a method, one level deep.")]
-    public static async Task<CallHierarchyResult> GetCallHierarchy(
+    public static Task<CallHierarchyResult> GetCallHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string methodName, CancellationToken ct)
-    {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return CallHierarchyResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return CallHierarchyResult.NotLoaded();
-        }
+        string methodName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(CallHierarchyResult.NotLoaded()),
+            loaded: _ => RunAsync(query, methodName, ct),
+            loadFailed: failure => Task.FromResult(CallHierarchyResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(CallHierarchyResult.NotLoaded()));
 
+    private static async Task<CallHierarchyResult> RunAsync(
+        WorkspaceQueryService query, string methodName, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(methodName, SymbolFilter.Member, ct: ct);
         var methodSymbols = symbols.Where(s => s.Symbol is IMethodSymbol).ToImmutableList();
 

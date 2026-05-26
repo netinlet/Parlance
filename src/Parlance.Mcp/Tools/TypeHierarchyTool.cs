@@ -13,7 +13,7 @@ public sealed class TypeHierarchyTool
     [Description("Walk the inheritance tree of a type in both directions. " +
                  "Returns supertypes (base classes, interfaces) and subtypes (classes/structs that inherit or implement). " +
                  "Use maxDepth to control how many levels deep to walk (default 1).")]
-    public static async Task<TypeHierarchyToolResult> TypeHierarchy(
+    public static Task<TypeHierarchyToolResult> TypeHierarchy(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         [Description("Type name to look up (e.g., 'MyClass' or 'Namespace.MyClass')")]
         string typeName,
@@ -22,19 +22,20 @@ public sealed class TypeHierarchyTool
         CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(typeName))
-            return TypeHierarchyToolResult.Error("typeName is required.");
+            return Task.FromResult(TypeHierarchyToolResult.Error("typeName is required."));
         if (maxDepth < 1)
-            return TypeHierarchyToolResult.Error("maxDepth must be >= 1.");
+            return Task.FromResult(TypeHierarchyToolResult.Error("maxDepth must be >= 1."));
 
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return TypeHierarchyToolResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return TypeHierarchyToolResult.NotLoaded();
-        }
+        return holder.State.Match(
+            notLoaded: () => Task.FromResult(TypeHierarchyToolResult.NotLoaded()),
+            loaded: _ => RunAsync(query, typeName, maxDepth, ct),
+            loadFailed: failure => Task.FromResult(TypeHierarchyToolResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(TypeHierarchyToolResult.NotLoaded()));
+    }
 
+    private static async Task<TypeHierarchyToolResult> RunAsync(
+        WorkspaceQueryService query, string typeName, int maxDepth, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
             return TypeHierarchyToolResult.NotFound(typeName);
