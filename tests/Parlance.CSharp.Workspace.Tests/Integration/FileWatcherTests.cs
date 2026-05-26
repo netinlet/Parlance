@@ -213,7 +213,7 @@ public sealed class FileWatcherSessionTests
                 Mode: WorkspaceMode.Server,
                 EnableFileWatching: true);
 
-            await using var session = await CSharpWorkspaceSession.OpenProjectAsync(csproj, options);
+            await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(csproj, options)).Session;
 
             // Edit the file — watcher should fire once then stop
             await File.WriteAllTextAsync(sourceFile,
