@@ -16,20 +16,20 @@ public sealed class DecompileTypeTool
     [Description("Reconstruct full C# source from a NuGet package or external assembly — use when you need to see how an external type is implemented. " +
                  "Does not work on source-defined types; read the source file directly for those. " +
                  "Use a fully qualified type name, e.g., 'Microsoft.CodeAnalysis.Project'.")]
-    public static async Task<DecompileTypeResult> DecompileType(
+    public static Task<DecompileTypeResult> DecompileType(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         ILogger<DecompileTypeTool> logger,
+        string typeName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(DecompileTypeResult.NotLoaded()),
+            loaded: _ => RunAsync(query, logger, typeName, ct),
+            loadFailed: failure => Task.FromResult(DecompileTypeResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(DecompileTypeResult.NotLoaded()));
+
+    private static async Task<DecompileTypeResult> RunAsync(
+        WorkspaceQueryService query, ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return DecompileTypeResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return DecompileTypeResult.NotLoaded();
-        }
-
         await foreach (var (project, compilation) in query.GetCompilationsAsync(ct))
         {
             foreach (var metaRef in compilation.References.OfType<PortableExecutableReference>())
