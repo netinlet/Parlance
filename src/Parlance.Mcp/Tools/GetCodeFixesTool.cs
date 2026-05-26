@@ -13,7 +13,7 @@ public sealed class GetCodeFixesTool
     [Description("Get available code fixes for diagnostics at a specific line in a file. " +
                  "Returns fix IDs that can be passed to preview-code-action to see the changes. " +
                  "Use after 'analyze' to see what automated fixes are available.")]
-    public static async Task<GetCodeFixesResult> GetCodeFixes(
+    public static Task<GetCodeFixesResult> GetCodeFixes(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
         [Description("Absolute file path")]
@@ -25,23 +25,19 @@ public sealed class GetCodeFixesTool
         CancellationToken ct = default)
     {
         if (line < 1)
-            return GetCodeFixesResult.Error("line must be >= 1 (1-based).");
+            return Task.FromResult(GetCodeFixesResult.Error("line must be >= 1 (1-based)."));
 
-        CSharpWorkspaceSession session;
-        switch (holder.State)
-        {
-            case WorkspaceState.LoadFailed failed:
-                return GetCodeFixesResult.LoadFailed(failed.Failure.Message);
-            case WorkspaceState.NotLoaded:
-            case WorkspaceState.Disposed:
-                return GetCodeFixesResult.NotLoaded();
-            case WorkspaceState.Loaded loaded:
-                session = loaded.Session;
-                break;
-            default:
-                throw new InvalidOperationException("Unreachable");
-        }
+        return holder.State.Match(
+            notLoaded: () => Task.FromResult(GetCodeFixesResult.NotLoaded()),
+            loaded: session => RunAsync(codeActions, session, filePath, line, diagnosticId, ct),
+            loadFailed: failure => Task.FromResult(GetCodeFixesResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GetCodeFixesResult.NotLoaded()));
+    }
 
+    private static async Task<GetCodeFixesResult> RunAsync(
+        CodeActionService codeActions, CSharpWorkspaceSession session,
+        string filePath, int line, string? diagnosticId, CancellationToken ct)
+    {
         var fixes = await codeActions.GetCodeFixesAsync(filePath, line, diagnosticId, ct);
 
         if (fixes.IsEmpty)
