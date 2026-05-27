@@ -64,6 +64,8 @@ public sealed class CodeActionService(
     public async Task<ImmutableList<CodeFixEntry>> GetCodeFixesAsync(
         string filePath, int line, string? diagnosticId = null, CancellationToken ct = default)
     {
+        EvictStaleEntries(Session.SnapshotVersion);
+
         var resolvedDoc = ResolveDocument(filePath);
         if (resolvedDoc is null) return [];
 
@@ -143,6 +145,8 @@ public sealed class CodeActionService(
         string filePath, int line, int column, int? endLine = null, int? endColumn = null,
         CancellationToken ct = default)
     {
+        EvictStaleEntries(Session.SnapshotVersion);
+
         var resolvedDoc = ResolveDocument(filePath);
         if (resolvedDoc is null) return [];
 
@@ -276,6 +280,22 @@ public sealed class CodeActionService(
 
         return new CodeActionPreview(actionId, cached.Action.Title, [.. changes]);
     }
+
+    // Drop cached actions from superseded snapshots. Cached entries pin Roslyn CodeAction
+    // objects; without eviction a long-running server session grows unbounded as files change.
+    // Entries from the current snapshot are still previewable and are kept.
+    internal void EvictStaleEntries(long currentVersion)
+    {
+        foreach (var (id, cached) in _actionCache)
+            if (cached.SnapshotVersion < currentVersion)
+                _actionCache.TryRemove(id, out _);
+    }
+
+    internal int CacheCount => _actionCache.Count;
+
+    internal void AddToCacheForTest(string id, long snapshotVersion) =>
+        _actionCache[id] = new CachedCodeAction(
+            CodeAction.Create("test", _ => Task.FromResult<Document>(null!)), snapshotVersion);
 
     private static string DetermineScope(CodeFixProvider provider)
     {
