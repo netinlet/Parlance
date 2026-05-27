@@ -6,6 +6,7 @@ using Parlance.Analysis.Curation;
 using Parlance.Analyzers.Upstream;
 using Parlance.CSharp;
 using Parlance.CSharp.Workspace;
+using static Parlance.Abstractions.DiagnosticSeverityFormatting;
 
 namespace Parlance.Analysis;
 
@@ -115,13 +116,7 @@ public sealed class AnalysisService(
                 allCurated.Add(new CuratedDiagnostic(
                     d.Id,
                     d.Descriptor.Category,
-                    d.Severity switch
-                    {
-                        Microsoft.CodeAnalysis.DiagnosticSeverity.Error => "error",
-                        Microsoft.CodeAnalysis.DiagnosticSeverity.Warning => "warning",
-                        Microsoft.CodeAnalysis.DiagnosticSeverity.Info => "suggestion",
-                        _ => "silent"
-                    },
+                    FromRoslyn(d.Severity),
                     d.GetMessage(),
                     lineSpan.Path ?? "",
                     start.Line + 1,
@@ -143,15 +138,7 @@ public sealed class AnalysisService(
 
         // Convert to Parlance diagnostics for scoring
         var parlanceDiagnostics = curated.Select(d => new Abstractions.Diagnostic(
-            d.RuleId, d.Category,
-            d.Severity switch
-            {
-                "error" => Abstractions.DiagnosticSeverity.Error,
-                "warning" => Abstractions.DiagnosticSeverity.Warning,
-                "suggestion" => Abstractions.DiagnosticSeverity.Suggestion,
-                _ => Abstractions.DiagnosticSeverity.Silent
-            },
-            d.Message,
+            d.RuleId, d.Category, d.Severity, d.Message,
             new Abstractions.Location(d.Line, d.Column, d.EndLine, d.EndColumn, d.FilePath),
             d.Rationale)).ToImmutableList();
 
@@ -160,7 +147,7 @@ public sealed class AnalysisService(
 
         // Convert to file diagnostics
         var fileDiagnosticResults = curated.Select(d => new FileDiagnostic(
-            d.RuleId, d.Category, d.Severity, d.Message,
+            d.RuleId, d.Category, d.Severity.ToWireString(), d.Message,
             d.FilePath, d.Line, d.EndLine, d.Column, d.EndColumn,
             d.FixClassification, d.Rationale)).ToImmutableList();
 
@@ -171,4 +158,12 @@ public sealed class AnalysisService(
         var curationSetName = curationSet?.Name ?? "default";
         return new FileAnalysisResult(curationSetName, summary, fileDiagnosticResults);
     }
+
+    private static Abstractions.DiagnosticSeverity FromRoslyn(DiagnosticSeverity severity) => severity switch
+    {
+        DiagnosticSeverity.Error => Abstractions.DiagnosticSeverity.Error,
+        DiagnosticSeverity.Warning => Abstractions.DiagnosticSeverity.Warning,
+        DiagnosticSeverity.Info => Abstractions.DiagnosticSeverity.Suggestion,
+        _ => Abstractions.DiagnosticSeverity.Silent
+    };
 }

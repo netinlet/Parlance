@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Parlance.Abstractions;
 
 namespace Parlance.Analysis.Curation;
 
@@ -43,7 +44,9 @@ public static class CurationFilter
             if (matchingRule is null)
                 continue;
 
-            var severity = matchingRule.Severity ?? d.Severity;
+            var severity = matchingRule.Severity is { } overrideSeverity
+                ? DiagnosticSeverityFormatting.FromWireString(overrideSeverity)
+                : d.Severity;
             var fixClassification = matchingRule.FixClassification ?? d.FixClassification;
             var rationale = matchingRule.RationaleId is not null && rationaleMap.TryGetValue(matchingRule.RationaleId, out var msg)
                 ? msg
