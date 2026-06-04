@@ -22,7 +22,7 @@ public sealed class CodeActionService(
     private int _nextFixId;
     private int _nextRefactorId;
 
-    private CSharpWorkspaceSession Session => holder.RequireSession();
+    private CSharpWorkspaceSession Session => holder.LoadedSession;
 
     private sealed record ResolvedDocument(Document Document, string TargetFramework);
 

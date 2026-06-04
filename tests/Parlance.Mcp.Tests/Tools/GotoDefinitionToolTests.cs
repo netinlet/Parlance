@@ -51,10 +51,10 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
             "src", "Parlance.CSharp.Workspace", "WorkspaceQueryService.cs");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        var refLine = Array.FindIndex(lines, l => l.Contains("holder.RequireSession()"));
-        Assert.True(refLine >= 0, "Could not find 'holder.RequireSession()' reference");
+        var refLine = Array.FindIndex(lines, l => l.Contains("holder.LoadedSession"));
+        Assert.True(refLine >= 0, "Could not find 'holder.LoadedSession' reference");
 
-        var refCol = lines[refLine].IndexOf("RequireSession", StringComparison.Ordinal);
+        var refCol = lines[refLine].IndexOf("LoadedSession", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
             _holder, _query,
@@ -74,9 +74,9 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
             "src", "Parlance.CSharp.Workspace", "WorkspaceQueryService.cs");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        var refLine = Array.FindIndex(lines, l => l.Contains("holder.RequireSession()"));
+        var refLine = Array.FindIndex(lines, l => l.Contains("holder.LoadedSession"));
         Assert.True(refLine >= 0);
-        var refCol = lines[refLine].IndexOf("RequireSession", StringComparison.Ordinal);
+        var refCol = lines[refLine].IndexOf("LoadedSession", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
             _holder, _query,

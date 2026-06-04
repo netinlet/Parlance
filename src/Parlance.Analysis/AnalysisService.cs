@@ -22,7 +22,7 @@ public sealed class AnalysisService(
         CancellationToken ct = default)
     {
         options ??= new AnalyzeOptions();
-        var session = holder.RequireSession();
+        var session = holder.LoadedSession;
         var solution = session.CurrentSolution;
 
         // Validate curation set up front
@@ -104,7 +104,7 @@ public sealed class AnalysisService(
                 .Where(d =>
                 {
                     var path = d.Location.GetLineSpan().Path;
-                    return path is not null && fileSet.Contains(path);
+                    return fileSet.Contains(path);
                 });
 
             foreach (var d in fileDiagnostics)

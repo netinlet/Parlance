@@ -9,7 +9,7 @@ namespace Parlance.CSharp.Workspace;
 
 public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger<WorkspaceQueryService> logger)
 {
-    private CSharpWorkspaceSession Session => holder.RequireSession();
+    private CSharpWorkspaceSession Session => holder.LoadedSession;
 
     public async Task<ImmutableList<ResolvedSymbol>> FindSymbolsAsync(
         string name, SymbolFilter filter = SymbolFilter.All, bool ignoreCase = false,
@@ -56,6 +56,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
             parts.Insert(0, containingType.Name);
             containingType = containingType.ContainingType;
         }
+
         var ns = symbol.ContainingNamespace;
         if (ns is not null && !ns.IsGlobalNamespace)
             parts.Insert(0, ns.ToDisplayString());
@@ -107,8 +108,7 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         return state.Compilation;
     }
 
-    public async IAsyncEnumerable<(Project Project, Compilation Compilation)> GetCompilationsAsync(
-        [EnumeratorCancellation] CancellationToken ct = default)
+    public async IAsyncEnumerable<(Project Project, Compilation Compilation)> GetCompilationsAsync([EnumeratorCancellation] CancellationToken ct = default)
     {
         var solution = Session.CurrentSolution;
         foreach (var project in solution.Projects)
@@ -240,13 +240,14 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var kind = symbol is INamedTypeSymbol namedType
             ? namedType.TypeKind.ToString()
             : symbol.Kind.ToString();
+
         return new HierarchyNode(
             symbol.Name,
             symbol.ToDisplayString(),
             kind,
             relationship,
             span?.Path,
-            span is null ? null : span.Value.StartLinePosition.Line + 1,
+            span?.StartLinePosition.Line + 1,
             children);
     }
 
@@ -266,9 +267,8 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
         var symbolInfo = semanticModel.GetSymbolInfo(node, ct);
         if (symbolInfo.Symbol is not null) return symbolInfo.Symbol;
-        if (symbolInfo.CandidateSymbols.Length > 0) return symbolInfo.CandidateSymbols[0];
-
-        // Declarations (class/method/property names) resolve via GetDeclaredSymbol, not GetSymbolInfo
-        return semanticModel.GetDeclaredSymbol(node, ct);
+        return symbolInfo.CandidateSymbols.Length > 0
+            ? symbolInfo.CandidateSymbols[0]
+            : semanticModel.GetDeclaredSymbol(node, ct); // Declarations (class/method/property names) resolve via GetDeclaredSymbol, not GetSymbolInfo
     }
 }

@@ -30,7 +30,7 @@ public sealed class DecompileTypeTool
         WorkspaceQueryService query, ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
-        await foreach (var (project, compilation) in query.GetCompilationsAsync(ct))
+        await foreach (var (_, compilation) in query.GetCompilationsAsync(ct))
         {
             foreach (var metaRef in compilation.References.OfType<PortableExecutableReference>())
             {

@@ -28,17 +28,12 @@ public abstract record WorkspaceState
         }
     }
 
-    public T Match<T>(
-        Func<T> notLoaded,
-        Func<CSharpWorkspaceSession, T> loaded,
-        Func<WorkspaceLoadFailure, T> loadFailed,
-        Func<T> disposed) =>
-        this switch
-        {
-            NotLoaded => notLoaded(),
-            Loaded loadedState => loaded(loadedState.Session),
-            LoadFailed failedState => loadFailed(failedState.Failure),
-            Disposed => disposed(),
-            _ => throw new InvalidOperationException("Unreachable")
-        };
+    public T Match<T>(Func<T> notLoaded, Func<CSharpWorkspaceSession, T> loaded, Func<WorkspaceLoadFailure, T> loadFailed, Func<T> disposed) => this switch
+    {
+        NotLoaded => notLoaded(),
+        Loaded loadedState => loaded(loadedState.Session),
+        LoadFailed failedState => loadFailed(failedState.Failure),
+        Disposed => disposed(),
+        _ => throw new InvalidOperationException("Unreachable")
+    };
 }

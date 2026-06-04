@@ -29,11 +29,10 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
     /// For internal services that are only invoked after callers have pattern-matched
     /// <see cref="State"/> to <c>Loaded</c>. Throws if the precondition is violated.
     /// </summary>
-    public CSharpWorkspaceSession RequireSession() => State switch
+    public CSharpWorkspaceSession LoadedSession => State switch
     {
         WorkspaceState.Loaded loaded => loaded.Session,
-        _ => throw new InvalidOperationException(
-            "Workspace is not loaded. Callers must pattern-match on State before invoking services.")
+        _ => throw new InvalidOperationException("Workspace is not loaded. Callers must pattern-match on State before invoking services.")
     };
 
     public void Dispose()

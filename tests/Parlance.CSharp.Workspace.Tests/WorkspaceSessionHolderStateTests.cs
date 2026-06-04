@@ -32,11 +32,11 @@ public sealed class WorkspaceSessionHolderStateTests
     }
 
     [Fact]
-    public void RequireSession_throws_when_state_is_not_Loaded()
+    public void LoadedSession_throws_when_state_is_not_Loaded()
     {
         using var holder = new WorkspaceSessionHolder();
 
-        var ex = Assert.Throws<InvalidOperationException>(() => holder.RequireSession());
+        var ex = Assert.Throws<InvalidOperationException>(() => holder.LoadedSession);
 
         Assert.Contains("not loaded", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
