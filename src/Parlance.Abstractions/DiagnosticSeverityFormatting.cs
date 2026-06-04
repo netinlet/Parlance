@@ -7,21 +7,27 @@ namespace Parlance.Abstractions;
 /// </summary>
 public static class DiagnosticSeverityFormatting
 {
-    public static string ToWireString(this DiagnosticSeverity severity) => severity switch
+    extension(DiagnosticSeverity severity)
     {
-        DiagnosticSeverity.Error => "error",
-        DiagnosticSeverity.Warning => "warning",
-        DiagnosticSeverity.Suggestion => "suggestion",
-        DiagnosticSeverity.Silent => "silent",
-        _ => throw new ArgumentOutOfRangeException(nameof(severity), severity, null)
-    };
+        public string ToWireString() => severity switch
+        {
+            DiagnosticSeverity.Error => "error",
+            DiagnosticSeverity.Warning => "warning",
+            DiagnosticSeverity.Suggestion => "suggestion",
+            DiagnosticSeverity.Silent => "silent",
+            _ => throw new ArgumentOutOfRangeException(nameof(severity), severity, null)
+        };
+    }
 
-    public static DiagnosticSeverity FromWireString(string wire) => wire switch
+    extension(DiagnosticSeverity)
     {
-        "error" => DiagnosticSeverity.Error,
-        "warning" => DiagnosticSeverity.Warning,
-        "suggestion" => DiagnosticSeverity.Suggestion,
-        "silent" => DiagnosticSeverity.Silent,
-        _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, "Unknown severity wire value")
-    };
+        public static DiagnosticSeverity FromWireString(string wire) => wire switch
+        {
+            "error" => DiagnosticSeverity.Error,
+            "warning" => DiagnosticSeverity.Warning,
+            "suggestion" => DiagnosticSeverity.Suggestion,
+            "silent" => DiagnosticSeverity.Silent,
+            _ => throw new ArgumentOutOfRangeException(nameof(wire), wire, "Unknown severity wire value")
+        };
+    }
 }

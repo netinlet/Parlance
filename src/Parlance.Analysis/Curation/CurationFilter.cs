@@ -45,7 +45,7 @@ public static class CurationFilter
                 continue;
 
             var severity = matchingRule.Severity is { } overrideSeverity
-                ? DiagnosticSeverityFormatting.FromWireString(overrideSeverity)
+                ? DiagnosticSeverity.FromWireString(overrideSeverity)
                 : d.Severity;
             var fixClassification = matchingRule.FixClassification ?? d.FixClassification;
             var rationale = matchingRule.RationaleId is not null && rationaleMap.TryGetValue(matchingRule.RationaleId, out var msg)

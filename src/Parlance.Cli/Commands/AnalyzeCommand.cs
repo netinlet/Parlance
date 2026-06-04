@@ -37,9 +37,7 @@ internal static class AnalyzeCommand
             var maxDiag = parseResult.GetValue(maxDiagOption);
             var curationSet = parseResult.GetValue(curationSetOption);
 
-            if (!path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) &&
-                !path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase) &&
-                !path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
+            if (!path.IsLoadableProject)
             {
                 await Console.Error.WriteLineAsync("Path must point to a .sln, .slnx, or .csproj file.");
                 Environment.ExitCode = 2;
@@ -58,9 +56,7 @@ internal static class AnalyzeCommand
             var loggerFactory = services.GetRequiredService<ILoggerFactory>();
             var openOptions = new WorkspaceOpenOptions(Mode: WorkspaceMode.Report, LoggerFactory: loggerFactory);
 
-            var isSolution = path.EndsWith(".sln", StringComparison.OrdinalIgnoreCase) ||
-                             path.EndsWith(".slnx", StringComparison.OrdinalIgnoreCase);
-            var outcome = isSolution
+            var outcome = path.IsSolution
                 ? await CSharpWorkspaceSession.TryOpenSolutionAsync(path, openOptions, ct)
                 : await CSharpWorkspaceSession.TryOpenProjectAsync(path, openOptions, ct);
 

@@ -21,12 +21,12 @@ public sealed class DiagnosticSeverityFormattingTests
     [InlineData("silent", DiagnosticSeverity.Silent)]
     public void FromWireString_parses_wire_format(string wire, DiagnosticSeverity expected)
     {
-        Assert.Equal(expected, DiagnosticSeverityFormatting.FromWireString(wire));
+        Assert.Equal(expected, DiagnosticSeverity.FromWireString(wire));
     }
 
     [Fact]
     public void FromWireString_rejects_unknown_value()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => DiagnosticSeverityFormatting.FromWireString("Error"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => DiagnosticSeverity.FromWireString("Error"));
     }
 }

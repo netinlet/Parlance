@@ -99,9 +99,11 @@ internal static class RulesCommand
         var analyzers = useExternal
             ? AnalyzerLoader.LoadFromPaths(analyzerPaths)
             : AnalyzerLoader.LoadAll("net10.0");
-        var fixableIds = (useExternal
-                ? FixProviderLoader.LoadFromPaths(analyzerPaths)
-                : FixProviderLoader.LoadAll("net10.0"))
+
+        var fixProviders = useExternal
+            ? FixProviderLoader.LoadFromPaths(analyzerPaths)
+            : FixProviderLoader.LoadAll("net10.0");
+        var fixableIds = fixProviders
             .SelectMany(fp => fp.FixableDiagnosticIds)
             .ToHashSet();
 
