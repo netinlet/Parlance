@@ -74,7 +74,7 @@ local-feed:
 	$(DOTNET) nuget add source "$(LOCAL_FEED)" --name parlance-local
 
 restore: local-feed
-	$(DOTNET) restore Parlance.sln
+	$(DOTNET) restore Parlance.slnx
 
 agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
@@ -139,10 +139,10 @@ agent-dist-check: agent-build
 	git diff --exit-code -- $(AGENT_DIST_DIRS)
 
 format:
-	$(DOTNET) format Parlance.sln --verify-no-changes --verbosity diagnostic
+	$(DOTNET) format Parlance.slnx --verify-no-changes --verbosity diagnostic
 
 build: agent-build
-	$(DOTNET) build Parlance.sln --configuration "$(CONFIGURATION)" --no-restore
+	$(DOTNET) build Parlance.slnx --configuration "$(CONFIGURATION)" --no-restore
 
 build-cli: agent-build
 	$(DOTNET) build "$(CLI_PROJECT)" --configuration "$(CONFIGURATION)" --no-restore
@@ -155,7 +155,7 @@ test-results-dir:
 	mkdir -p "$(TEST_RESULTS_DIR)"
 
 test: agent-test test-results-dir
-	$(DOTNET) test Parlance.sln \
+	$(DOTNET) test Parlance.slnx \
 		--configuration "$(CONFIGURATION)" \
 		--no-build \
 		--collect:"XPlat Code Coverage" \
@@ -185,10 +185,10 @@ clean-agent:
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do rm -rf "$$dir/out-ts"; done
 
 dotnet-clean:
-	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)"
+	$(DOTNET) clean Parlance.slnx --configuration "$(CONFIGURATION)"
 
 clean: clean-agent
-	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null
+	$(DOTNET) clean Parlance.slnx --configuration "$(CONFIGURATION)" >/dev/null
 	find src tests tools -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 	rm -rf "$(ARTIFACTS_DIR)" "$(TEST_RESULTS_DIR)"
 
