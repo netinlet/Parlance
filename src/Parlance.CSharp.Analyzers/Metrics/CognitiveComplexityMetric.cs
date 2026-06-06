@@ -72,8 +72,7 @@ internal static class CognitiveComplexityMetric
         private readonly List<ComplexityIncrement> _increments = new();
         private int _nesting;
 
-        public Walker(SemanticModel? semanticModel, IMethodSymbol? currentMethod)
-            : base(SyntaxWalkerDepth.Node)
+        public Walker(SemanticModel? semanticModel, IMethodSymbol? currentMethod) : base(SyntaxWalkerDepth.Node)
         {
             _semanticModel = semanticModel;
             _currentMethod = currentMethod;
@@ -396,7 +395,7 @@ internal static class CognitiveComplexityMetric
         private static bool IsLogicalExpression(SyntaxNode? node)
         {
             return node?.IsKind(SyntaxKind.LogicalAndExpression) == true
-                || node?.IsKind(SyntaxKind.LogicalOrExpression) == true;
+                   || node?.IsKind(SyntaxKind.LogicalOrExpression) == true;
         }
 
         /// <summary>
@@ -435,7 +434,7 @@ internal static class CognitiveComplexityMetric
         private static bool IsBinaryPattern(SyntaxNode? node)
         {
             return node?.IsKind(SyntaxKind.AndPattern) == true
-                || node?.IsKind(SyntaxKind.OrPattern) == true;
+                   || node?.IsKind(SyntaxKind.OrPattern) == true;
         }
     }
 }

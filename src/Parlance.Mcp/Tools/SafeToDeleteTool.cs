@@ -12,15 +12,18 @@ public sealed class SafeToDeleteTool
     [McpServerTool(Name = "safe-to-delete", ReadOnly = true)]
     [Description("Checks whether a symbol (type, method, property, field) is safe to delete by counting references to it. " +
                  "Returns safe=true only if there are zero references.")]
-    public static async Task<SafeToDeleteResult> CheckSafeToDelete(
+    public static Task<SafeToDeleteResult> CheckSafeToDelete(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string symbolName, CancellationToken ct)
-    {
-        if (holder.LoadFailure is { } failure)
-            return SafeToDeleteResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return SafeToDeleteResult.NotLoaded();
+        string symbolName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(SafeToDeleteResult.NotLoaded()),
+            loaded: _ => RunAsync(query, symbolName, ct),
+            loadFailed: failure => Task.FromResult(SafeToDeleteResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(SafeToDeleteResult.NotLoaded()));
 
+    private static async Task<SafeToDeleteResult> RunAsync(
+        WorkspaceQueryService query, string symbolName, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
             return SafeToDeleteResult.NotFound(symbolName);

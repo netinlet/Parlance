@@ -118,12 +118,12 @@ public sealed class ParlanceMcpConfigurationTests
         var dir = Directory.GetCurrentDirectory();
         while (dir is not null)
         {
-            var slnPath = Path.Combine(dir, "Parlance.sln");
+            var slnPath = Path.Combine(dir, "Parlance.slnx");
             if (File.Exists(slnPath))
                 return slnPath;
             dir = Path.GetDirectoryName(dir);
         }
 
-        throw new InvalidOperationException("Cannot find Parlance.sln in parent directories");
+        throw new InvalidOperationException("Cannot find Parlance.slnx in parent directories");
     }
 }

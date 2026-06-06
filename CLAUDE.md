@@ -106,6 +106,18 @@ public sealed class MyTool
 - **Logging:** `Microsoft.Extensions.Logging` with structured logging throughout. MCP logs to stderr.
 - Do not push commits. Do not attribute commits.
 
+## Coding Conventions
+  - Strong OO design: small types, clear responsibilities, behavior close to data.
+  - Immutability where practical; avoid mutation-heavy procedural code.
+  - Model absence explicitly: C# nullability as the baseline, `Option<T>` where absence is semantically important, crosses architectural boundaries, or participates in domain invariants.
+  - Functional influence: `Result`, transformations, composition.
+  - Refactor toward domain concepts; replace primitive obsession with value objects.
+  - Guard clauses and explicit invariants.
+  - Domain-driven over framework-first.
+  - Readable, intention-revealing methods over clever syntax.
+  - Test behavior; let tests apply design pressure.
+  - Avoid anemic models, service blobs, boolean flags, nullable return ambiguity, and procedural orchestration packed into one method.
+
 ## Working with docs
 
 The Parlance Obsidian vault is the source of truth for *all* documentation

@@ -16,18 +16,20 @@ public sealed class WorkspaceStatusTool
         ParlanceMcpConfiguration configuration,
         ILogger<WorkspaceStatusTool> logger)
     {
-        if (holder.LoadFailure is { } failure)
-        {
-            logger.LogWarning("Workspace load failed: {Message}", failure.Message);
-            return WorkspaceStatusResult.FromLoadFailure(failure);
-        }
-
-        if (!holder.IsLoaded)
+        WorkspaceStatusResult Loading()
         {
             logger.LogDebug("Workspace not yet loaded, returning loading status");
             return WorkspaceStatusResult.Loading(configuration.SolutionPath);
         }
 
-        return WorkspaceStatusResult.FromSession(holder.Session);
+        return holder.State.Match(
+            notLoaded: Loading,
+            loaded: WorkspaceStatusResult.FromSession,
+            loadFailed: failure =>
+            {
+                logger.LogWarning("Workspace load failed: {Message}", failure.Message);
+                return WorkspaceStatusResult.FromLoadFailure(failure);
+            },
+            disposed: Loading);
     }
 }

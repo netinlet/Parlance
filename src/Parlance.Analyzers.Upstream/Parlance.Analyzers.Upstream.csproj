@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <LangVersion>latest</LangVersion>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <_SkipUpgradeNetAnalyzersNuGetWarning>true</_SkipUpgradeNetAnalyzersNuGetWarning>
@@ -44,6 +45,8 @@
                       GeneratePathProperty="true" ExcludeAssets="all" />
   </ItemGroup>
 
+  <!-- Stage each TFM's analyzer DLLs into analyzer-dlls/<tfm>/. RemoveDir drops any
+       stale file first so it can't linger and reappear as a phantom Content item. -->
   <Target Name="CopyAnalyzerDlls" AfterTargets="Build" Condition="'$(TargetFramework)' != ''">
     <ItemGroup>
       <_NetAnalyzerDlls Include="$(PkgMicrosoft_CodeAnalysis_NetAnalyzers)/analyzers/dotnet/cs/**/*.dll" />
@@ -61,16 +64,21 @@
                          Condition="Exists('$(MSBuildProjectDirectory)/../Parlance.CSharp.Analyzers/bin/$(Configuration)/netstandard2.0/Parlance.CSharp.Analyzers.dll')" />
     </ItemGroup>
 
+    <RemoveDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
     <MakeDir Directories="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)" />
     <Copy SourceFiles="@(_NetAnalyzerDlls);@(_CodeStyleDlls);@(_RoslynatorDlls);@(_BclShimDlls);@(_ParlAnalyzerDlls)"
           DestinationFolder="$(MSBuildProjectDirectory)/analyzer-dlls/$(TargetFramework)"
           SkipUnchangedFiles="true" />
   </Target>
 
-  <ItemGroup>
-    <Content Include="analyzer-dlls/**/*.dll">
+  <!-- TFM-scoped so a parallel TFM build never copies a directory another TFM is
+       writing (the cross-TFM read/write race that produced intermittent MSB3030).
+       Evaluated per inner build, where $(TargetFramework) is set. -->
+  <ItemGroup Condition="'$(TargetFramework)' != ''">
+    <Content Include="analyzer-dlls/$(TargetFramework)/**/*.dll">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <Link>analyzer-dlls/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Link>analyzer-dlls/$(TargetFramework)/%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <Visible>false</Visible>
     </Content>
   </ItemGroup>
 

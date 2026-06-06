@@ -18,7 +18,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        _session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
         _holder = new WorkspaceSessionHolder();
         _holder.SetSession(_session);
         _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
@@ -34,6 +34,24 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     public void NotLoaded_ReturnsNotLoaded()
     {
         var holder = new WorkspaceSessionHolder();
+        var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
+        var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
+        var service = new AnalysisService(
+            holder, query, curationProvider,
+            NullLogger<AnalysisService>.Instance);
+
+        var result = AnalyzeTool.Analyze(
+            holder, service,
+            ["test.cs"], null, null, CancellationToken.None).Result;
+
+        Assert.Equal("not_loaded", result.Status);
+    }
+
+    [Fact]
+    public void Disposed_ReturnsNotLoaded()
+    {
+        var holder = new WorkspaceSessionHolder();
+        holder.Dispose();
         var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
         var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
         var service = new AnalysisService(
@@ -78,5 +96,52 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
         Assert.Equal("success", result.Status);
         Assert.NotNull(result.Summary);
         Assert.NotNull(result.Diagnostics);
+    }
+
+    // Relative paths with .. that escape the workspace are rejected.
+    [Fact]
+    public async Task Analyze_RelativePathEscapingWorkspace_ReturnsError()
+    {
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [Path.Combine("..", "..", "..", "etc", "passwd")], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
+    }
+
+    // Rooted paths with .. traversal are normalised then rejected (bypass via absolute path).
+    [Fact]
+    public async Task Analyze_RootedPathWithTraversal_ReturnsError()
+    {
+        var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
+        var escapingPath = Path.Combine(solutionDir, "..", "etc", "passwd");
+
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [escapingPath], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
+    }
+
+    // Sibling-prefix paths are rejected (workspace-tmp/ is not under workspace/).
+    [Fact]
+    public async Task Analyze_SiblingPrefixPath_ReturnsError()
+    {
+        var solutionDir = Path.GetDirectoryName(TestPaths.FindSolutionPath())!;
+        var parentDir = Path.GetDirectoryName(solutionDir)!;
+        var siblingName = Path.GetFileName(solutionDir) + "-tmp";
+        var siblingPath = Path.Combine(parentDir, siblingName, "file.cs");
+
+        var result = await AnalyzeTool.Analyze(
+            _holder, _service,
+            [siblingPath], null, null, CancellationToken.None);
+
+        Assert.Equal("error", result.Status);
+        Assert.NotNull(result.Error);
+        Assert.Contains("outside the workspace root", result.Error);
     }
 }

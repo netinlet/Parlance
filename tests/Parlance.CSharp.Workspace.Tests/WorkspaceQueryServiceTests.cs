@@ -13,7 +13,7 @@ public sealed class WorkspaceQueryServiceTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        _session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
         var holder = new WorkspaceSessionHolder();
         holder.SetSession(_session);
         _query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);

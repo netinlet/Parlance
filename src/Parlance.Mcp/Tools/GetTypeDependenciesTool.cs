@@ -12,15 +12,19 @@ public sealed class GetTypeDependenciesTool
     [McpServerTool(Name = "get-type-dependencies", ReadOnly = true)]
     [Description("Returns what a type depends on (dependencies) and what depends on it (dependents), " +
                  "scoped to solution-defined types only.")]
-    public static async Task<GetTypeDependenciesResult> GetTypeDependencies(
+    public static Task<GetTypeDependenciesResult> GetTypeDependencies(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
+        string typeName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(GetTypeDependenciesResult.NotLoaded()),
+            loaded: session => RunAsync(query, session, typeName, ct),
+            loadFailed: failure => Task.FromResult(GetTypeDependenciesResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GetTypeDependenciesResult.NotLoaded()));
+
+    private static async Task<GetTypeDependenciesResult> RunAsync(
+        WorkspaceQueryService query, CSharpWorkspaceSession session,
         string typeName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return GetTypeDependenciesResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetTypeDependenciesResult.NotLoaded();
-
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
             return GetTypeDependenciesResult.NotFound(typeName);
@@ -33,7 +37,7 @@ public sealed class GetTypeDependenciesTool
             return GetTypeDependenciesResult.NotFound(typeName);
 
         // Get all solution assembly names to filter out framework types
-        var solution = holder.Session.CurrentSolution;
+        var solution = session.CurrentSolution;
         var solutionAssemblies = solution.Projects
             .Select(p => p.AssemblyName)
             .ToHashSet();

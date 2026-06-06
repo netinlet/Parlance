@@ -10,7 +10,7 @@ public sealed class RefreshTests
         var projectPath = Path.Combine(
             TestPaths.RepoRoot, "src", "Parlance.Abstractions", "Parlance.Abstractions.csproj");
 
-        await using var session = await CSharpWorkspaceSession.OpenProjectAsync(projectPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(projectPath)).Session;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => session.RefreshAsync());
     }
@@ -24,7 +24,7 @@ public sealed class RefreshTests
             Mode: WorkspaceMode.Server,
             EnableFileWatching: false);
 
-        await using var session = await CSharpWorkspaceSession.OpenProjectAsync(projectPath, options);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(projectPath, options)).Session;
 
         Assert.Equal(1, session.SnapshotVersion);
         await session.RefreshAsync();
@@ -54,7 +54,7 @@ public sealed class RefreshTests
                 Mode: WorkspaceMode.Server,
                 EnableFileWatching: false);
 
-            await using var session = await CSharpWorkspaceSession.OpenProjectAsync(csproj, options);
+            await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(csproj, options)).Session;
             Assert.Equal(1, session.SnapshotVersion);
 
             // Modify source on disk
@@ -95,7 +95,7 @@ public sealed class RefreshTests
                 Mode: WorkspaceMode.Server,
                 EnableFileWatching: false);
 
-            await using var session = await CSharpWorkspaceSession.OpenProjectAsync(csproj, options);
+            await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(csproj, options)).Session;
 
             // Add a new .cs file (structural change — NOT detected by RefreshAsync)
             var newFile = Path.Combine(tempDir, "Class2.cs");

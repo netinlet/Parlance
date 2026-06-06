@@ -196,15 +196,21 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         }
     }
 
-    public static async Task<CSharpWorkspaceSession> OpenSolutionAsync(
+    /// <summary>
+    /// Opens a solution, returning the outcome as a value. A load failure
+    /// (file-not-found or MSBuild load error) becomes <see cref="WorkspaceLoadResult.Failure"/>.
+    /// Contract violations (null/blank path, Report mode + file watching) still throw;
+    /// cancellation propagates as <see cref="OperationCanceledException"/>.
+    /// </summary>
+    public static async Task<WorkspaceLoadResult> TryOpenSolutionAsync(
         string solutionPath,
         WorkspaceOpenOptions? options = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(solutionPath);
         if (!File.Exists(solutionPath))
-            throw new WorkspaceLoadException(
-                $"Solution file not found: {solutionPath}", solutionPath);
+            return new WorkspaceLoadResult.Failure(
+                new WorkspaceLoadFailure($"Solution file not found: {solutionPath}", solutionPath));
 
         return await LoadAsync(
             solutionPath,
@@ -213,15 +219,19 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             ct);
     }
 
-    public static async Task<CSharpWorkspaceSession> OpenProjectAsync(
+    /// <summary>
+    /// Opens a project, returning the outcome as a value. See
+    /// <see cref="TryOpenSolutionAsync"/> for the failure-vs-throw split.
+    /// </summary>
+    public static async Task<WorkspaceLoadResult> TryOpenProjectAsync(
         string projectPath,
         WorkspaceOpenOptions? options = null,
         CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectPath);
         if (!File.Exists(projectPath))
-            throw new WorkspaceLoadException(
-                $"Project file not found: {projectPath}", projectPath);
+            return new WorkspaceLoadResult.Failure(
+                new WorkspaceLoadFailure($"Project file not found: {projectPath}", projectPath));
 
         return await LoadAsync(
             projectPath,
@@ -252,7 +262,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         _logger.LogInformation("Workspace session disposed: {Path}", WorkspacePath);
     }
 
-    private static async Task<CSharpWorkspaceSession> LoadAsync(
+    private static async Task<WorkspaceLoadResult> LoadAsync(
         string workspacePath,
         Func<MSBuildWorkspace, CancellationToken, Task<Solution>> loadSolution,
         WorkspaceOpenOptions options,
@@ -294,11 +304,11 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         {
             solution = await loadSolution(workspace, ct);
         }
-        catch (Exception ex) when (ex is not WorkspaceLoadException)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
             workspace.Dispose();
-            throw new WorkspaceLoadException(
-                $"Failed to load workspace: {ex.Message}", workspacePath, ex);
+            return new WorkspaceLoadResult.Failure(
+                new WorkspaceLoadFailure($"Failed to load workspace: {ex.Message}", workspacePath));
         }
 
         ImmutableList<WorkspaceDiagnostic> diagnosticsSnapshot;
@@ -348,7 +358,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             session.StartFileWatching(projectDirs, documentPaths);
         }
 
-        return session;
+        return new WorkspaceLoadResult.Success(session);
     }
 
     private static ImmutableList<CSharpProjectInfo> MapProjects(Solution solution, ILogger logger)

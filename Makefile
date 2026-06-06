@@ -27,7 +27,7 @@ ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.cspr
 .PHONY: help bootstrap restore local-feed \
 	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
-	format build build-cli build-mcp test test-results-dir coverage-report ci \
+	format build build-cli build-mcp test test-results-dir coverage-report ci dotnet-clean \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
 
 help:
@@ -61,7 +61,8 @@ help:
 		'  make format' \
 		'  make build-cli' \
 		'  make build-mcp' \
-		'  make test'
+		'  make test' \
+		'  make dotnet-clean      # dotnet clean only (no bin/obj wipe)'
 
 bootstrap: restore agent-install-deps
 
@@ -73,7 +74,7 @@ local-feed:
 	$(DOTNET) nuget add source "$(LOCAL_FEED)" --name parlance-local
 
 restore: local-feed
-	$(DOTNET) restore Parlance.sln
+	$(DOTNET) restore Parlance.slnx
 
 agent-install-deps:
 	$(MAKE) -C "$(AGENT_CORE_DIR)" install
@@ -138,10 +139,10 @@ agent-dist-check: agent-build
 	git diff --exit-code -- $(AGENT_DIST_DIRS)
 
 format:
-	$(DOTNET) format Parlance.sln --verify-no-changes --verbosity diagnostic
+	$(DOTNET) format Parlance.slnx --verify-no-changes --verbosity diagnostic
 
 build: agent-build
-	$(DOTNET) build Parlance.sln --configuration "$(CONFIGURATION)" --no-restore
+	$(DOTNET) build Parlance.slnx --configuration "$(CONFIGURATION)" --no-restore
 
 build-cli: agent-build
 	$(DOTNET) build "$(CLI_PROJECT)" --configuration "$(CONFIGURATION)" --no-restore
@@ -154,7 +155,7 @@ test-results-dir:
 	mkdir -p "$(TEST_RESULTS_DIR)"
 
 test: agent-test test-results-dir
-	$(DOTNET) test Parlance.sln \
+	$(DOTNET) test Parlance.slnx \
 		--configuration "$(CONFIGURATION)" \
 		--no-build \
 		--collect:"XPlat Code Coverage" \
@@ -183,8 +184,11 @@ clean-agent:
 	rm -rf "$(AGENT_CORE_DIR)/out-ts"
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do rm -rf "$$dir/out-ts"; done
 
+dotnet-clean:
+	$(DOTNET) clean Parlance.slnx --configuration "$(CONFIGURATION)"
+
 clean: clean-agent
-	$(DOTNET) clean Parlance.sln --configuration "$(CONFIGURATION)" >/dev/null
+	$(DOTNET) clean Parlance.slnx --configuration "$(CONFIGURATION)" >/dev/null
 	find src tests tools -type d \( -name bin -o -name obj \) -prune -exec rm -rf {} +
 	rm -rf "$(ARTIFACTS_DIR)" "$(TEST_RESULTS_DIR)"
 

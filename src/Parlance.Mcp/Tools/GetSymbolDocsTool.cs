@@ -14,16 +14,20 @@ public sealed class GetSymbolDocsTool
     [McpServerTool(Name = "get-symbol-docs", ReadOnly = true)]
     [Description("Returns XML documentation for a symbol (type, method, property, field). " +
                  "Handles inheritdoc by walking to the base symbol.")]
-    public static async Task<GetSymbolDocsResult> GetSymbolDocs(
+    public static Task<GetSymbolDocsResult> GetSymbolDocs(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         ILogger<GetSymbolDocsTool> logger,
+        string symbolName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(GetSymbolDocsResult.NotLoaded()),
+            loaded: _ => RunAsync(query, logger, symbolName, ct),
+            loadFailed: failure => Task.FromResult(GetSymbolDocsResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GetSymbolDocsResult.NotLoaded()));
+
+    private static async Task<GetSymbolDocsResult> RunAsync(
+        WorkspaceQueryService query, ILogger<GetSymbolDocsTool> logger,
         string symbolName, CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return GetSymbolDocsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetSymbolDocsResult.NotLoaded();
-
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
             return GetSymbolDocsResult.NotFound(symbolName);

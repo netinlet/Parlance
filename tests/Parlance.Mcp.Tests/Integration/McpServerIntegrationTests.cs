@@ -7,7 +7,7 @@ namespace Parlance.Mcp.Tests.Integration;
 public sealed class McpServerIntegrationTests
 {
     private static readonly string RepoRoot = FindRepoRoot();
-    private static readonly string SolutionPath = Path.Combine(RepoRoot, "Parlance.sln");
+    private static readonly string SolutionPath = Path.Combine(RepoRoot, "Parlance.slnx");
 
     [Fact]
     public async Task WorkspaceStatus_ReturnsLoadedProjects()
@@ -209,11 +209,11 @@ public sealed class McpServerIntegrationTests
         var dir = Directory.GetCurrentDirectory();
         while (dir is not null)
         {
-            if (File.Exists(Path.Combine(dir, "Parlance.sln")))
+            if (File.Exists(Path.Combine(dir, "Parlance.slnx")))
                 return dir;
             dir = Path.GetDirectoryName(dir);
         }
 
-        throw new InvalidOperationException("Cannot find Parlance.sln in parent directories");
+        throw new InvalidOperationException("Cannot find Parlance.slnx in parent directories");
     }
 }

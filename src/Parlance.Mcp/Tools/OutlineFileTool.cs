@@ -13,15 +13,18 @@ public sealed class OutlineFileTool
     [McpServerTool(Name = "outline-file", ReadOnly = true)]
     [Description("Returns the structural outline of a C# file — types, members, and signatures — without method bodies. " +
                  "Use absolute file paths.")]
-    public static async Task<OutlineFileResult> OutlineFile(
+    public static Task<OutlineFileResult> OutlineFile(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string filePath, CancellationToken ct)
-    {
-        if (holder.LoadFailure is { } failure)
-            return OutlineFileResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return OutlineFileResult.NotLoaded();
+        string filePath, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(OutlineFileResult.NotLoaded()),
+            loaded: _ => RunAsync(query, filePath, ct),
+            loadFailed: failure => Task.FromResult(OutlineFileResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(OutlineFileResult.NotLoaded()));
 
+    private static async Task<OutlineFileResult> RunAsync(
+        WorkspaceQueryService query, string filePath, CancellationToken ct)
+    {
         var semanticModel = await query.GetSemanticModelAsync(filePath, ct);
         if (semanticModel is null)
             return OutlineFileResult.NotFound(filePath);

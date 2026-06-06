@@ -11,15 +11,18 @@ public sealed class FindImplementationsTool
 {
     [McpServerTool(Name = "find-implementations", ReadOnly = true)]
     [Description("Find all types that implement or inherit from a given interface or class.")]
-    public static async Task<FindImplementationsResult> FindImplementations(
+    public static Task<FindImplementationsResult> FindImplementations(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string typeName, CancellationToken ct)
-    {
-        if (holder.LoadFailure is { } failure)
-            return FindImplementationsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return FindImplementationsResult.NotLoaded();
+        string typeName, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(FindImplementationsResult.NotLoaded()),
+            loaded: _ => RunAsync(query, typeName, ct),
+            loadFailed: failure => Task.FromResult(FindImplementationsResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(FindImplementationsResult.NotLoaded()));
 
+    private static async Task<FindImplementationsResult> RunAsync(
+        WorkspaceQueryService query, string typeName, CancellationToken ct)
+    {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
             return FindImplementationsResult.NotFound(typeName);

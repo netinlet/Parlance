@@ -1,0 +1,30 @@
+<Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Folder Name="/src/">
+    <Project Path="src/Parlance.Abstractions/Parlance.Abstractions.csproj" />
+    <Project Path="src/Parlance.Analysis/Parlance.Analysis.csproj" />
+    <Project Path="src/Parlance.Analyzers.Upstream/Parlance.Analyzers.Upstream.csproj" />
+    <Project Path="src/Parlance.Cli/Parlance.Cli.csproj" />
+    <Project Path="src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj" />
+    <Project Path="src/Parlance.CSharp.Package/Parlance.CSharp.Package.csproj" />
+    <Project Path="src/Parlance.CSharp.Workspace/Parlance.CSharp.Workspace.csproj" />
+    <Project Path="src/Parlance.CSharp/Parlance.CSharp.csproj" />
+    <Project Path="src/Parlance.Mcp/Parlance.Mcp.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Parlance.Analysis.Tests/Parlance.Analysis.Tests.csproj" />
+    <Project Path="tests/Parlance.Analyzers.Upstream.Tests/Parlance.Analyzers.Upstream.Tests.csproj" />
+    <Project Path="tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj" />
+    <Project Path="tests/Parlance.CSharp.Tests/Parlance.CSharp.Tests.csproj" />
+    <Project Path="tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj" />
+    <Project Path="tests/Parlance.Mcp.Tests/Parlance.Mcp.Tests.csproj" />
+    <Project Path="tests/Parlance.Package.Tests/Parlance.Package.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Parlance.ManifestGenerator/Parlance.ManifestGenerator.csproj" />
+  </Folder>
+</Solution>

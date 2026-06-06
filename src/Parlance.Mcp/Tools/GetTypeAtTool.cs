@@ -15,15 +15,18 @@ public sealed class GetTypeAtTool
     [Description("Resolve the type of an expression at a given file position. " +
                  "Use 1-based line and column numbers (editor convention). " +
                  "Particularly useful for resolving 'var' declarations to their concrete types.")]
-    public static async Task<GetTypeAtResult> GetTypeAt(
+    public static Task<GetTypeAtResult> GetTypeAt(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string filePath, int line, int column, CancellationToken ct)
-    {
-        if (holder.LoadFailure is { } failure)
-            return GetTypeAtResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetTypeAtResult.NotLoaded();
+        string filePath, int line, int column, CancellationToken ct) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(GetTypeAtResult.NotLoaded()),
+            loaded: _ => RunAsync(query, filePath, line, column, ct),
+            loadFailed: failure => Task.FromResult(GetTypeAtResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GetTypeAtResult.NotLoaded()));
 
+    private static async Task<GetTypeAtResult> RunAsync(
+        WorkspaceQueryService query, string filePath, int line, int column, CancellationToken ct)
+    {
         // Convert from 1-based (editor) to 0-based (Roslyn)
         var zeroLine = line - 1;
         var zeroCol = column - 1;

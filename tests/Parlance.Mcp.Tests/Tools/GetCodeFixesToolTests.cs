@@ -15,7 +15,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        _session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
         _holder = new WorkspaceSessionHolder();
         _holder.SetSession(_session);
         _codeActions = new CodeActionService(_holder, NullLogger<CodeActionService>.Instance);

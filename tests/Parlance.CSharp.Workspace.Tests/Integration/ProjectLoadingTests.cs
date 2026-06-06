@@ -10,7 +10,7 @@ public sealed class ProjectLoadingTests
         var projectPath = Path.Combine(
             TestPaths.RepoRoot, "src", "Parlance.Abstractions", "Parlance.Abstractions.csproj");
 
-        await using var session = await CSharpWorkspaceSession.OpenProjectAsync(projectPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(projectPath)).Session;
 
         Assert.Equal(projectPath, session.WorkspacePath);
         Assert.Single(session.Projects);
@@ -21,12 +21,12 @@ public sealed class ProjectLoadingTests
     }
 
     [Fact]
-    public async Task OpenProjectAsync_NotFound_ThrowsWorkspaceLoadException()
+    public async Task TryOpenProjectAsync_NotFound_ReturnsFailure()
     {
-        var ex = await Assert.ThrowsAsync<WorkspaceLoadException>(
-            () => CSharpWorkspaceSession.OpenProjectAsync("/nonexistent/project.csproj"));
+        var outcome = await CSharpWorkspaceSession.TryOpenProjectAsync("/nonexistent/project.csproj");
 
-        Assert.Equal("/nonexistent/project.csproj", ex.WorkspacePath);
+        var failure = Assert.IsType<WorkspaceLoadResult.Failure>(outcome);
+        Assert.Equal("/nonexistent/project.csproj", failure.Reason.SolutionPath);
     }
 
     [Fact]
@@ -35,7 +35,7 @@ public sealed class ProjectLoadingTests
         var projectPath = Path.Combine(
             TestPaths.RepoRoot, "src", "Parlance.Abstractions", "Parlance.Abstractions.csproj");
 
-        await using var session = await CSharpWorkspaceSession.OpenProjectAsync(projectPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenProjectAsync(projectPath)).Session;
 
         var project = session.Projects[0];
         Assert.Contains("net10.0", project.TargetFrameworks);

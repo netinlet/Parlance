@@ -1,9 +1,11 @@
+using Parlance.Abstractions;
+
 namespace Parlance.Analysis.Curation;
 
 public sealed record CuratedDiagnostic(
     string RuleId,
     string Category,
-    string Severity,
+    DiagnosticSeverity Severity,
     string Message,
     string FilePath,
     int Line,
