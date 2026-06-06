@@ -22,7 +22,7 @@ public sealed class CodeActionService(
     private int _nextFixId;
     private int _nextRefactorId;
 
-    private CSharpWorkspaceSession Session => holder.Session;
+    private CSharpWorkspaceSession Session => holder.LoadedSession;
 
     private sealed record ResolvedDocument(Document Document, string TargetFramework);
 
@@ -64,6 +64,8 @@ public sealed class CodeActionService(
     public async Task<ImmutableList<CodeFixEntry>> GetCodeFixesAsync(
         string filePath, int line, string? diagnosticId = null, CancellationToken ct = default)
     {
+        EvictStaleEntries(Session.SnapshotVersion);
+
         var resolvedDoc = ResolveDocument(filePath);
         if (resolvedDoc is null) return [];
 
@@ -143,6 +145,8 @@ public sealed class CodeActionService(
         string filePath, int line, int column, int? endLine = null, int? endColumn = null,
         CancellationToken ct = default)
     {
+        EvictStaleEntries(Session.SnapshotVersion);
+
         var resolvedDoc = ResolveDocument(filePath);
         if (resolvedDoc is null) return [];
 
@@ -262,19 +266,42 @@ public sealed class CodeActionService(
                 var newText = await newDoc.GetTextAsync(ct);
                 var textChanges = newText.GetTextChanges(oldText);
 
-                var edits = textChanges.Select(change =>
-                {
-                    var startLine = oldText.Lines.GetLinePosition(change.Span.Start).Line + 1;
-                    var endLine2 = oldText.Lines.GetLinePosition(change.Span.End).Line + 1;
-                    var originalText = oldText.GetSubText(change.Span).ToString();
-                    return new TextEdit(startLine, endLine2, originalText, change.NewText ?? "");
-                }).ToImmutableList();
+                var edits = textChanges.Select(change => ToTextEdit(oldText, change)).ToImmutableList();
 
                 changes.Add(new FileChange(oldDoc.FilePath ?? "", edits));
             }
         }
 
         return new CodeActionPreview(actionId, cached.Action.Title, [.. changes]);
+    }
+
+    // Drop cached actions from superseded snapshots. Cached entries pin Roslyn CodeAction
+    // objects; without eviction a long-running server session grows unbounded as files change.
+    // Entries from the current snapshot are still previewable and are kept.
+    internal void EvictStaleEntries(long currentVersion)
+    {
+        foreach (var (id, cached) in _actionCache)
+            if (cached.SnapshotVersion < currentVersion)
+                _actionCache.TryRemove(id, out _);
+    }
+
+    internal int CacheCount => _actionCache.Count;
+
+    internal void AddToCacheForTest(string id, long snapshotVersion) =>
+        _actionCache[id] = new CachedCodeAction(
+            CodeAction.Create("test", _ => Task.FromResult<Document>(null!)), snapshotVersion);
+
+    // Builds a TextEdit with full start/end line+column. Columns are computed regardless,
+    // so edits on the same line stay distinguishable in previews.
+    internal static TextEdit ToTextEdit(SourceText oldText, TextChange change)
+    {
+        var start = oldText.Lines.GetLinePosition(change.Span.Start);
+        var end = oldText.Lines.GetLinePosition(change.Span.End);
+        var range = new TextRange(
+            start.Line + 1, start.Character + 1,
+            end.Line + 1, end.Character + 1);
+        var originalText = oldText.GetSubText(change.Span).ToString();
+        return new TextEdit(range, originalText, change.NewText ?? "");
     }
 
     private static string DetermineScope(CodeFixProvider provider)
@@ -360,4 +387,6 @@ public sealed record CodeActionPreview(
 
 public sealed record FileChange(string FilePath, ImmutableList<TextEdit> Edits);
 
-public sealed record TextEdit(int StartLine, int EndLine, string OriginalText, string NewText);
+public sealed record TextEdit(TextRange Range, string OriginalText, string NewText);
+
+public sealed record TextRange(int StartLine, int StartColumn, int EndLine, int EndColumn);

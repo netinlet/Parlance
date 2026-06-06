@@ -34,33 +34,75 @@ internal static class AnalyzerDllScanner
             if (dllPath.EndsWith(".resources.dll", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            Assembly assembly;
-            try
-            {
-                var loadContext = new AssemblyLoadContext(Path.GetFileName(dllPath), isCollectible: false);
-                loadContext.Resolving += (alc, assemblyName) =>
-                {
-                    var local = ResolveFromDirectory(alc, assemblyName, analyzerDir);
-                    if (local is not null) return local;
-
-                    // Fall back to the default ALC for BCL/runtime assemblies.
-                    // On net10.0 the BCL shims (e.g. Microsoft.Bcl.AsyncInterfaces) are built-in,
-                    // so the default ALC will resolve them regardless of the requested version.
-                    try { return AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName); }
-                    catch { return null; }
-                };
-                assembly = loadContext.LoadFromAssemblyPath(dllPath);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"Failed to load assembly from '{dllPath}': {ex.Message}");
-                continue;
-            }
-
-            builder.Add(assembly);
+            if (LoadAssembly(dllPath) is { } assembly)
+                builder.Add(assembly);
         }
 
         return builder.ToImmutable();
+    }
+
+    // Loads a single analyzer assembly into its own non-collectible ALC, resolving sibling
+    // dependencies from the DLL's directory and falling back to the default ALC for Roslyn/BCL.
+    internal static ImmutableArray<Assembly> ScanAssembliesFromPaths(IEnumerable<string> paths)
+    {
+        var builder = ImmutableArray.CreateBuilder<Assembly>();
+        foreach (var dllPath in ExpandToDllPaths(paths))
+        {
+            if (LoadAssembly(dllPath) is { } assembly)
+                builder.Add(assembly);
+        }
+        return builder.ToImmutable();
+    }
+
+    private static IEnumerable<string> ExpandToDllPaths(IEnumerable<string> paths)
+    {
+        foreach (var path in paths)
+        {
+            if (Directory.Exists(path))
+            {
+                foreach (var dll in Directory.EnumerateFiles(path, "*.dll"))
+                {
+                    if (dll.EndsWith(".resources.dll", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    // LoadFromAssemblyPath requires an absolute path.
+                    yield return Path.GetFullPath(dll);
+                }
+            }
+            else if (File.Exists(path))
+            {
+                yield return Path.GetFullPath(path);
+            }
+            else
+            {
+                throw new FileNotFoundException($"Analyzer path not found: '{path}'", path);
+            }
+        }
+    }
+
+    private static Assembly? LoadAssembly(string dllPath)
+    {
+        var directory = Path.GetDirectoryName(dllPath)!;
+        try
+        {
+            var loadContext = new AssemblyLoadContext(Path.GetFileName(dllPath), isCollectible: false);
+            loadContext.Resolving += (alc, assemblyName) =>
+            {
+                var local = ResolveFromDirectory(alc, assemblyName, directory);
+                if (local is not null) return local;
+
+                // Fall back to the default ALC for BCL/runtime assemblies.
+                // On net10.0 the BCL shims (e.g. Microsoft.Bcl.AsyncInterfaces) are built-in,
+                // so the default ALC will resolve them regardless of the requested version.
+                try { return AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName); }
+                catch { return null; }
+            };
+            return loadContext.LoadFromAssemblyPath(dllPath);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Failed to load assembly from '{dllPath}': {ex.Message}");
+            return null;
+        }
     }
 
     private static Assembly? ResolveFromDirectory(

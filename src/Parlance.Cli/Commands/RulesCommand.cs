@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.CommandLine;
 using System.Text.Json;
 using Parlance.Analyzers.Upstream;
@@ -6,7 +7,17 @@ namespace Parlance.Cli.Commands;
 
 internal static class RulesCommand
 {
-    private sealed record RuleInfo(string Id, string Title, string Category, string DefaultSeverity, bool HasFix);
+    private sealed record RuleInfo(
+        string Id,
+        string Title,
+        string Category,
+        string DefaultSeverity,
+        bool HasFix,
+        string SeverityRaw,
+        string MessageFormat,
+        bool IsEnabledByDefault,
+        string? HelpLinkUri,
+        ImmutableList<string> CustomTags);
 
     public static Command Create()
     {
@@ -16,12 +27,19 @@ internal static class RulesCommand
         var formatOption = new Option<string>("--format", "-f") { Description = "Output format: text, json" };
         formatOption.DefaultValueFactory = _ => "text";
         formatOption.AcceptOnlyFromAmong("text", "json");
+        var analyzerOption = new Option<string[]>("--analyzer")
+        {
+            Description = "Path to an analyzer DLL or a directory of built analyzer DLLs to enumerate instead of " +
+                          "Parlance's bundled rules. Repeatable. Point at the build output directory to include split CodeFixes assemblies.",
+            AllowMultipleArgumentsPerToken = true
+        };
 
         var command = new Command("rules", "List available analysis rules");
         command.Add(categoryOption);
         command.Add(severityOption);
         command.Add(fixableOption);
         command.Add(formatOption);
+        command.Add(analyzerOption);
 
         command.SetAction((parseResult, _) =>
         {
@@ -29,8 +47,19 @@ internal static class RulesCommand
             var severity = parseResult.GetValue(severityOption);
             var fixable = parseResult.GetValue(fixableOption);
             var format = parseResult.GetValue(formatOption)!;
+            var analyzerPaths = parseResult.GetValue(analyzerOption) ?? [];
 
-            var rules = GetRules();
+            List<RuleInfo> rules;
+            try
+            {
+                rules = GetRules(analyzerPaths);
+            }
+            catch (FileNotFoundException ex)
+            {
+                Console.Error.WriteLine(ex.Message);
+                Environment.ExitCode = 1;
+                return Task.CompletedTask;
+            }
 
             if (category is not null)
                 rules = rules.Where(r => r.Category.Equals(category, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -63,10 +92,18 @@ internal static class RulesCommand
         return command;
     }
 
-    private static List<RuleInfo> GetRules()
+    private static List<RuleInfo> GetRules(IReadOnlyList<string> analyzerPaths)
     {
-        var analyzers = AnalyzerLoader.LoadAll("net10.0");
-        var fixableIds = FixProviderLoader.LoadAll("net10.0")
+        var useExternal = analyzerPaths.Count > 0;
+
+        var analyzers = useExternal
+            ? AnalyzerLoader.LoadFromPaths(analyzerPaths)
+            : AnalyzerLoader.LoadAll("net10.0");
+
+        var fixProviders = useExternal
+            ? FixProviderLoader.LoadFromPaths(analyzerPaths)
+            : FixProviderLoader.LoadAll("net10.0");
+        var fixableIds = fixProviders
             .SelectMany(fp => fp.FixableDiagnosticIds)
             .ToHashSet();
 
@@ -92,7 +129,12 @@ internal static class RulesCommand
                     descriptor.Title.ToString(),
                     descriptor.Category,
                     severity,
-                    fixableIds.Contains(descriptor.Id)));
+                    fixableIds.Contains(descriptor.Id),
+                    descriptor.DefaultSeverity.ToString(),
+                    descriptor.MessageFormat.ToString(),
+                    descriptor.IsEnabledByDefault,
+                    string.IsNullOrEmpty(descriptor.HelpLinkUri) ? null : descriptor.HelpLinkUri,
+                    descriptor.CustomTags.ToImmutableList()));
             }
         }
 

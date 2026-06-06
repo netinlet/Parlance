@@ -15,32 +15,26 @@ public sealed class WorkspaceSessionLifecycle(
         logger.LogInformation("Loading workspace: {SolutionPath}", options.SolutionPath);
         var startTimestamp = Stopwatch.GetTimestamp();
 
-        try
-        {
-            var openOptions = options.OpenOptions with { LoggerFactory = loggerFactory };
-            var session = await CSharpWorkspaceSession.OpenSolutionAsync(
-                options.SolutionPath, openOptions, cancellationToken);
+        var openOptions = options.OpenOptions with { LoggerFactory = loggerFactory };
+        var outcome = await CSharpWorkspaceSession.TryOpenSolutionAsync(
+            options.SolutionPath, openOptions, cancellationToken);
+        var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
 
-            holder.SetSession(session);
-
-            var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
-            logger.LogInformation(
-                "Workspace loaded in {ElapsedMs:F0}ms: {Status}, {Count} project(s)",
-                elapsed.TotalMilliseconds, session.Health.Status, session.Projects.Count);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            var elapsed = Stopwatch.GetElapsedTime(startTimestamp);
-            logger.LogError(ex,
-                "Workspace load failed after {ElapsedMs:F0}ms: {SolutionPath}",
-                elapsed.TotalMilliseconds, options.SolutionPath);
-
-            holder.SetLoadFailure(new WorkspaceLoadFailure(ex.Message, options.SolutionPath));
-        }
+        outcome.Switch(
+            onSuccess: session =>
+            {
+                holder.SetSession(session);
+                logger.LogInformation(
+                    "Workspace loaded in {ElapsedMs:F0}ms: {Status}, {Count} project(s)",
+                    elapsed.TotalMilliseconds, session.Health.Status, session.Projects.Count);
+            },
+            onFailure: reason =>
+            {
+                logger.LogError(
+                    "Workspace load failed after {ElapsedMs:F0}ms: {SolutionPath}: {Message}",
+                    elapsed.TotalMilliseconds, options.SolutionPath, reason.Message);
+                holder.SetLoadFailure(reason);
+            });
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

@@ -13,18 +13,21 @@ public sealed class PreviewCodeActionTool
     [Description("Preview the changes a code fix or refactoring would make before applying. " +
                  "Pass an action ID from get-code-fixes or get-refactorings. " +
                  "Returns the exact text edits per file.")]
-    public static async Task<PreviewCodeActionResult> PreviewCodeAction(
+    public static Task<PreviewCodeActionResult> PreviewCodeAction(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
         [Description("Action ID from get-code-fixes or get-refactorings (e.g., 'fix-1', 'refactor-3')")]
         string actionId,
-        CancellationToken ct = default)
-    {
-        if (holder.LoadFailure is { } failure)
-            return PreviewCodeActionResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return PreviewCodeActionResult.NotLoaded();
+        CancellationToken ct = default) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()),
+            loaded: _ => RunAsync(codeActions, actionId, ct),
+            loadFailed: failure => Task.FromResult(PreviewCodeActionResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()));
 
+    private static async Task<PreviewCodeActionResult> RunAsync(
+        CodeActionService codeActions, string actionId, CancellationToken ct)
+    {
         var preview = await codeActions.PreviewAsync(actionId, ct);
         if (preview is null)
             return PreviewCodeActionResult.NotFound(actionId);

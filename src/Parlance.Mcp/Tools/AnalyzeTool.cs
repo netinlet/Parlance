@@ -12,23 +12,45 @@ public sealed class AnalyzeTool
     [McpServerTool(Name = "analyze", ReadOnly = true)]
     [Description("Run diagnostics on C# files. Returns analyzer findings with severity, " +
                  "fix classification, and rationale. Pass absolute file paths.")]
-    public static async Task<AnalyzeToolResult> Analyze(
+    public static Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
-        CancellationToken ct = default)
+        CancellationToken ct = default) =>
+        holder.State.Match(
+            notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
+            loaded: session => RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct),
+            loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
+
+    private static async Task<AnalyzeToolResult> RunAsync(
+        AnalysisService analysis,
+        CSharpWorkspaceSession session,
+        string[] files,
+        string? curationSet,
+        int? maxDiagnostics,
+        CancellationToken ct)
     {
-        if (holder.LoadFailure is { } failure)
-            return AnalyzeToolResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return AnalyzeToolResult.NotLoaded();
+        // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
+        // GetFullPath normalises .. segments for both relative and rooted inputs.
+        // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
+        var workspaceRoot = Path.GetDirectoryName(session.WorkspacePath)!;
+        var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var resolvedFiles = ImmutableList.CreateBuilder<string>();
+        foreach (var f in files)
+        {
+            var resolved = Path.IsPathRooted(f) ? Path.GetFullPath(f) : Path.GetFullPath(f, workspaceRoot);
+            if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
+                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.");
+            resolvedFiles.Add(resolved);
+        }
 
         try
         {
             var options = new AnalyzeOptions(curationSet, maxDiagnostics);
-            var result = await analysis.AnalyzeFilesAsync([.. files], options, ct);
+            var result = await analysis.AnalyzeFilesAsync(resolvedFiles.ToImmutable(), options, ct);
 
             return AnalyzeToolResult.Success(
                 result.CurationSet,

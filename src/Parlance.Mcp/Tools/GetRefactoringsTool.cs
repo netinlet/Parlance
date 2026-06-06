@@ -13,7 +13,7 @@ public sealed class GetRefactoringsTool
     [Description("Get available refactoring actions at a code location or range. " +
                  "Returns refactoring IDs that can be passed to preview-code-action. " +
                  "Use when doing structural work like extracting methods or introducing variables.")]
-    public static async Task<GetRefactoringsResult> GetRefactorings(
+    public static Task<GetRefactoringsResult> GetRefactorings(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
         [Description("Absolute file path")]
@@ -29,23 +29,29 @@ public sealed class GetRefactoringsTool
         CancellationToken ct = default)
     {
         if (line < 1 || column < 1)
-            return GetRefactoringsResult.Error("line and column must be >= 1 (1-based).");
+            return Task.FromResult(GetRefactoringsResult.Error("line and column must be >= 1 (1-based)."));
         if (endLine is not null != endColumn is not null)
-            return GetRefactoringsResult.Error("endLine and endColumn must both be provided for range selection.");
+            return Task.FromResult(GetRefactoringsResult.Error("endLine and endColumn must both be provided for range selection."));
         if (endLine is not null && (endLine.Value < 1 || endColumn!.Value < 1))
-            return GetRefactoringsResult.Error("endLine and endColumn must be >= 1 (1-based).");
+            return Task.FromResult(GetRefactoringsResult.Error("endLine and endColumn must be >= 1 (1-based)."));
 
-        if (holder.LoadFailure is { } failure)
-            return GetRefactoringsResult.LoadFailed(failure.Message);
-        if (!holder.IsLoaded)
-            return GetRefactoringsResult.NotLoaded();
+        return holder.State.Match(
+            notLoaded: () => Task.FromResult(GetRefactoringsResult.NotLoaded()),
+            loaded: session => RunAsync(codeActions, session, filePath, line, column, endLine, endColumn, ct),
+            loadFailed: failure => Task.FromResult(GetRefactoringsResult.LoadFailed(failure.Message)),
+            disposed: () => Task.FromResult(GetRefactoringsResult.NotLoaded()));
+    }
 
+    private static async Task<GetRefactoringsResult> RunAsync(
+        CodeActionService codeActions, CSharpWorkspaceSession session,
+        string filePath, int line, int column, int? endLine, int? endColumn, CancellationToken ct)
+    {
         var refactorings = await codeActions.GetRefactoringsAsync(
             filePath, line, column, endLine, endColumn, ct);
 
         if (refactorings.IsEmpty)
         {
-            var docId = holder.Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
             if (docId is null)
                 return GetRefactoringsResult.NotFound(filePath);
             return GetRefactoringsResult.NoRefactorings(filePath);

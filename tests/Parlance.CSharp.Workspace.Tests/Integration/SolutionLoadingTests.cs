@@ -9,7 +9,7 @@ public sealed class SolutionLoadingTests
     {
         var solutionPath = TestPaths.FindSolutionPath();
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         Assert.Equal(solutionPath, session.WorkspacePath);
         Assert.NotEmpty(session.Projects);
@@ -21,7 +21,7 @@ public sealed class SolutionLoadingTests
     {
         var solutionPath = TestPaths.FindSolutionPath();
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         Assert.True(session.Health.Status is WorkspaceLoadStatus.Loaded or WorkspaceLoadStatus.Degraded);
         Assert.Equal(session.Projects.Count, session.Health.Projects.Count);
@@ -35,7 +35,7 @@ public sealed class SolutionLoadingTests
     {
         var solutionPath = TestPaths.FindSolutionPath();
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         var abstractions = session.Projects.FirstOrDefault(p => p.Name == "Parlance.Abstractions");
         Assert.NotNull(abstractions);
@@ -52,7 +52,7 @@ public sealed class SolutionLoadingTests
         var abstractionsPath = Path.Combine(
             TestPaths.RepoRoot, "src", "Parlance.Abstractions", "Parlance.Abstractions.csproj");
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         var project = session.GetProjectByPath(abstractionsPath);
         Assert.NotNull(project);
@@ -64,7 +64,7 @@ public sealed class SolutionLoadingTests
     {
         var solutionPath = TestPaths.FindSolutionPath();
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         var first = session.Projects[0];
         var found = session.GetProject(first.Key);
@@ -77,23 +77,23 @@ public sealed class SolutionLoadingTests
     {
         var solutionPath = TestPaths.FindSolutionPath();
 
-        await using var session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        await using var session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
 
         var found = session.GetProject(new WorkspaceProjectKey(Guid.NewGuid()));
         Assert.Null(found);
     }
 
     [Fact]
-    public async Task OpenSolutionAsync_NotFound_ThrowsWorkspaceLoadException()
+    public async Task TryOpenSolutionAsync_NotFound_ReturnsFailure()
     {
-        var ex = await Assert.ThrowsAsync<WorkspaceLoadException>(
-            () => CSharpWorkspaceSession.OpenSolutionAsync("/nonexistent/path.sln"));
+        var outcome = await CSharpWorkspaceSession.TryOpenSolutionAsync("/nonexistent/path.sln");
 
-        Assert.Equal("/nonexistent/path.sln", ex.WorkspacePath);
+        var failure = Assert.IsType<WorkspaceLoadResult.Failure>(outcome);
+        Assert.Equal("/nonexistent/path.sln", failure.Reason.SolutionPath);
     }
 
     [Fact]
-    public async Task OpenSolutionAsync_ReportModeWithFileWatching_ThrowsArgumentException()
+    public async Task TryOpenSolutionAsync_ReportModeWithFileWatching_ThrowsArgumentException()
     {
         var solutionPath = TestPaths.FindSolutionPath();
         var options = new WorkspaceOpenOptions(
@@ -101,6 +101,6 @@ public sealed class SolutionLoadingTests
             EnableFileWatching: true);
 
         await Assert.ThrowsAsync<ArgumentException>(
-            () => CSharpWorkspaceSession.OpenSolutionAsync(solutionPath, options));
+            () => CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath, options));
     }
 }

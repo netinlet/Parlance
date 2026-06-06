@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Parlance.Abstractions;
 using Parlance.Analysis.Curation;
 
 namespace Parlance.Analysis.Tests.Curation;
@@ -51,8 +52,8 @@ public sealed class CurationFilterTests
             []);
 
         var diagnostics = ImmutableList.Create(
-            MakeDiagnostic("CA1062", "Design", "warning"),
-            MakeDiagnostic("CA2000", "Reliability", "warning"));
+            MakeDiagnostic("CA1062", "Design", DiagnosticSeverity.Warning),
+            MakeDiagnostic("CA2000", "Reliability", DiagnosticSeverity.Warning));
 
         var result = CurationFilter.Apply(set, diagnostics);
 
@@ -68,12 +69,12 @@ public sealed class CurationFilterTests
             []);
 
         var diagnostics = ImmutableList.Create(
-            MakeDiagnostic("CA1062", "Design", "warning"));
+            MakeDiagnostic("CA1062", "Design", DiagnosticSeverity.Warning));
 
         var result = CurationFilter.Apply(set, diagnostics);
 
         Assert.Single(result);
-        Assert.Equal("error", result[0].Severity);
+        Assert.Equal(DiagnosticSeverity.Error, result[0].Severity);
     }
 
     [Fact]
@@ -84,7 +85,7 @@ public sealed class CurationFilterTests
             []);
 
         var diagnostics = ImmutableList.Create(
-            MakeDiagnostic("CA1062", "Design", "warning"));
+            MakeDiagnostic("CA1062", "Design", DiagnosticSeverity.Warning));
 
         var result = CurationFilter.Apply(set, diagnostics);
 
@@ -99,7 +100,7 @@ public sealed class CurationFilterTests
             [new CurationRationale("null-safety", "AI code omits null guards")]);
 
         var diagnostics = ImmutableList.Create(
-            MakeDiagnostic("CA1062", "Design", "warning"));
+            MakeDiagnostic("CA1062", "Design", DiagnosticSeverity.Warning));
 
         var result = CurationFilter.Apply(set, diagnostics);
 
@@ -110,16 +111,16 @@ public sealed class CurationFilterTests
     public void Apply_NullSet_ReturnsAllDiagnosticsUnchanged()
     {
         var diagnostics = ImmutableList.Create(
-            MakeDiagnostic("CA1062", "Design", "warning"),
-            MakeDiagnostic("CA2000", "Reliability", "error"));
+            MakeDiagnostic("CA1062", "Design", DiagnosticSeverity.Warning),
+            MakeDiagnostic("CA2000", "Reliability", DiagnosticSeverity.Error));
 
         var result = CurationFilter.Apply(null, diagnostics);
 
         Assert.Equal(2, result.Count);
-        Assert.Equal("warning", result[0].Severity);
+        Assert.Equal(DiagnosticSeverity.Warning, result[0].Severity);
         Assert.Null(result[0].FixClassification);
     }
 
-    private static CuratedDiagnostic MakeDiagnostic(string ruleId, string category, string severity) =>
+    private static CuratedDiagnostic MakeDiagnostic(string ruleId, string category, DiagnosticSeverity severity) =>
         new(ruleId, category, severity, $"Message for {ruleId}", "test.cs", 1, 1, 1, 10, null, null);
 }

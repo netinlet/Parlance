@@ -14,12 +14,12 @@ public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
     {
         // Find repo root by walking up from the base directory
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Parlance.sln")))
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Parlance.slnx")))
         {
             dir = dir.Parent;
         }
 
-        _repoRoot = dir?.FullName ?? throw new InvalidOperationException("Could not find repo root containing Parlance.sln");
+        _repoRoot = dir?.FullName ?? throw new InvalidOperationException("Could not find repo root containing Parlance.slnx");
         _artifactsDir = Path.Combine(_repoRoot, "artifacts", "test-packages");
         _tempDir = Path.Combine(Path.GetTempPath(), $"parlance-pkg-tests-{Guid.NewGuid():N}");
 

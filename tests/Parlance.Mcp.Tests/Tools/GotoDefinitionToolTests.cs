@@ -14,7 +14,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
     public async Task InitializeAsync()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        _session = await CSharpWorkspaceSession.OpenSolutionAsync(solutionPath);
+        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
         _holder = new WorkspaceSessionHolder();
         _holder.SetSession(_session);
         _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
@@ -51,10 +51,10 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
             "src", "Parlance.CSharp.Workspace", "WorkspaceQueryService.cs");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        var refLine = Array.FindIndex(lines, l => l.Contains("holder.Session"));
-        Assert.True(refLine >= 0, "Could not find 'holder.Session' reference");
+        var refLine = Array.FindIndex(lines, l => l.Contains("holder.LoadedSession"));
+        Assert.True(refLine >= 0, "Could not find 'holder.LoadedSession' reference");
 
-        var refCol = lines[refLine].IndexOf("Session", StringComparison.Ordinal);
+        var refCol = lines[refLine].IndexOf("LoadedSession", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
             _holder, _query,
@@ -74,9 +74,9 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
             "src", "Parlance.CSharp.Workspace", "WorkspaceQueryService.cs");
         var lines = await File.ReadAllLinesAsync(filePath);
 
-        var refLine = Array.FindIndex(lines, l => l.Contains("holder.Session"));
+        var refLine = Array.FindIndex(lines, l => l.Contains("holder.LoadedSession"));
         Assert.True(refLine >= 0);
-        var refCol = lines[refLine].IndexOf("Session", StringComparison.Ordinal);
+        var refCol = lines[refLine].IndexOf("LoadedSession", StringComparison.Ordinal);
 
         var result = await GotoDefinitionTool.GotoDefinition(
             _holder, _query,
