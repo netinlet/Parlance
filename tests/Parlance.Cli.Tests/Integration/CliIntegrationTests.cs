@@ -29,15 +29,15 @@ public sealed class CliIntegrationTests
             })?.WaitForExit();
         }
 
-        // Walk up from test output to find Parlance.sln
+        // Walk up from test output to find Parlance.slnx
         var dir = testDir;
         while (dir is not null)
         {
-            var sln = Directory.GetFiles(dir, "Parlance.sln").FirstOrDefault();
+            var sln = Directory.GetFiles(dir, "Parlance.slnx").FirstOrDefault();
             if (sln is not null) { _solutionPath = sln; return; }
             dir = Path.GetDirectoryName(dir);
         }
-        throw new InvalidOperationException("Could not find Parlance.sln");
+        throw new InvalidOperationException("Could not find Parlance.slnx");
     }
 
     private async Task<(int ExitCode, string StdOut, string StdErr)> RunCliAsync(params string[] args)

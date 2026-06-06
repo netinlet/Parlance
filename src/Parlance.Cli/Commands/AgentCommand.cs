@@ -134,12 +134,12 @@ internal static class AgentCommand
             if (File.Exists(packed)) return packed;
 
             var directory = new DirectoryInfo(assemblyDir);
-            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Parlance.sln")))
+            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "Parlance.slnx")))
             {
                 directory = directory.Parent;
             }
 
-            if (directory is null) throw new InvalidOperationException("can't locate Parlance.sln");
+            if (directory is null) throw new InvalidOperationException("can't locate Parlance.slnx");
 
             // Repo layout strips the "Parlance.Agent." prefix: Parlance.Agent.Core -> Core/dist, Parlance.Agent.Adapter.Claude -> Adapter.Claude/dist.
             var devFolder = bundleKey.StartsWith("Parlance.Agent.", StringComparison.Ordinal)
