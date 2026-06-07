@@ -101,7 +101,7 @@ public sealed class GetTypeAtTool
                 if (typeSymbol is null)
                 {
                     return GetTypeAtResult.Found(
-                        symbol.Name, symbol.ToDisplayString(), symbol.Kind.ToString(),
+                        symbol.ToDisplayString(), symbol.Kind.ToString(),
                         false, text.Lines[zeroLine].ToString().Trim())
                         with { SnapshotVersion = session.SnapshotVersion };
                 }
@@ -114,7 +114,7 @@ public sealed class GetTypeAtTool
         var sourceLine = zeroLine < text.Lines.Count ? text.Lines[zeroLine].ToString().Trim() : null;
 
         return GetTypeAtResult.Found(
-            typeSymbol.Name, typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
+            typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
             isInferred, sourceLine)
             with { SnapshotVersion = session.SnapshotVersion };
     }
@@ -122,7 +122,6 @@ public sealed class GetTypeAtTool
 
 public sealed record GetTypeAtResult(
     string Status,
-    string? TypeName,
     string? FullyQualifiedName,
     string? Kind,
     bool IsInferred,
@@ -132,16 +131,16 @@ public sealed record GetTypeAtResult(
     public long SnapshotVersion { get; init; }
 
     public static GetTypeAtResult NotFound(string filePath) => new(
-        "not_found", null, null, null, false, null,
+        "not_found", null, null, false, null,
         $"File '{filePath}' not found in workspace or position out of range");
 
     public static GetTypeAtResult NotLoaded() => new(
-        "not_loaded", null, null, null, false, null, "Workspace is still loading");
+        "not_loaded", null, null, false, null, "Workspace is still loading");
 
     public static GetTypeAtResult LoadFailed(string message) => new(
-        "load_failed", null, null, null, false, null, message);
+        "load_failed", null, null, false, null, message);
     public static GetTypeAtResult Found(
-        string typeName, string fullyQualifiedName, string kind,
+        string fullyQualifiedName, string kind,
         bool isInferred, string? sourceText) => new(
-        "found", typeName, fullyQualifiedName, kind, isInferred, sourceText, null);
+        "found", fullyQualifiedName, kind, isInferred, sourceText, null);
 }

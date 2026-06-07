@@ -40,7 +40,6 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
             filePath, classLine + 1, classCol + 1, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
-        Assert.Equal("CSharpWorkspaceSession", result.TypeName);
         Assert.Contains("CSharpWorkspaceSession", result.FullyQualifiedName);
         Assert.False(result.IsInferred);
     }
@@ -65,7 +64,6 @@ public sealed class GetTypeAtToolTests : IAsyncLifetime
 
         Assert.Equal("found", result.Status);
         Assert.True(result.IsInferred);
-        Assert.NotNull(result.TypeName);
         Assert.NotNull(result.FullyQualifiedName);
     }
 

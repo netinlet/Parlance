@@ -31,7 +31,7 @@ public sealed class OutlineFileToolTests : IAsyncLifetime
             _holder, _query, filePath, CancellationToken.None);
 
         Assert.Equal("found", result.Status);
-        Assert.Equal(filePath, result.FilePath);
+        Assert.Null(result.FilePath);
         Assert.Contains(result.Types, t => t.Name == "CSharpWorkspaceSession");
     }
 

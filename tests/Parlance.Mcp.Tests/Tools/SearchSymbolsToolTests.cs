@@ -35,7 +35,6 @@ public sealed class SearchSymbolsToolTests : IAsyncLifetime
         Assert.True(result.TotalMatches > 0);
         Assert.All(result.Matches, m =>
         {
-            Assert.NotEmpty(m.DisplayName);
             Assert.NotEmpty(m.FullyQualifiedName);
             Assert.NotEmpty(m.Kind);
             Assert.NotEmpty(m.ProjectName);

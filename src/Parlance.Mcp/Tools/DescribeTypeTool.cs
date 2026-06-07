@@ -42,7 +42,7 @@ public sealed class DescribeTypeTool
             .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
             .Where(m => m is not IMethodSymbol ms || ms.MethodKind is MethodKind.Ordinary or MethodKind.Constructor)
             .Select(m => new MemberEntry(
-                m.Name, m.Kind.ToString(), m.DeclaredAccessibility.ToString(),
+                m.Kind.ToString(), m.DeclaredAccessibility.ToString(),
                 m.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 m.IsStatic))
             .ToImmutableList();
@@ -60,7 +60,7 @@ public sealed class DescribeTypeTool
             .ToImmutableList();
 
         return DescribeTypeResult.Found(
-            type.Name, type.ToDisplayString(), type.TypeKind.ToString(),
+            type.ToDisplayString(), type.TypeKind.ToString(),
             type.DeclaredAccessibility.ToString(), type.IsSealed, type.IsAbstract, type.IsStatic,
             resolved.Project.Name,
             type.Locations.FirstOrDefault()?.GetLineSpan().Path,
@@ -71,7 +71,7 @@ public sealed class DescribeTypeTool
 }
 
 public sealed record DescribeTypeResult(
-    string Status, string? Name, string? FullyQualifiedName, string? Kind,
+    string Status, string? FullyQualifiedName, string? Kind,
     string? Accessibility, bool IsSealed, bool IsAbstract, bool IsStatic,
     string? ProjectName, string? FilePath, int? Line,
     ImmutableList<string> BaseTypes, ImmutableList<string> Interfaces,
@@ -81,31 +81,31 @@ public sealed record DescribeTypeResult(
     public long SnapshotVersion { get; init; }
 
     public static DescribeTypeResult NotFound(string typeName) => new(
-        "not_found", typeName, null, null, null, false, false, false,
+        "not_found", null, null, null, false, false, false,
         null, null, null, [], [], [], [], $"Type '{typeName}' not found in the workspace");
 
     public static DescribeTypeResult NotLoaded() => new(
-        "not_loaded", null, null, null, null, false, false, false,
+        "not_loaded", null, null, null, false, false, false,
         null, null, null, [], [], [], [], "Workspace is still loading");
 
     public static DescribeTypeResult LoadFailed(string message) => new(
-        "load_failed", null, null, null, null, false, false, false,
+        "load_failed", null, null, null, false, false, false,
         null, null, null, [], [], [], [], message);
 
     public static DescribeTypeResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
-        "ambiguous", typeName, null, null, null, false, false, false,
+        "ambiguous", null, null, null, false, false, false,
         null, null, null, [], [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
 
     public static DescribeTypeResult Found(
-        string name, string fullyQualifiedName, string kind, string accessibility,
+        string fullyQualifiedName, string kind, string accessibility,
         bool isSealed, bool isAbstract, bool isStatic, string projectName,
         string? filePath, int? line,
         ImmutableList<string> baseTypes, ImmutableList<string> interfaces,
         ImmutableList<MemberEntry> members) => new(
-        "found", name, fullyQualifiedName, kind, accessibility, isSealed, isAbstract, isStatic,
+        "found", fullyQualifiedName, kind, accessibility, isSealed, isAbstract, isStatic,
         projectName, filePath, line, baseTypes, interfaces, members, [], null);
 }
 
 public sealed record MemberEntry(
-    string Name, string Kind, string Accessibility, string Signature, bool IsStatic);
+    string Kind, string Accessibility, string Signature, bool IsStatic);

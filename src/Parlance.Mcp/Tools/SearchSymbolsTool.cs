@@ -65,7 +65,6 @@ public sealed class SearchSymbolsTool
             var loc = r.Symbol.Locations.FirstOrDefault();
             var span = loc?.GetLineSpan();
             return new SymbolMatch(
-                r.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 r.Symbol.ToDisplayString(),
                 r.Symbol.Kind.ToString(),
                 r.Project.Name,
@@ -115,5 +114,5 @@ public sealed record SearchSymbolsResult(
 }
 
 public sealed record SymbolMatch(
-    string DisplayName, string FullyQualifiedName, string Kind,
+    string FullyQualifiedName, string Kind,
     string ProjectName, string? FilePath, int? Line);

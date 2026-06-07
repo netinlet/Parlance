@@ -62,7 +62,6 @@ public sealed class OutlineFileTool
 
                         var sig = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
                         return new OutlineMember(
-                            symbol.Name,
                             symbol.Kind.ToString(),
                             symbol.DeclaredAccessibility.ToString(),
                             sig,
@@ -76,7 +75,7 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return OutlineFileResult.Found(filePath, types)
+        return OutlineFileResult.Found(types)
             with { SnapshotVersion = session.SnapshotVersion };
     }
 }
@@ -91,8 +90,8 @@ public sealed record OutlineFileResult(string Status, string? FilePath, Immutabl
         "not_loaded", null, [], "Workspace is still loading");
     public static OutlineFileResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
-    public static OutlineFileResult Found(string filePath, ImmutableList<OutlineType> types) => new(
-        "found", filePath, types, null);
+    public static OutlineFileResult Found(ImmutableList<OutlineType> types) => new(
+        "found", null, types, null);
 }
 
 public sealed record OutlineType(
@@ -100,5 +99,5 @@ public sealed record OutlineType(
     ImmutableList<OutlineMember> Members);
 
 public sealed record OutlineMember(
-    string Name, string Kind, string Accessibility, string Signature,
+    string Kind, string Accessibility, string Signature,
     bool IsStatic, int Line);

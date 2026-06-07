@@ -30,7 +30,6 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
             "CSharpWorkspaceSession", CancellationToken.None);
 
         Assert.Equal("found", result.Status);
-        Assert.Equal("CSharpWorkspaceSession", result.Name);
         Assert.Equal("Parlance.CSharp.Workspace.CSharpWorkspaceSession", result.FullyQualifiedName);
         Assert.NotNull(result.FilePath);
         Assert.Contains("CSharpWorkspaceSession", result.FilePath);
