@@ -25,8 +25,12 @@ public sealed class WorkspaceSessionLifecycle(
         outcome.Switch(
             onSuccess: session =>
             {
-                holder.SetSession(session);
+                // Publish the root BEFORE the session: SetSession flips holder state to Loaded, and
+                // the stdio transport can service a request between these two statements. If Root is
+                // still "" when a loaded-branch request serializes, every RepoPath emits an absolute
+                // path. Assigning Root first closes that window.
                 rootAccessor.Root = session.RepoPath;
+                holder.SetSession(session);
                 logger.LogInformation(
                     "Workspace loaded in {ElapsedMs:F0}ms: {Status}, {Count} project(s)",
                     elapsed.TotalMilliseconds, session.Health.Status, session.Projects.Count);

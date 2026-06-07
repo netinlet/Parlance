@@ -25,12 +25,14 @@ public sealed class SafeToDeleteTool
     private static async Task<SafeToDeleteResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, CancellationToken ct)
     {
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
-            return SafeToDeleteResult.NotFound(symbolName);
+            return SafeToDeleteResult.NotFound(symbolName, snapshotVersion);
 
         if (symbols.Count > 1 && !symbolName.Contains('.'))
-            return SafeToDeleteResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return SafeToDeleteResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var symbol = symbols[0].Symbol;
         var references = await query.FindReferencesAsync(symbol, ct);
@@ -54,7 +56,7 @@ public sealed class SafeToDeleteTool
         }
 
         return SafeToDeleteResult.Found(
-            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations], session.SnapshotVersion);
+            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations], snapshotVersion);
     }
 }
 
@@ -66,15 +68,17 @@ public sealed record SafeToDeleteResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static SafeToDeleteResult NotFound(string symbolName) => new(
-        "not_found", symbolName, false, 0, [], [], $"Symbol '{symbolName}' not found");
+    public static SafeToDeleteResult NotFound(string symbolName, long snapshotVersion) => new(
+        "not_found", symbolName, false, 0, [], [], $"Symbol '{symbolName}' not found")
+        { SnapshotVersion = snapshotVersion };
     public static SafeToDeleteResult NotLoaded() => new(
         "not_loaded", null, false, 0, [], [], "Workspace is still loading");
     public static SafeToDeleteResult LoadFailed(string message) => new(
         "load_failed", null, false, 0, [], [], message);
-    public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, false, 0, [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
     public static SafeToDeleteResult Found(
         string symbolName, bool safe, int referenceCount,
         ImmutableList<DeleteReferenceLocation> sampleLocations, long snapshotVersion) => new(

@@ -25,16 +25,18 @@ public sealed class GetTypeDependenciesTool
         WorkspaceQueryService query, CSharpWorkspaceSession session,
         string typeName, CancellationToken ct)
     {
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
-            return GetTypeDependenciesResult.NotFound(typeName);
+            return GetTypeDependenciesResult.NotFound(typeName, snapshotVersion);
 
         if (symbols.Count > 1 && !typeName.Contains('.'))
-            return GetTypeDependenciesResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return GetTypeDependenciesResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var resolved = symbols[0];
         if (resolved.Symbol is not INamedTypeSymbol typeSymbol)
-            return GetTypeDependenciesResult.NotFound(typeName);
+            return GetTypeDependenciesResult.NotFound(typeName, snapshotVersion);
 
         // Get all solution assembly names to filter out framework types
         var solution = session.CurrentSolution;
@@ -159,7 +161,7 @@ public sealed class GetTypeDependenciesTool
 
         return GetTypeDependenciesResult.Found(
             typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable(),
-            session.SnapshotVersion);
+            snapshotVersion);
     }
 }
 
@@ -172,15 +174,17 @@ public sealed record GetTypeDependenciesResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GetTypeDependenciesResult NotFound(string typeName) => new(
-        "not_found", typeName, [], [], [], $"Type '{typeName}' not found");
+    public static GetTypeDependenciesResult NotFound(string typeName, long snapshotVersion) => new(
+        "not_found", typeName, [], [], [], $"Type '{typeName}' not found")
+        { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult NotLoaded() => new(
         "not_loaded", null, [], [], [], "Workspace is still loading");
     public static GetTypeDependenciesResult LoadFailed(string message) => new(
         "load_failed", null, [], [], [], message);
-    public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, [], [], candidates,
-        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult Found(
         string typeName, ImmutableList<TypeDependencyEntry> dependencies,
         ImmutableList<TypeDependencyEntry> dependents, long snapshotVersion) => new(

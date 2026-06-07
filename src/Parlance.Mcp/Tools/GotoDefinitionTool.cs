@@ -45,6 +45,8 @@ public sealed class GotoDefinitionTool
         if (!hasPosition && !hasName)
             return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
 
+        var snapshotVersion = session.SnapshotVersion;
+
         ISymbol? targetSymbol;
 
         if (hasPosition)
@@ -57,18 +59,18 @@ public sealed class GotoDefinitionTool
             targetSymbol = await query.GetSymbolAtPositionAsync(filePath!, zeroLine, zeroCol, ct);
 
             if (targetSymbol is null)
-                return GotoDefinitionResult.NotFound(filePath!);
+                return GotoDefinitionResult.NotFound(filePath!, snapshotVersion);
         }
         else
         {
             var symbols = await query.FindSymbolsAsync(symbolName!, ct: ct);
             if (symbols.IsEmpty)
-                return GotoDefinitionResult.NotFound(symbolName!);
+                return GotoDefinitionResult.NotFound(symbolName!, snapshotVersion);
 
             if (symbols.Count > 1 && !symbolName!.Contains('.'))
             {
                 return GotoDefinitionResult.Ambiguous(symbolName,
-                    [.. symbols.Select(s => s.ToCandidate())]);
+                    [.. symbols.Select(s => s.ToCandidate())], snapshotVersion);
             }
 
             targetSymbol = symbols[0].Symbol;
@@ -87,7 +89,7 @@ public sealed class GotoDefinitionTool
                 targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 targetSymbol.Kind.ToString(),
                 targetSymbol.ContainingAssembly?.Name,
-                session.SnapshotVersion);
+                snapshotVersion);
         }
 
         var locations = new List<DefinitionLocation>();
@@ -104,7 +106,7 @@ public sealed class GotoDefinitionTool
             }
 
             locations.Add(new DefinitionLocation(
-                span.Path,
+                span.ToRepoPath(),
                 span.StartLinePosition.Line + 1,
                 span.StartLinePosition.Character + 1,
                 snippet));
@@ -114,7 +116,7 @@ public sealed class GotoDefinitionTool
             targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             targetSymbol.Kind.ToString(),
             [.. locations],
-            session.SnapshotVersion);
+            snapshotVersion);
     }
 }
 
@@ -130,9 +132,10 @@ public sealed record GotoDefinitionResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GotoDefinitionResult NotFound(string identifier) => new(
+    public static GotoDefinitionResult NotFound(string identifier, long snapshotVersion) => new(
         "not_found", null, null, false, null, [], [],
-        $"Symbol '{identifier}' not found in the workspace");
+        $"Symbol '{identifier}' not found in the workspace")
+        { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult NotLoaded() => new(
         "not_loaded", null, null, false, null, [], [],
@@ -141,9 +144,10 @@ public sealed record GotoDefinitionResult(
     public static GotoDefinitionResult LoadFailed(string message) => new(
         "load_failed", null, null, false, null, [], [], message);
 
-    public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, null, false, null, [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult Error(string message) => new(
         "error", null, null, false, null, [], [], message);
@@ -160,4 +164,4 @@ public sealed record GotoDefinitionResult(
         { SnapshotVersion = snapshotVersion };
 }
 
-public sealed record DefinitionLocation(RepoPath FilePath, int Line, int Column, string? Snippet);
+public sealed record DefinitionLocation(RepoPath? FilePath, int Line, int Column, string? Snippet);

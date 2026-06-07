@@ -27,7 +27,8 @@ public sealed class GotoDefinitionToolTests(WorkspaceFixture fixture) : IClassFi
         Assert.NotEmpty(result.Locations);
         Assert.All(result.Locations, loc =>
         {
-            Assert.NotEmpty(loc.FilePath.Absolute);
+            Assert.NotNull(loc.FilePath);
+            Assert.NotEmpty(loc.FilePath.Value.Absolute);
             Assert.True(loc.Line > 0);
             Assert.NotNull(loc.Snippet);
         });

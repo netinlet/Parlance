@@ -27,12 +27,19 @@ public sealed class FindReferencesTool
     private static async Task<FindReferencesResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, bool includeSnippets, CancellationToken ct)
     {
+        // Capture the version the operation begins against and stamp THAT on every outcome. Reading
+        // session.SnapshotVersion after the Roslyn work completes could return a newer version than the
+        // payload was computed from (sync-buffer/file-watcher can advance the solution concurrently),
+        // which would let a client treat stale data as current. Stamping the start version never
+        // over-reports.
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
-            return FindReferencesResult.NotFound(symbolName);
+            return FindReferencesResult.NotFound(symbolName, snapshotVersion);
 
         if (symbols.Count > 1 && !symbolName.Contains('.'))
-            return FindReferencesResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return FindReferencesResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var targetSymbol = symbols[0].Symbol;
         var referencedSymbols = await query.FindReferencesAsync(targetSymbol, ct);
@@ -83,7 +90,7 @@ public sealed class FindReferencesTool
             .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
             .ToImmutableList();
 
-        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups, session.SnapshotVersion);
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups, snapshotVersion);
     }
 }
 
@@ -95,15 +102,17 @@ public sealed record FindReferencesResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static FindReferencesResult NotFound(string symbolName) => new(
-        "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace");
+    public static FindReferencesResult NotFound(string symbolName, long snapshotVersion) => new(
+        "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace")
+        { SnapshotVersion = snapshotVersion };
     public static FindReferencesResult NotLoaded() => new(
         "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindReferencesResult LoadFailed(string message) => new(
         "load_failed", null, 0, [], [], message);
-    public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, 0, [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
     public static FindReferencesResult Found(
         string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups, long snapshotVersion) => new(
         "found", symbolName, totalCount, fileGroups, [], null)

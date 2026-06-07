@@ -14,6 +14,6 @@ public sealed class RepoPathFieldTests
         Assert.Equal(typeof(RepoPath?), typeof(SymbolMatch).GetProperty("FilePath")!.PropertyType);
 
     [Fact]
-    public void DefinitionLocation_FilePathIsRepoPath() =>
-        Assert.Equal(typeof(RepoPath), typeof(DefinitionLocation).GetProperty("FilePath")!.PropertyType);
+    public void DefinitionLocation_FilePathIsNullableRepoPath() =>
+        Assert.Equal(typeof(RepoPath?), typeof(DefinitionLocation).GetProperty("FilePath")!.PropertyType);
 }

@@ -43,6 +43,9 @@ public sealed class SearchSymbolsTool
         if (kind is not null && parsed is null)
             return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
 
+        // Snapshot the version the query runs against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         // Request more than maxResults so we can post-filter by specific kind
         var requestLimit = maxResults * 10;
         var (results, totalCount) = await query.SearchSymbolsAsync(searchQuery, parsed?.Filter, requestLimit, ct);
@@ -56,7 +59,7 @@ public sealed class SearchSymbolsTool
         };
 
         if (results.IsEmpty)
-            return SearchSymbolsResult.NoMatches(searchQuery);
+            return SearchSymbolsResult.NoMatches(searchQuery, snapshotVersion);
 
         var totalMatches = parsed is not null ? results.Count : totalCount;
         var isTruncated = totalMatches > maxResults;
@@ -73,7 +76,7 @@ public sealed class SearchSymbolsTool
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
-        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated, session.SnapshotVersion);
+        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated, snapshotVersion);
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
@@ -102,8 +105,9 @@ public sealed record SearchSymbolsResult(
         int totalMatches, bool isTruncated, long snapshotVersion) => new(
         "found", searchQuery, matches, totalMatches, isTruncated, null)
         { SnapshotVersion = snapshotVersion };
-    public static SearchSymbolsResult NoMatches(string searchQuery) => new(
-        "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace");
+    public static SearchSymbolsResult NoMatches(string searchQuery, long snapshotVersion) => new(
+        "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace")
+        { SnapshotVersion = snapshotVersion };
     public static SearchSymbolsResult NotLoaded() => new(
         "not_loaded", null, [], 0, false, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(

@@ -45,9 +45,14 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
     /// <see cref="CurrentSnapshotVersion"/>, which returns 0 when not loaded — so callers must gate on
     /// the loaded state first (e.g. inside a <c>loaded:</c> match branch) before treating a true result
     /// as "stale" rather than "not loaded".
+    /// <para>
+    /// A value of <c>0</c> is treated as "no expectation" (identical to <c>null</c>): snapshot versions
+    /// start at 1 and only increment, so a client that serializes a default <c>0</c> on the wire instead
+    /// of omitting the field would otherwise always be reported stale on a fresh workspace.
+    /// </para>
     /// </summary>
     public bool IsStale(long? expectedSnapshotVersion) =>
-        expectedSnapshotVersion is { } expected && expected != CurrentSnapshotVersion();
+        expectedSnapshotVersion is { } expected && expected != 0 && expected != CurrentSnapshotVersion();
 
     public void Dispose()
     {

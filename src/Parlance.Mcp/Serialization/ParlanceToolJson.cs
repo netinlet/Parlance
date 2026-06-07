@@ -20,22 +20,28 @@ public static class ParlanceToolJson
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         };
-        options.TypeInfoResolverChain.Insert(0, new DefaultJsonTypeInfoResolver
-        {
-            Modifiers = { DropEmptyCollections },
-        });
+        // Layer the modifier ON TOP of the SDK resolver (source-gen) instead of prepending a fresh
+        // reflection DefaultJsonTypeInfoResolver. Prepending one shadows the source-gen context for
+        // every tool DTO and breaks AOT/trimming; WithAddedModifier wraps the existing resolver and
+        // only post-processes the JsonTypeInfo it returns.
+        var baseResolver = options.TypeInfoResolver ?? new DefaultJsonTypeInfoResolver();
+        options.TypeInfoResolver = baseResolver.WithAddedModifier(DropEmptyCollections);
         foreach (var converter in extraConverters)
             options.Converters.Add(converter);
         return options;
     }
 
-    // WhenWritingNull does not suppress "[]"; this does. Skips zero-count enumerables (but never strings).
+    // WhenWritingNull does not suppress "[]"; this does. Scoped to list/array/set-shaped properties:
+    // dictionaries are left alone so an always-present (possibly empty) map still emits "{}" rather
+    // than vanishing into `undefined` on the client.
     private static void DropEmptyCollections(JsonTypeInfo typeInfo)
     {
         foreach (var property in typeInfo.Properties)
         {
-            if (property.PropertyType == typeof(string) ||
-                !typeof(IEnumerable).IsAssignableFrom(property.PropertyType))
+            var type = property.PropertyType;
+            if (type == typeof(string) ||
+                !typeof(IEnumerable).IsAssignableFrom(type) ||
+                IsDictionary(type))
                 continue;
 
             var inner = property.ShouldSerialize;
@@ -43,6 +49,11 @@ public static class ParlanceToolJson
                 (inner is null || inner(obj, value)) && value is IEnumerable e && HasAny(e);
         }
     }
+
+    private static bool IsDictionary(Type type) =>
+        typeof(IDictionary).IsAssignableFrom(type) ||
+        type.GetInterfaces().Any(i =>
+            i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IDictionary<,>));
 
     private static bool HasAny(IEnumerable enumerable)
     {

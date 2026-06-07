@@ -19,7 +19,7 @@ public sealed class AnalyzeTool
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
-        [Description("If set, returns status 'stale' when the workspace has moved past this snapshot.")]
+        [Description("If set, returns status 'stale' when the workspace has moved past this snapshot. 0 or omitted = no check.")]
         long? expectedSnapshotVersion = null,
         CancellationToken ct = default)
     {
@@ -46,7 +46,7 @@ public sealed class AnalyzeTool
         // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
         // GetFullPath normalises .. segments for both relative and rooted inputs.
         // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
-        var workspaceRoot = Path.GetDirectoryName(session.WorkspacePath)!;
+        var workspaceRoot = session.RepoPath;
         var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)

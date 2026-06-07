@@ -27,17 +27,19 @@ public sealed class DescribeTypeTool
     private static async Task<DescribeTypeResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, CancellationToken ct)
     {
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
 
         if (symbols.IsEmpty)
-            return DescribeTypeResult.NotFound(typeName);
+            return DescribeTypeResult.NotFound(typeName, snapshotVersion);
 
         if (symbols.Count > 1 && !typeName.Contains('.'))
-            return DescribeTypeResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return DescribeTypeResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var resolved = symbols[0];
         if (resolved.Symbol is not INamedTypeSymbol type)
-            return DescribeTypeResult.NotFound(typeName);
+            return DescribeTypeResult.NotFound(typeName, snapshotVersion);
 
         var members = type.GetMembers()
             .Where(m => m.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.Internal)
@@ -66,7 +68,7 @@ public sealed class DescribeTypeTool
             resolved.Project.Name,
             type.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
             type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
-            [.. baseTypes], interfaces, members, session.SnapshotVersion);
+            [.. baseTypes], interfaces, members, snapshotVersion);
     }
 }
 
@@ -80,9 +82,10 @@ public sealed record DescribeTypeResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static DescribeTypeResult NotFound(string typeName) => new(
+    public static DescribeTypeResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", null, null, null, false, false, false,
-        null, default(RepoPath?), null, [], [], [], [], $"Type '{typeName}' not found in the workspace");
+        null, default(RepoPath?), null, [], [], [], [], $"Type '{typeName}' not found in the workspace")
+        { SnapshotVersion = snapshotVersion };
 
     public static DescribeTypeResult NotLoaded() => new(
         "not_loaded", null, null, null, false, false, false,
@@ -92,10 +95,11 @@ public sealed record DescribeTypeResult(
         "load_failed", null, null, null, false, false, false,
         null, default(RepoPath?), null, [], [], [], [], message);
 
-    public static DescribeTypeResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static DescribeTypeResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", null, null, null, false, false, false,
         null, default(RepoPath?), null, [], [], [], candidates,
-        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
 
     public static DescribeTypeResult Found(
         string fullyQualifiedName, string kind, string accessibility,
