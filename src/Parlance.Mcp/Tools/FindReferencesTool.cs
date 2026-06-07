@@ -13,15 +13,18 @@ public sealed class FindReferencesTool
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
     public static Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string symbolName, CancellationToken ct) =>
+        string symbolName,
+        [Description("Include one source line per reference. Off by default — verbose on hot symbols.")]
+        bool includeSnippets = false,
+        CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(FindReferencesResult.NotLoaded()),
-            loaded: session => RunAsync(query, session, symbolName, ct),
+            loaded: session => RunAsync(query, session, symbolName, includeSnippets, ct),
             loadFailed: failure => Task.FromResult(FindReferencesResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(FindReferencesResult.NotLoaded()));
 
     private static async Task<FindReferencesResult> RunAsync(
-        WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, bool includeSnippets, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
@@ -34,7 +37,8 @@ public sealed class FindReferencesTool
         var referencedSymbols = await query.FindReferencesAsync(targetSymbol, ct);
 
         var locationsByFile = new Dictionary<string, List<ReferenceLocation>>();
-        var textCache = new Dictionary<SyntaxTree, Microsoft.CodeAnalysis.Text.SourceText>();
+        Dictionary<SyntaxTree, Microsoft.CodeAnalysis.Text.SourceText>? textCache =
+            includeSnippets ? [] : null;
         var totalCount = 0;
 
         foreach (var refSymbol in referencedSymbols)
@@ -49,17 +53,20 @@ public sealed class FindReferencesTool
                 totalCount++;
 
                 string? snippet = null;
-                var tree = location.Location.SourceTree;
-                if (tree is not null)
+                if (includeSnippets)
                 {
-                    if (!textCache.TryGetValue(tree, out var text))
+                    var tree = location.Location.SourceTree;
+                    if (tree is not null)
                     {
-                        text = await tree.GetTextAsync(ct);
-                        textCache[tree] = text;
+                        if (!textCache!.TryGetValue(tree, out var text))
+                        {
+                            text = await tree.GetTextAsync(ct);
+                            textCache![tree] = text;
+                        }
+                        var line = span.StartLinePosition.Line;
+                        if (line >= 0 && line < text.Lines.Count)
+                            snippet = text.Lines[line].ToString().Trim();
                     }
-                    var line = span.StartLinePosition.Line;
-                    if (line >= 0 && line < text.Lines.Count)
-                        snippet = text.Lines[line].ToString().Trim();
                 }
 
                 if (!locationsByFile.TryGetValue(filePath, out var list))

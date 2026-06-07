@@ -27,7 +27,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
     {
         var result = await FindReferencesTool.FindReferences(
             _holder, _query,
-            "CSharpWorkspaceSession", CancellationToken.None);
+            "CSharpWorkspaceSession", ct: CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.NotNull(result.SymbolName);
@@ -42,11 +42,31 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task FindReferences_WithSnippets_ReturnsNonNullSnippets()
+    {
+        var result = await FindReferencesTool.FindReferences(
+            _holder, _query,
+            "CSharpWorkspaceSession", includeSnippets: true, ct: CancellationToken.None);
+
+        Assert.Equal("found", result.Status);
+        Assert.NotNull(result.SymbolName);
+        Assert.Contains("CSharpWorkspaceSession", result.SymbolName);
+        Assert.True(result.TotalCount > 0);
+        Assert.NotEmpty(result.FileGroups);
+
+        var allReferences = result.FileGroups
+            .SelectMany(group => group.Locations)
+            .ToList();
+
+        Assert.Contains(allReferences, r => r.Snippet is not null);
+    }
+
+    [Fact]
     public async Task FindReferences_NotFound_ReturnsNotFound()
     {
         var result = await FindReferencesTool.FindReferences(
             _holder, _query,
-            "ThisSymbolDoesNotExistAnywhere", CancellationToken.None);
+            "ThisSymbolDoesNotExistAnywhere", ct: CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
         Assert.Equal(0, result.TotalCount);
@@ -61,7 +81,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
 
         var result = FindReferencesTool.FindReferences(
             holder, query,
-            "Anything", CancellationToken.None).Result;
+            "Anything", ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
         Assert.Equal(0, result.TotalCount);
@@ -77,7 +97,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
 
         var result = FindReferencesTool.FindReferences(
             holder, query,
-            "Anything", CancellationToken.None).Result;
+            "Anything", ct: CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
         Assert.Equal("boom", result.Message);
