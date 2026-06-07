@@ -65,18 +65,15 @@ public sealed class SearchSymbolsTool
         {
             var loc = r.Symbol.Locations.FirstOrDefault();
             var span = loc?.GetLineSpan();
-            var path = span?.Path;
             return new SymbolMatch(
                 r.Symbol.ToDisplayString(),
                 r.Symbol.Kind.ToString(),
                 r.Project.Name,
-                RepoPath.OrNull(path),
+                span?.ToRepoPath(),
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
-        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated, session.SnapshotVersion);
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
@@ -102,8 +99,9 @@ public sealed record SearchSymbolsResult(
     string? Message)
 {
     public static SearchSymbolsResult Found(string searchQuery, ImmutableList<SymbolMatch> matches,
-        int totalMatches, bool isTruncated) => new(
-        "found", searchQuery, matches, totalMatches, isTruncated, null);
+        int totalMatches, bool isTruncated, long snapshotVersion) => new(
+        "found", searchQuery, matches, totalMatches, isTruncated, null)
+        { SnapshotVersion = snapshotVersion };
     public static SearchSymbolsResult NoMatches(string searchQuery) => new(
         "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace");
     public static SearchSymbolsResult NotLoaded() => new(

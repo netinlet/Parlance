@@ -37,19 +37,16 @@ public sealed class FindImplementationsTool
         var entries = implementations
             .Select(s =>
             {
-                var path = s.Locations.FirstOrDefault()?.GetLineSpan().Path;
                 return new ImplementationEntry(
                     s.Name,
                     s.ToDisplayString(),
                     s.Kind.ToString(),
-                    RepoPath.OrNull(path),
+                    s.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
                     s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1);
             })
             .ToImmutableList();
 
-        return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+        return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries, session.SnapshotVersion);
     }
 }
 
@@ -70,8 +67,10 @@ public sealed record FindImplementationsResult(
     public static FindImplementationsResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", typeName, 0, [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
-    public static FindImplementationsResult Found(string targetType, ImmutableList<ImplementationEntry> implementations) => new(
-        "found", targetType, implementations.Count, implementations, [], null);
+    public static FindImplementationsResult Found(
+        string targetType, ImmutableList<ImplementationEntry> implementations, long snapshotVersion) => new(
+        "found", targetType, implementations.Count, implementations, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record ImplementationEntry(

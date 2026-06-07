@@ -75,9 +75,7 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return OutlineFileResult.Found(types)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+        return OutlineFileResult.Found(types, session.SnapshotVersion);
     }
 }
 
@@ -91,8 +89,9 @@ public sealed record OutlineFileResult(string Status, string? FilePath, Immutabl
         "not_loaded", null, [], "Workspace is still loading");
     public static OutlineFileResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
-    public static OutlineFileResult Found(ImmutableList<OutlineType> types) => new(
-        "found", null, types, null);
+    public static OutlineFileResult Found(ImmutableList<OutlineType> types, long snapshotVersion) => new(
+        "found", null, types, null)
+    { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record OutlineType(

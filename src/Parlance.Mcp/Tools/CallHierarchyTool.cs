@@ -69,7 +69,7 @@ public sealed class CallHierarchyTool
                 callersBuilder.Add(new HierarchyEntry(
                     MethodName: containingMethod?.Identifier.Text ?? "<unknown>",
                     ContainingType: containingType?.Identifier.Text ?? "<unknown>",
-                    FilePath: RepoPath.OrNull(span.Path),
+                    FilePath: span.ToRepoPath(),
                     Line: span.StartLinePosition.Line + 1));
             }
         }
@@ -108,7 +108,7 @@ public sealed class CallHierarchyTool
                         calleesBuilder.Add(new HierarchyEntry(
                             MethodName: calledMethod.Name,
                             ContainingType: calledMethod.ContainingType?.Name ?? "<unknown>",
-                            FilePath: RepoPath.OrNull(callSpan.Path),
+                            FilePath: callSpan.ToRepoPath(),
                             Line: callSpan.StartLinePosition.Line + 1));
                     }
                 }
@@ -116,9 +116,8 @@ public sealed class CallHierarchyTool
         }
 
         return CallHierarchyResult.Found(
-            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable())
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable(),
+            session.SnapshotVersion);
     }
 }
 
@@ -138,8 +137,10 @@ public sealed record CallHierarchyResult(
         "ambiguous", methodName, [], [], candidates,
         $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
     public static CallHierarchyResult Found(
-        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees) => new(
-        "found", targetMethod, callers, callees, [], null);
+        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees,
+        long snapshotVersion) => new(
+        "found", targetMethod, callers, callees, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record HierarchyEntry(

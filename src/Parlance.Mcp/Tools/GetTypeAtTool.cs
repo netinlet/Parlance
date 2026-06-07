@@ -102,9 +102,7 @@ public sealed class GetTypeAtTool
                 {
                     return GetTypeAtResult.Found(
                         symbol.ToDisplayString(), symbol.Kind.ToString(),
-                        false, text.Lines[zeroLine].ToString().Trim())
-                        with
-                    { SnapshotVersion = session.SnapshotVersion };
+                        false, text.Lines[zeroLine].ToString().Trim(), session.SnapshotVersion);
                 }
             }
         }
@@ -116,9 +114,7 @@ public sealed class GetTypeAtTool
 
         return GetTypeAtResult.Found(
             typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
-            isInferred, sourceLine)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            isInferred, sourceLine, session.SnapshotVersion);
     }
 }
 
@@ -143,6 +139,7 @@ public sealed record GetTypeAtResult(
         "load_failed", null, null, false, null, message);
     public static GetTypeAtResult Found(
         string fullyQualifiedName, string kind,
-        bool isInferred, string? sourceText) => new(
-        "found", fullyQualifiedName, kind, isInferred, sourceText, null);
+        bool isInferred, string? sourceText, long snapshotVersion) => new(
+        "found", fullyQualifiedName, kind, isInferred, sourceText, null)
+        { SnapshotVersion = snapshotVersion };
 }

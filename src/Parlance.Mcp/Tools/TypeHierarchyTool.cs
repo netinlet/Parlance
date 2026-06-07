@@ -57,7 +57,6 @@ public sealed class TypeHierarchyTool
             Truncated: hierarchy.Truncated,
             Candidates: [],
             Message: null)
-            with
         { SnapshotVersion = session.SnapshotVersion };
     }
 }

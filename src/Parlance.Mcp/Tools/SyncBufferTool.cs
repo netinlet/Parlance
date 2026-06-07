@@ -37,15 +37,15 @@ public sealed class SyncBufferTool
     {
         var version = await session.SyncBufferAsync(path, text, ct);
         return version == 0
-            ? SyncBufferResult.NotInWorkspace(path) with { SnapshotVersion = session.SnapshotVersion }
-            : SyncBufferResult.Synced(version) with { SnapshotVersion = session.SnapshotVersion };
+            ? SyncBufferResult.NotInWorkspace(path, session.SnapshotVersion)
+            : SyncBufferResult.Synced(version, session.SnapshotVersion);
     }
 
     private static async Task<SyncBufferResult> ApplyCloseAsync(
         CSharpWorkspaceSession session, string path, CancellationToken ct)
     {
         await session.CloseBufferAsync(path, ct);
-        return SyncBufferResult.Closed() with { SnapshotVersion = session.SnapshotVersion };
+        return SyncBufferResult.Closed(session.SnapshotVersion);
     }
 }
 
@@ -54,13 +54,15 @@ public sealed record SyncBufferResult(string Status, string? Message)
     public long SnapshotVersion { get; init; }
     public long DocumentVersion { get; init; }
 
-    public static SyncBufferResult Synced(long documentVersion) =>
-        new("synced", null) { DocumentVersion = documentVersion };
+    public static SyncBufferResult Synced(long documentVersion, long snapshotVersion) =>
+        new("synced", null) { DocumentVersion = documentVersion, SnapshotVersion = snapshotVersion };
 
-    public static SyncBufferResult Closed() => new("closed", null);
+    public static SyncBufferResult Closed(long snapshotVersion) =>
+        new("closed", null) { SnapshotVersion = snapshotVersion };
 
-    public static SyncBufferResult NotInWorkspace(string path) =>
-        new("not_in_workspace", $"'{path}' is not a document in the loaded workspace");
+    public static SyncBufferResult NotInWorkspace(string path, long snapshotVersion) =>
+        new("not_in_workspace", $"'{path}' is not a document in the loaded workspace")
+        { SnapshotVersion = snapshotVersion };
 
     public static SyncBufferResult NotLoaded() => new("not_loaded", "Workspace is still loading");
 

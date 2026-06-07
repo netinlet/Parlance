@@ -55,7 +55,6 @@ public sealed class GetCodeFixesTool
             Line: line,
             Fixes: fixes,
             Message: null)
-            with
         { SnapshotVersion = session.SnapshotVersion };
     }
 }

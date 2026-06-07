@@ -7,7 +7,7 @@ public sealed class SnapshotStampTests
     [Fact]
     public void SearchSymbolsResult_CarriesSnapshotVersion()
     {
-        var result = SearchSymbolsResult.Found("q", [], 0, false) with { SnapshotVersion = 42 };
+        var result = SearchSymbolsResult.Found("q", [], 0, false, 42);
         Assert.Equal(42, result.SnapshotVersion);
     }
 

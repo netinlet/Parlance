@@ -43,9 +43,7 @@ public sealed class GetSymbolDocsTool
 
         return GetSymbolDocsResult.Found(
             symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,
-            docs.Params, docs.TypeParams, docs.Exceptions)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            docs.Params, docs.TypeParams, docs.Exceptions, session.SnapshotVersion);
     }
 
     private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)
@@ -188,8 +186,9 @@ public sealed record GetSymbolDocsResult(
     public static GetSymbolDocsResult Found(
         string symbolName, string? summary, string? returns, string? remarks,
         ImmutableList<DocParam> parms, ImmutableList<DocParam> typeParams,
-        ImmutableList<DocParam> exceptions) => new(
-        "found", symbolName, summary, returns, remarks, parms, typeParams, exceptions, [], null);
+        ImmutableList<DocParam> exceptions, long snapshotVersion) => new(
+        "found", symbolName, summary, returns, remarks, parms, typeParams, exceptions, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record DocParam(string Name, string Description);

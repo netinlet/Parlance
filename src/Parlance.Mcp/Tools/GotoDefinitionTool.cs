@@ -86,9 +86,8 @@ public sealed class GotoDefinitionTool
             return GotoDefinitionResult.Metadata(
                 targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 targetSymbol.Kind.ToString(),
-                targetSymbol.ContainingAssembly?.Name)
-                with
-            { SnapshotVersion = session.SnapshotVersion };
+                targetSymbol.ContainingAssembly?.Name,
+                session.SnapshotVersion);
         }
 
         var locations = new List<DefinitionLocation>();
@@ -114,9 +113,8 @@ public sealed class GotoDefinitionTool
         return GotoDefinitionResult.Found(
             targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             targetSymbol.Kind.ToString(),
-            [.. locations])
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            [.. locations],
+            session.SnapshotVersion);
     }
 }
 
@@ -151,12 +149,15 @@ public sealed record GotoDefinitionResult(
         "error", null, null, false, null, [], [], message);
 
     public static GotoDefinitionResult Found(string symbolName, string kind,
-        ImmutableList<DefinitionLocation> locations) => new(
-        "found", symbolName, kind, false, null, locations, [], null);
+        ImmutableList<DefinitionLocation> locations, long snapshotVersion) => new(
+        "found", symbolName, kind, false, null, locations, [], null)
+        { SnapshotVersion = snapshotVersion };
 
-    public static GotoDefinitionResult Metadata(string symbolName, string kind, string? assemblyName) => new(
+    public static GotoDefinitionResult Metadata(
+        string symbolName, string kind, string? assemblyName, long snapshotVersion) => new(
         "found", symbolName, kind, true, assemblyName, [], [],
-        $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
+        $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.")
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record DefinitionLocation(RepoPath FilePath, int Line, int Column, string? Snippet);

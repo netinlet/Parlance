@@ -83,9 +83,7 @@ public sealed class FindReferencesTool
             .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
             .ToImmutableList();
 
-        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups, session.SnapshotVersion);
     }
 }
 
@@ -106,8 +104,10 @@ public sealed record FindReferencesResult(
     public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", symbolName, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
-    public static FindReferencesResult Found(string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups) => new(
-        "found", symbolName, totalCount, fileGroups, [], null);
+    public static FindReferencesResult Found(
+        string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups, long snapshotVersion) => new(
+        "found", symbolName, totalCount, fileGroups, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record ReferenceFileGroup(RepoPath FilePath, ImmutableList<ReferenceLocation> Locations);

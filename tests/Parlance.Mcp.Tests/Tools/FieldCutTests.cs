@@ -41,7 +41,7 @@ public sealed class FieldCutTests
     [Fact]
     public void OutlineFileResult_OmitsFilePathOnSuccess()
     {
-        var json = JsonSerializer.Serialize(OutlineFileResult.Found([]), Json);
+        var json = JsonSerializer.Serialize(OutlineFileResult.Found([], 0), Json);
         Assert.DoesNotContain("filePath", json, StringComparison.OrdinalIgnoreCase);
     }
 }

@@ -151,9 +151,8 @@ public sealed class GetTypeDependenciesTool
         }
 
         return GetTypeDependenciesResult.Found(
-            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable())
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable(),
+            session.SnapshotVersion);
     }
 }
 
@@ -177,8 +176,9 @@ public sealed record GetTypeDependenciesResult(
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
     public static GetTypeDependenciesResult Found(
         string typeName, ImmutableList<TypeDependencyEntry> dependencies,
-        ImmutableList<TypeDependencyEntry> dependents) => new(
-        "found", typeName, dependencies, dependents, [], null);
+        ImmutableList<TypeDependencyEntry> dependents, long snapshotVersion) => new(
+        "found", typeName, dependencies, dependents, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record TypeDependencyEntry(string Name, string FullyQualifiedName, string Relationship);

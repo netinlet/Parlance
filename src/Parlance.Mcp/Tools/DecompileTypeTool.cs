@@ -59,9 +59,8 @@ public sealed class DecompileTypeTool
 
                     return DecompileTypeResult.Found(
                         typeSymbol.ToDisplayString(), assemblySymbol.Name, metaRef.FilePath, decompiledCode,
-                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null)
-                        with
-                    { SnapshotVersion = session.SnapshotVersion };
+                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null,
+                        session.SnapshotVersion);
                 }
                 catch (Exception ex)
                 {
@@ -106,6 +105,7 @@ public sealed record DecompileTypeResult(
         "decompile_failed", typeName, null, null, null, $"Decompilation failed: {error}");
     public static DecompileTypeResult Found(
         string typeName, string assemblyName, string assemblyPath,
-        string decompiledSource, string? message) => new(
-        "found", typeName, assemblyName, assemblyPath, decompiledSource, message);
+        string decompiledSource, string? message, long snapshotVersion) => new(
+        "found", typeName, assemblyName, assemblyPath, decompiledSource, message)
+        { SnapshotVersion = snapshotVersion };
 }

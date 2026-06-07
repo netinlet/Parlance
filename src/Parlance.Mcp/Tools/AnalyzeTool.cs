@@ -73,9 +73,8 @@ public sealed class AnalyzeTool
                 result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
                     d.FilePath, d.Line,
-                    d.FixClassification, d.Rationale)).ToImmutableList())
-            with
-            { SnapshotVersion = session.SnapshotVersion };
+                    d.FixClassification, d.Rationale)).ToImmutableList(),
+                session.SnapshotVersion);
         }
         catch (ArgumentException ex)
         {
@@ -106,12 +105,14 @@ public sealed record AnalyzeToolResult
     };
 
     public static AnalyzeToolResult Success(
-        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics) => new()
+        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics,
+        long snapshotVersion) => new()
         {
             Status = "success",
             CurationSet = curationSet,
             Summary = summary,
-            Diagnostics = diagnostics
+            Diagnostics = diagnostics,
+            SnapshotVersion = snapshotVersion
         };
 
     public static AnalyzeToolResult Failed(string message) => new()

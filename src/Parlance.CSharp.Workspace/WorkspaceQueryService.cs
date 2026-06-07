@@ -241,14 +241,13 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var kind = symbol is INamedTypeSymbol namedType
             ? namedType.TypeKind.ToString()
             : symbol.Kind.ToString();
-        var path = span?.Path;
 
         return new HierarchyNode(
             symbol.Name,
             symbol.ToDisplayString(),
             kind,
             relationship,
-            RepoPath.OrNull(path),
+            span?.ToRepoPath(),
             span?.StartLinePosition.Line + 1,
             children);
     }

@@ -10,10 +10,9 @@ public sealed record SymbolCandidate(
 {
     public static SymbolCandidate From(ResolvedSymbol resolved)
     {
-        var path = resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().Path;
         return new(
             resolved.Symbol.ToDisplayString(), resolved.Symbol.Kind.ToString(), resolved.Project.Name,
-            RepoPath.OrNull(path),
+            resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
             resolved.Symbol.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1);
     }
 }

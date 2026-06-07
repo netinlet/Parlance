@@ -48,15 +48,13 @@ public sealed class SafeToDeleteTool
                 if (locations.Count < 5)
                 {
                     var span = location.Location.GetLineSpan();
-                    locations.Add(new DeleteReferenceLocation(RepoPath.OrNull(span.Path), span.StartLinePosition.Line + 1));
+                    locations.Add(new DeleteReferenceLocation(span.ToRepoPath(), span.StartLinePosition.Line + 1));
                 }
             }
         }
 
         return SafeToDeleteResult.Found(
-            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations])
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations], session.SnapshotVersion);
     }
 }
 
@@ -79,8 +77,9 @@ public sealed record SafeToDeleteResult(
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
     public static SafeToDeleteResult Found(
         string symbolName, bool safe, int referenceCount,
-        ImmutableList<DeleteReferenceLocation> sampleLocations) => new(
-        "found", symbolName, safe, referenceCount, sampleLocations, [], null);
+        ImmutableList<DeleteReferenceLocation> sampleLocations, long snapshotVersion) => new(
+        "found", symbolName, safe, referenceCount, sampleLocations, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record DeleteReferenceLocation(RepoPath? FilePath, int Line);

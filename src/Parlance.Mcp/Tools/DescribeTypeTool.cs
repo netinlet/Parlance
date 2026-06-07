@@ -64,11 +64,9 @@ public sealed class DescribeTypeTool
             type.ToDisplayString(), type.TypeKind.ToString(),
             type.DeclaredAccessibility.ToString(), type.IsSealed, type.IsAbstract, type.IsStatic,
             resolved.Project.Name,
-            type.Locations.FirstOrDefault()?.GetLineSpan().Path,
+            type.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
             type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
-            [.. baseTypes], interfaces, members)
-            with
-        { SnapshotVersion = session.SnapshotVersion };
+            [.. baseTypes], interfaces, members, session.SnapshotVersion);
     }
 }
 
@@ -102,11 +100,12 @@ public sealed record DescribeTypeResult(
     public static DescribeTypeResult Found(
         string fullyQualifiedName, string kind, string accessibility,
         bool isSealed, bool isAbstract, bool isStatic, string projectName,
-        string? filePath, int? line,
+        RepoPath? filePath, int? line,
         ImmutableList<string> baseTypes, ImmutableList<string> interfaces,
-        ImmutableList<MemberEntry> members) => new(
+        ImmutableList<MemberEntry> members, long snapshotVersion) => new(
         "found", fullyQualifiedName, kind, accessibility, isSealed, isAbstract, isStatic,
-        projectName, RepoPath.OrNull(filePath), line, baseTypes, interfaces, members, [], null);
+        projectName, filePath, line, baseTypes, interfaces, members, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record MemberEntry(
