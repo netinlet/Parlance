@@ -49,6 +49,22 @@ public sealed class BufferOverlayTests
     }
 
     [Fact]
+    public async Task SyncBuffer_IdenticalText_DoesNotBumpSnapshot()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var path = AnyDocumentPath(session);
+
+        var v1 = await session.SyncBufferAsync(path, "// same text");
+        var snapAfterFirst = session.SnapshotVersion;
+
+        var v2 = await session.SyncBufferAsync(path, "// same text"); // identical re-sync
+
+        Assert.Equal(v1, v2);                               // no new document version
+        Assert.Equal(snapAfterFirst, session.SnapshotVersion); // no snapshot bump / recompile
+        Assert.True(session.IsBufferOpen(path));
+    }
+
+    [Fact]
     public async Task CloseBuffer_RevertsToDisk()
     {
         await using var session = await LoadServerSessionAsync();

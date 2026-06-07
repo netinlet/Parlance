@@ -26,11 +26,14 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     private volatile Solution _currentSolution;
     private readonly SemaphoreSlim _solutionLock = new(1, 1);
 
-    // Paths with a live client buffer overlay -> per-document version. Overlay wins over disk
-    // until CloseBufferAsync (D3). Keyed case-insensitively to match GetDocumentIdsWithFilePath.
+    // Documents with a live client buffer overlay -> per-document version. Overlay wins over disk
+    // until CloseBufferAsync (D3). Keyed on the canonical Roslyn DocumentId rather than the raw
+    // client-supplied path string: overlay-suppression is probed from the file watcher (FullPath)
+    // and from Roslyn (document.FilePath), which need not be byte-identical to the sync caller's
+    // path (./ segments, separators, symlink/short-name forms). DocumentId is the one identity all
+    // three resolve to, so suppression is robust rather than spelling-dependent.
     // Lock ordering invariant: always acquire _solutionLock BEFORE this lock to avoid deadlock.
-    private readonly Dictionary<string, long> _openBufferVersions =
-        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<DocumentId, long> _openBufferVersions = new();
 
     private CSharpWorkspaceSession(
         string workspacePath,
@@ -222,8 +225,12 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     /// <summary>True while <paramref name="filePath"/> has a client buffer overlay (disk is ignored for it).</summary>
     public bool IsBufferOpen(string filePath)
     {
+        // Resolve the path to its canonical DocumentId(s) through Roslyn so that any spelling of the
+        // same file (./, separators, symlink forms) maps to the same overlay state.
+        var docIds = _currentSolution.GetDocumentIdsWithFilePath(filePath);
+        if (docIds.IsEmpty) return false;
         lock (_openBufferVersions)
-            return _openBufferVersions.ContainsKey(filePath);
+            return docIds.Any(_openBufferVersions.ContainsKey);
     }
 
     /// <summary>
@@ -243,26 +250,47 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             if (docIds.IsEmpty) return 0;
 
             var existing = solution.GetDocument(docIds[0]);
-            var encoding = existing is not null
-                ? (await existing.GetTextAsync(ct)).Encoding
-                : Encoding.UTF8;
-            var newText = SourceText.From(text, encoding);
-
-            foreach (var docId in docIds)
-            {
-                solution = solution.WithDocumentText(docId, newText);
-                var projectId = solution.GetDocument(docId)?.Project.Id;
-                if (projectId is not null)
-                    _cache.MarkDirty(projectId);
-            }
-            _currentSolution = solution;
+            var currentText = existing is not null ? await existing.GetTextAsync(ct) : null;
+            // SourceText.Encoding is nullable (common for in-memory/added documents). Falling through
+            // to SourceText.From(text, null) silently substitutes UTF-8-no-BOM; default to the
+            // document's on-disk encoding, or UTF-8 when unknown.
+            var encoding = currentText?.Encoding ?? Encoding.UTF8;
+            var textChanged = currentText is null || currentText.ToString() != text;
 
             long version;
             lock (_openBufferVersions)
             {
-                version = _openBufferVersions.TryGetValue(filePath, out var v) ? v + 1 : 1;
-                _openBufferVersions[filePath] = version;
+                var alreadyOpen = docIds.Any(_openBufferVersions.ContainsKey);
+                var previous = docIds.Max(id => _openBufferVersions.TryGetValue(id, out var v) ? v : 0L);
+
+                // Re-syncing identical text (focus/save/idle echoes) must not advance the snapshot or
+                // recompile (RefreshAsync guards the same way). For an already-open buffer that is a
+                // pure no-op, return the current version untouched.
+                if (!textChanged && alreadyOpen)
+                    return previous;
+
+                version = previous + 1;
+                foreach (var docId in docIds)
+                    _openBufferVersions[docId] = version;
             }
+
+            if (!textChanged)
+            {
+                // Newly opened buffer whose text already matches the document: record the overlay so
+                // disk writes are suppressed, but skip recompilation and the snapshot bump.
+                _logger.LogInformation(
+                    "Buffer opened (text matches document, no recompile): {Path} (docVersion={DocVersion})",
+                    filePath, version);
+                return version;
+            }
+
+            var newText = SourceText.From(text, encoding);
+            foreach (var docId in docIds)
+            {
+                solution = solution.WithDocumentText(docId, newText);
+                _cache.MarkDirty(docId.ProjectId);
+            }
+            _currentSolution = solution;
 
             Interlocked.Increment(ref _snapshotVersion);
             _logger.LogInformation(
@@ -277,7 +305,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     }
 
     /// <summary>Drops the overlay for <paramref name="filePath"/> and reverts that document to disk text.</summary>
-    public async Task CloseBufferAsync(string filePath, CancellationToken ct = default)
+    public async Task<CloseBufferOutcome> CloseBufferAsync(string filePath, CancellationToken ct = default)
     {
         if (_mode is WorkspaceMode.Report)
             throw new InvalidOperationException("CloseBufferAsync is not supported in Report mode");
@@ -285,40 +313,45 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            // Check (do NOT remove) whether the path is open; if not, return early with no snapshot bump.
-            // Removing the key only happens AFTER a successful revert so that a disk-read failure
-            // leaves the buffer open and retryable (overlay suppression preserved, _currentSolution
-            // not in a half-reverted state).
-            bool wasOpen;
-            lock (_openBufferVersions)
-                wasOpen = _openBufferVersions.ContainsKey(filePath);
-            if (!wasOpen) return;
-
             var solution = _currentSolution;
             var docIds = solution.GetDocumentIdsWithFilePath(filePath);
-            if (!docIds.IsEmpty && File.Exists(filePath))
+
+            // Check (do NOT remove) whether the path is open; if not, return early with no snapshot bump.
+            bool wasOpen;
+            lock (_openBufferVersions)
+                wasOpen = docIds.Any(_openBufferVersions.ContainsKey);
+            if (!wasOpen) return CloseBufferOutcome.NotOpen;
+
+            // No disk file to revert to (deleted while open). Reverting is impossible, so leave the
+            // overlay AND its keys in place: the buffer stays open and retryable rather than being
+            // reported "closed" while phantom unsaved text lingers in _currentSolution. Removing the
+            // key only happens AFTER a successful revert (a disk-read failure likewise keeps it open).
+            if (!File.Exists(filePath))
             {
-                var existing = solution.GetDocument(docIds[0]);
-                var encoding = existing is not null
-                    ? (await existing.GetTextAsync(ct)).Encoding
-                    : Encoding.UTF8;
-                var diskText = SourceText.From(await File.ReadAllTextAsync(filePath, ct), encoding);
-                foreach (var docId in docIds)
-                {
-                    solution = solution.WithDocumentText(docId, diskText);
-                    var projectId = solution.GetDocument(docId)?.Project.Id;
-                    if (projectId is not null)
-                        _cache.MarkDirty(projectId);
-                }
-                _currentSolution = solution;
+                _logger.LogWarning(
+                    "close-buffer: disk file missing, cannot revert; buffer left open: {Path}", filePath);
+                return CloseBufferOutcome.RevertUnavailable;
             }
 
-            // Revert succeeded (or file was deleted — nothing to revert). Remove the key and bump.
+            var existing = solution.GetDocument(docIds[0]);
+            var encoding = existing is not null
+                ? (await existing.GetTextAsync(ct)).Encoding ?? Encoding.UTF8
+                : Encoding.UTF8;
+            var diskText = SourceText.From(await File.ReadAllTextAsync(filePath, ct), encoding);
+            foreach (var docId in docIds)
+            {
+                solution = solution.WithDocumentText(docId, diskText);
+                _cache.MarkDirty(docId.ProjectId);
+            }
+            _currentSolution = solution;
+
             lock (_openBufferVersions)
-                _openBufferVersions.Remove(filePath);
+                foreach (var docId in docIds)
+                    _openBufferVersions.Remove(docId);
 
             Interlocked.Increment(ref _snapshotVersion);
             _logger.LogInformation("Buffer closed, reverted to disk: {Path}", filePath);
+            return CloseBufferOutcome.Closed;
         }
         finally
         {

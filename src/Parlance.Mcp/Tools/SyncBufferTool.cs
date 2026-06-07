@@ -44,8 +44,16 @@ public sealed class SyncBufferTool
     private static async Task<SyncBufferResult> ApplyCloseAsync(
         CSharpWorkspaceSession session, string path, CancellationToken ct)
     {
-        await session.CloseBufferAsync(path, ct);
-        return SyncBufferResult.Closed(session.SnapshotVersion);
+        var outcome = await session.CloseBufferAsync(path, ct);
+        return outcome switch
+        {
+            // NotOpen is reported as closed too: dropping an absent overlay is idempotent.
+            CloseBufferOutcome.Closed or CloseBufferOutcome.NotOpen =>
+                SyncBufferResult.Closed(session.SnapshotVersion),
+            CloseBufferOutcome.RevertUnavailable =>
+                SyncBufferResult.RevertUnavailable(path, session.SnapshotVersion),
+            _ => SyncBufferResult.Closed(session.SnapshotVersion),
+        };
     }
 }
 
@@ -59,6 +67,11 @@ public sealed record SyncBufferResult(string Status, string? Message)
 
     public static SyncBufferResult Closed(long snapshotVersion) =>
         new("closed", null) { SnapshotVersion = snapshotVersion };
+
+    public static SyncBufferResult RevertUnavailable(string path, long snapshotVersion) =>
+        new("revert_unavailable",
+            $"'{path}' is missing on disk; the buffer overlay was left open because it cannot be reverted.")
+        { SnapshotVersion = snapshotVersion };
 
     public static SyncBufferResult NotInWorkspace(string path, long snapshotVersion) =>
         new("not_in_workspace", $"'{path}' is not a document in the loaded workspace")
