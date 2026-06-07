@@ -19,12 +19,21 @@ public sealed class AnalyzeTool
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
-        CancellationToken ct = default) =>
-        holder.State.Match(
+        [Description("If set, returns status 'stale' when the workspace has moved past this snapshot.")]
+        long? expectedSnapshotVersion = null,
+        CancellationToken ct = default)
+    {
+        return holder.State.Match(
             notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
-            loaded: session => RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct),
+            loaded: session =>
+            {
+                if (holder.IsStale(expectedSnapshotVersion))
+                    return Task.FromResult(AnalyzeToolResult.Stale(holder.CurrentSnapshotVersion(), expectedSnapshotVersion!.Value));
+                return RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct);
+            },
             loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
+    }
 
     private static async Task<AnalyzeToolResult> RunAsync(
         AnalysisService analysis,
@@ -108,6 +117,13 @@ public sealed record AnalyzeToolResult
     {
         Status = "error",
         Error = message
+    };
+
+    public static AnalyzeToolResult Stale(long actual, long expected) => new()
+    {
+        Status = "stale",
+        Error = $"Workspace moved past the expected snapshot (expected {expected}, now {actual}). Re-query.",
+        SnapshotVersion = actual,
     };
 }
 

@@ -42,7 +42,24 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = AnalyzeTool.Analyze(
             holder, service,
-            ["test.cs"], null, null, CancellationToken.None).Result;
+            ["test.cs"], null, null, ct: CancellationToken.None).Result;
+
+        Assert.Equal("not_loaded", result.Status);
+    }
+
+    [Fact]
+    public void NotLoaded_WithExpectedSnapshot_ReturnsNotLoaded_NotStale()
+    {
+        var holder = new WorkspaceSessionHolder();
+        var query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
+        var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
+        var service = new AnalysisService(
+            holder, query, curationProvider,
+            NullLogger<AnalysisService>.Instance);
+
+        var result = AnalyzeTool.Analyze(
+            holder, service,
+            ["test.cs"], null, null, expectedSnapshotVersion: 5, ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
     }
@@ -60,7 +77,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = AnalyzeTool.Analyze(
             holder, service,
-            ["test.cs"], null, null, CancellationToken.None).Result;
+            ["test.cs"], null, null, ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
     }
@@ -78,7 +95,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = AnalyzeTool.Analyze(
             holder, service,
-            ["test.cs"], null, null, CancellationToken.None).Result;
+            ["test.cs"], null, null, ct: CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
     }
@@ -91,7 +108,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = await AnalyzeTool.Analyze(
             _holder, _service,
-            [filePath], null, null, CancellationToken.None);
+            [filePath], null, null, ct: CancellationToken.None);
 
         Assert.Equal("success", result.Status);
         Assert.NotNull(result.Summary);
@@ -104,7 +121,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
     {
         var result = await AnalyzeTool.Analyze(
             _holder, _service,
-            [Path.Combine("..", "..", "..", "etc", "passwd")], null, null, CancellationToken.None);
+            [Path.Combine("..", "..", "..", "etc", "passwd")], null, null, ct: CancellationToken.None);
 
         Assert.Equal("error", result.Status);
         Assert.NotNull(result.Error);
@@ -120,7 +137,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = await AnalyzeTool.Analyze(
             _holder, _service,
-            [escapingPath], null, null, CancellationToken.None);
+            [escapingPath], null, null, ct: CancellationToken.None);
 
         Assert.Equal("error", result.Status);
         Assert.NotNull(result.Error);
@@ -138,7 +155,7 @@ public sealed class AnalyzeToolTests : IAsyncLifetime
 
         var result = await AnalyzeTool.Analyze(
             _holder, _service,
-            [siblingPath], null, null, CancellationToken.None);
+            [siblingPath], null, null, ct: CancellationToken.None);
 
         Assert.Equal("error", result.Status);
         Assert.NotNull(result.Error);

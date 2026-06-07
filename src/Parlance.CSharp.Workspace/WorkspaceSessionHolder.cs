@@ -39,6 +39,16 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
     public long CurrentSnapshotVersion() =>
         State is WorkspaceState.Loaded loaded ? loaded.Session.SnapshotVersion : 0;
 
+    /// <summary>
+    /// True when an expected snapshot version is supplied and no longer matches the current snapshot.
+    /// Best-effort staleness signal. Meaningful only when the workspace is loaded: it compares against
+    /// <see cref="CurrentSnapshotVersion"/>, which returns 0 when not loaded — so callers must gate on
+    /// the loaded state first (e.g. inside a <c>loaded:</c> match branch) before treating a true result
+    /// as "stale" rather than "not loaded".
+    /// </summary>
+    public bool IsStale(long? expectedSnapshotVersion) =>
+        expectedSnapshotVersion is { } expected && expected != CurrentSnapshotVersion();
+
     public void Dispose()
     {
         var previous = Interlocked.Exchange(ref _state, WorkspaceState.Disposed.Instance);
