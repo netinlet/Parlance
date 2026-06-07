@@ -52,6 +52,12 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
 
     public string WorkspacePath { get; }
 
+    /// <summary>
+    /// The directory that owns the solution/project file — the root for repo-relative paths and
+    /// the <c>.parlance/</c> convention directory. Single definition shared by every consumer.
+    /// </summary>
+    public string RepoPath => Path.GetDirectoryName(WorkspacePath) ?? WorkspacePath;
+
     public long SnapshotVersion => Interlocked.Read(ref _snapshotVersion);
 
     public CSharpWorkspaceHealth Health { get; }

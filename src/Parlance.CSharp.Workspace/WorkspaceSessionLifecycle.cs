@@ -1,11 +1,13 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Parlance.Abstractions;
 
 namespace Parlance.CSharp.Workspace;
 
 public sealed class WorkspaceSessionLifecycle(
     WorkspaceSessionHolder holder,
+    WorkspaceRootAccessor rootAccessor,
     WorkspaceLifecycleOptions options,
     ILoggerFactory loggerFactory,
     ILogger<WorkspaceSessionLifecycle> logger) : IHostedService
@@ -24,6 +26,7 @@ public sealed class WorkspaceSessionLifecycle(
             onSuccess: session =>
             {
                 holder.SetSession(session);
+                rootAccessor.Root = session.RepoPath;
                 logger.LogInformation(
                     "Workspace loaded in {ElapsedMs:F0}ms: {Status}, {Count} project(s)",
                     elapsed.TotalMilliseconds, session.Health.Status, session.Projects.Count);
