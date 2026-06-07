@@ -6,6 +6,7 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.Analysis.Tests;
 
+[Trait("Category", "Integration")]
 public sealed class AnalysisServiceTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     private readonly AnalysisService _service = new(

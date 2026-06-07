@@ -4,6 +4,7 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.CSharp.Workspace.Tests;
 
+[Trait("Category", "Integration")]
 public sealed class WorkspaceQueryServiceTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     private readonly WorkspaceQueryService _query = fixture.Query;

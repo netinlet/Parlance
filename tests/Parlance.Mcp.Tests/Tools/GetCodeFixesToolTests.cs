@@ -6,6 +6,7 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
+[Trait("Category", "Integration")]
 public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     private readonly WorkspaceSessionHolder _holder = fixture.Holder;
