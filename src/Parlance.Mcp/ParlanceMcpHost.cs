@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
@@ -36,11 +37,13 @@ public static class ParlanceMcpHost
         builder.Services.AddSingleton<AnalysisService>();
         builder.Services.AddSingleton<CodeActionService>();
         builder.Services.AddSingleton<ToolAnalytics>();
+        var rootAccessor = new WorkspaceRootAccessor();
+        builder.Services.AddSingleton(rootAccessor);
         builder.Services.AddOptions<McpServerOptions>()
             .Configure<ToolAnalytics>((options, analytics) =>
                 options.Filters.Request.CallToolFilters.Add(AnalyticsFilter.Create(analytics)));
 
-        var toolJson = ParlanceToolJson.Create();
+        var toolJson = ParlanceToolJson.Create(new RepoPathJsonConverter(rootAccessor));
 
         builder.Services
             .AddMcpServer()
