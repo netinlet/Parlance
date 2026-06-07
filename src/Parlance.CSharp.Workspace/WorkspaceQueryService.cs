@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
+using Parlance.Abstractions;
 
 namespace Parlance.CSharp.Workspace;
 
@@ -240,13 +241,14 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
         var kind = symbol is INamedTypeSymbol namedType
             ? namedType.TypeKind.ToString()
             : symbol.Kind.ToString();
+        var path = span?.Path;
 
         return new HierarchyNode(
             symbol.Name,
             symbol.ToDisplayString(),
             kind,
             relationship,
-            span?.Path,
+            RepoPath.OrNull(path),
             span?.StartLinePosition.Line + 1,
             children);
     }

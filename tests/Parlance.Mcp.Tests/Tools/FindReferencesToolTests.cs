@@ -36,7 +36,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
         Assert.NotEmpty(result.FileGroups);
         Assert.All(result.FileGroups, group =>
         {
-            Assert.NotEmpty(group.FilePath);
+            Assert.NotEmpty(group.FilePath.Absolute);
             Assert.NotEmpty(group.Locations);
         });
     }

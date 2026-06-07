@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
 
@@ -115,5 +116,5 @@ public sealed record AnalyzeSummary(
 
 public sealed record AnalyzeDiagnostic(
     string RuleId, string Severity, string Message,
-    string File, int Line,
+    RepoPath File, int Line,
     string? FixClassification, string? Rationale);

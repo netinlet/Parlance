@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Parlance.Abstractions;
 
 namespace Parlance.CSharp.Workspace;
 
@@ -9,5 +10,5 @@ public sealed record TypeHierarchyResult(
 
 public sealed record HierarchyNode(
     string Name, string FullyQualifiedName, string Kind,
-    string Relationship, string? FilePath, int? Line,
+    string Relationship, RepoPath? FilePath, int? Line,
     ImmutableList<HierarchyNode> Children);

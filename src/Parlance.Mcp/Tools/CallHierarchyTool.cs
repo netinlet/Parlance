@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -68,7 +69,7 @@ public sealed class CallHierarchyTool
                 callersBuilder.Add(new HierarchyEntry(
                     MethodName: containingMethod?.Identifier.Text ?? "<unknown>",
                     ContainingType: containingType?.Identifier.Text ?? "<unknown>",
-                    FilePath: span.Path,
+                    FilePath: RepoPath.OrNull(span.Path),
                     Line: span.StartLinePosition.Line + 1));
             }
         }
@@ -107,7 +108,7 @@ public sealed class CallHierarchyTool
                         calleesBuilder.Add(new HierarchyEntry(
                             MethodName: calledMethod.Name,
                             ContainingType: calledMethod.ContainingType?.Name ?? "<unknown>",
-                            FilePath: callSpan.Path,
+                            FilePath: RepoPath.OrNull(callSpan.Path),
                             Line: callSpan.StartLinePosition.Line + 1));
                     }
                 }
@@ -141,4 +142,4 @@ public sealed record CallHierarchyResult(
 }
 
 public sealed record HierarchyEntry(
-    string MethodName, string ContainingType, string? FilePath, int Line);
+    string MethodName, string ContainingType, RepoPath? FilePath, int Line);

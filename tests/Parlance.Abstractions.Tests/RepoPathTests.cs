@@ -28,4 +28,25 @@ public sealed class RepoPathTests
     {
         Assert.Equal("/repo/a.cs", new RepoPath("/repo/a.cs").ToString());
     }
+
+    [Fact]
+    public void OrNull_NullOrEmpty_ReturnsNull()
+    {
+        Assert.False(RepoPath.OrNull(null).HasValue);
+        Assert.False(RepoPath.OrNull("").HasValue);
+    }
+
+    [Fact]
+    public void OrNull_NonEmpty_WrapsAbsolute()
+    {
+        var path = RepoPath.OrNull("/repo/a.cs");
+        Assert.NotNull(path);
+        Assert.Equal("/repo/a.cs", path!.Value.Absolute);
+    }
+
+    [Fact]
+    public void Relative_EmptyAbsolute_ReturnsEmptyString()
+    {
+        Assert.Equal("", new RepoPath("").Relative("/some/root"));
+    }
 }

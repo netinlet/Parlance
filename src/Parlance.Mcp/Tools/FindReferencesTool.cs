@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -108,5 +109,5 @@ public sealed record FindReferencesResult(
         "found", symbolName, totalCount, fileGroups, [], null);
 }
 
-public sealed record ReferenceFileGroup(string FilePath, ImmutableList<ReferenceLocation> Locations);
+public sealed record ReferenceFileGroup(RepoPath FilePath, ImmutableList<ReferenceLocation> Locations);
 public sealed record ReferenceLocation(int Line, string? Snippet);

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -156,4 +157,4 @@ public sealed record GotoDefinitionResult(
         $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
 }
 
-public sealed record DefinitionLocation(string FilePath, int Line, int Column, string? Snippet);
+public sealed record DefinitionLocation(RepoPath FilePath, int Line, int Column, string? Snippet);

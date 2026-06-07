@@ -38,7 +38,7 @@ public sealed class GotoDefinitionToolTests : IAsyncLifetime
         Assert.NotEmpty(result.Locations);
         Assert.All(result.Locations, loc =>
         {
-            Assert.NotEmpty(loc.FilePath);
+            Assert.NotEmpty(loc.FilePath.Absolute);
             Assert.True(loc.Line > 0);
             Assert.NotNull(loc.Snippet);
         });

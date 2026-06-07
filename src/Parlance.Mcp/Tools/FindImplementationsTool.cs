@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -34,12 +35,16 @@ public sealed class FindImplementationsTool
         var implementations = await query.FindImplementationsAsync(targetSymbol, ct);
 
         var entries = implementations
-            .Select(s => new ImplementationEntry(
-                s.Name,
-                s.ToDisplayString(),
-                s.Kind.ToString(),
-                s.Locations.FirstOrDefault()?.GetLineSpan().Path,
-                s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1))
+            .Select(s =>
+            {
+                var path = s.Locations.FirstOrDefault()?.GetLineSpan().Path;
+                return new ImplementationEntry(
+                    s.Name,
+                    s.ToDisplayString(),
+                    s.Kind.ToString(),
+                    RepoPath.OrNull(path),
+                    s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1);
+            })
             .ToImmutableList();
 
         return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries)
@@ -69,4 +74,4 @@ public sealed record FindImplementationsResult(
 }
 
 public sealed record ImplementationEntry(
-    string Name, string FullyQualifiedName, string Kind, string? FilePath, int? Line);
+    string Name, string FullyQualifiedName, string Kind, RepoPath? FilePath, int? Line);

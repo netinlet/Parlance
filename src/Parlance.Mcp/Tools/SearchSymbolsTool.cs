@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -64,11 +65,12 @@ public sealed class SearchSymbolsTool
         {
             var loc = r.Symbol.Locations.FirstOrDefault();
             var span = loc?.GetLineSpan();
+            var path = span?.Path;
             return new SymbolMatch(
                 r.Symbol.ToDisplayString(),
                 r.Symbol.Kind.ToString(),
                 r.Project.Name,
-                span?.Path,
+                RepoPath.OrNull(path),
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
@@ -115,4 +117,4 @@ public sealed record SearchSymbolsResult(
 
 public sealed record SymbolMatch(
     string FullyQualifiedName, string Kind,
-    string ProjectName, string? FilePath, int? Line);
+    string ProjectName, RepoPath? FilePath, int? Line);

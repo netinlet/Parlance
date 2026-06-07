@@ -32,7 +32,7 @@ public sealed class DescribeTypeToolTests : IAsyncLifetime
         Assert.Equal("found", result.Status);
         Assert.Equal("Parlance.CSharp.Workspace.CSharpWorkspaceSession", result.FullyQualifiedName);
         Assert.NotNull(result.FilePath);
-        Assert.Contains("CSharpWorkspaceSession", result.FilePath);
+        Assert.Contains("CSharpWorkspaceSession", result.FilePath!.Value.Absolute);
         Assert.True(result.Line > 0, $"Expected 1-based line number > 0, got {result.Line}");
         Assert.NotEmpty(result.Members);
     }

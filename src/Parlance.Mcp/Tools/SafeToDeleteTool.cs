@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -47,7 +48,7 @@ public sealed class SafeToDeleteTool
                 if (locations.Count < 5)
                 {
                     var span = location.Location.GetLineSpan();
-                    locations.Add(new DeleteReferenceLocation(span.Path, span.StartLinePosition.Line + 1));
+                    locations.Add(new DeleteReferenceLocation(RepoPath.OrNull(span.Path), span.StartLinePosition.Line + 1));
                 }
             }
         }
@@ -81,4 +82,4 @@ public sealed record SafeToDeleteResult(
         "found", symbolName, safe, referenceCount, sampleLocations, [], null);
 }
 
-public sealed record DeleteReferenceLocation(string? FilePath, int Line);
+public sealed record DeleteReferenceLocation(RepoPath? FilePath, int Line);
