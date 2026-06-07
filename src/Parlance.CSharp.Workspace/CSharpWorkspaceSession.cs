@@ -105,6 +105,10 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
                     if (document.FilePath is null || !File.Exists(document.FilePath))
                         continue;
 
+                    // D3: overlay wins until close — skip disk revert for paths with a live buffer.
+                    if (IsBufferOpen(document.FilePath))
+                        continue;
+
                     var currentText = await document.GetTextAsync(ct);
                     var diskContent = await File.ReadAllTextAsync(document.FilePath, ct);
 

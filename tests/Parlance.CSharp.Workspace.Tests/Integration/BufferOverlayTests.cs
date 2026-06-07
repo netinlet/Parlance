@@ -83,4 +83,19 @@ public sealed class BufferOverlayTests
         Assert.False(session.IsBufferOpen(path));
         Assert.Equal(snap0, session.SnapshotVersion); // no-op: no snapshot bump
     }
+
+    [Fact]
+    public async Task RefreshAsync_DoesNotClobberOpenOverlay()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var path = AnyDocumentPath(session);
+
+        await session.SyncBufferAsync(path, "// overlaid-marker");
+        await session.RefreshAsync();   // must NOT revert the overlaid document
+
+        var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(path)[0];
+        var text = (await session.CurrentSolution.GetDocument(docId)!.GetTextAsync()).ToString();
+        Assert.Equal("// overlaid-marker", text);
+        Assert.True(session.IsBufferOpen(path));
+    }
 }
