@@ -72,7 +72,7 @@ public sealed class AnalyzeTool
                     result.Summary.IdiomaticScore),
                 result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
-                    d.FilePath, d.Line,
+                    RepoPath.OrNull(d.FilePath), d.Line,
                     d.FixClassification, d.Rationale)).ToImmutableList(),
                 session.SnapshotVersion);
         }
@@ -134,5 +134,5 @@ public sealed record AnalyzeSummary(
 
 public sealed record AnalyzeDiagnostic(
     string RuleId, string Severity, string Message,
-    RepoPath File, int Line,
+    RepoPath? File, int Line,
     string? FixClassification, string? Rationale);

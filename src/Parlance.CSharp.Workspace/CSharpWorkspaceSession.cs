@@ -67,6 +67,21 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     /// </summary>
     public string RepoPath => Path.GetDirectoryName(WorkspacePath) ?? WorkspacePath;
 
+    /// <summary>
+    /// Normalizes a client-supplied file path to the absolute form Roslyn document lookups expect.
+    /// Tool output serializes paths workspace-relative (<see cref="Abstractions.RepoPath"/>), so a
+    /// client naturally feeds a relative <c>src/...</c> value from one tool's result straight into the
+    /// next tool's file argument. Rooted inputs are normalized in place (collapsing <c>.</c>/<c>..</c>);
+    /// relative inputs are resolved against the workspace root. The single boundary every file-input
+    /// tool/query funnels through so chained calls resolve instead of returning <c>not_found</c>.
+    /// </summary>
+    public string NormalizeInputPath(string filePath) =>
+        string.IsNullOrEmpty(filePath)
+            ? filePath
+            : Path.IsPathRooted(filePath)
+                ? Path.GetFullPath(filePath)
+                : Path.GetFullPath(filePath, RepoPath);
+
     public long SnapshotVersion => Interlocked.Read(ref _snapshotVersion);
 
     public CSharpWorkspaceHealth Health { get; }

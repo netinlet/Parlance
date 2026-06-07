@@ -7,12 +7,10 @@ namespace Parlance.Mcp.Tests.Tools;
 
 public sealed class AllPathFieldsAreRepoPathTests
 {
-    // Caller-echo input paths intentionally kept as string (see Task 10).
+    // Caller-echo input paths intentionally kept as string.
     // If DecompileType surfaces a Path-named field, it's an assembly path — add it here.
     private static readonly HashSet<string> Exceptions =
     [
-        "GetCodeFixesResult.FilePath",
-        "GetRefactoringsResult.FilePath",
         "OutlineFileResult.FilePath",
     ];
 

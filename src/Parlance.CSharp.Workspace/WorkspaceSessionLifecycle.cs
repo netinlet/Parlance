@@ -17,6 +17,13 @@ public sealed class WorkspaceSessionLifecycle(
         logger.LogInformation("Loading workspace: {SolutionPath}", options.SolutionPath);
         var startTimestamp = Stopwatch.GetTimestamp();
 
+        // Publish the root from the configured solution path's directory up front so that
+        // workspace-status requests served while the workspace is still loading — or after a load
+        // failure — serialize repo-relative paths instead of leaking absolute ones (the root is
+        // otherwise only set on successful load). On success it is reassigned to session.RepoPath
+        // (the same value).
+        rootAccessor.Root = Path.GetDirectoryName(options.SolutionPath) ?? "";
+
         var openOptions = options.OpenOptions with { LoggerFactory = loggerFactory };
         var outcome = await CSharpWorkspaceSession.TryOpenSolutionAsync(
             options.SolutionPath, openOptions, cancellationToken);

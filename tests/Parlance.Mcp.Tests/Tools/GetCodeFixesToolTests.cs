@@ -147,7 +147,8 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
         Assert.NotEmpty(previewResult.Changes);
         Assert.All(previewResult.Changes, change =>
         {
-            Assert.NotEmpty(change.FilePath);
+            Assert.NotNull(change.FilePath);
+            Assert.NotEmpty(change.FilePath.Value.Absolute);
             Assert.NotEmpty(change.Edits);
         });
     }

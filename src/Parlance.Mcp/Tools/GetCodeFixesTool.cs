@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
 
@@ -38,20 +39,22 @@ public sealed class GetCodeFixesTool
         CodeActionService codeActions, CSharpWorkspaceSession session,
         string filePath, int line, string? diagnosticId, CancellationToken ct)
     {
-        var fixes = await codeActions.GetCodeFixesAsync(filePath, line, diagnosticId, ct);
+        // Resolve a workspace-relative input (echoed RepoPath) to absolute, and echo the same form.
+        var resolved = session.NormalizeInputPath(filePath);
+        var fixes = await codeActions.GetCodeFixesAsync(resolved, line, diagnosticId, ct);
 
         if (fixes.IsEmpty)
         {
             // Distinguish "file not found" from "no fixes"
-            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
             if (docId is null)
-                return GetCodeFixesResult.NotFound(filePath);
-            return GetCodeFixesResult.NoFixes(filePath, line);
+                return GetCodeFixesResult.NotFound(resolved);
+            return GetCodeFixesResult.NoFixes(resolved, line);
         }
 
         return new GetCodeFixesResult(
             Status: "found",
-            FilePath: filePath,
+            FilePath: RepoPath.OrNull(resolved),
             Line: line,
             Fixes: fixes,
             Message: null)
@@ -60,17 +63,17 @@ public sealed class GetCodeFixesTool
 }
 
 public sealed record GetCodeFixesResult(
-    string Status, string? FilePath, int? Line,
+    string Status, RepoPath? FilePath, int? Line,
     ImmutableList<CodeFixEntry> Fixes,
     string? Message)
 {
     public long SnapshotVersion { get; init; }
 
     public static GetCodeFixesResult NotFound(string filePath) => new(
-        "not_found", filePath, null, [],
+        "not_found", RepoPath.OrNull(filePath), null, [],
         $"File '{filePath}' not found in the workspace");
     public static GetCodeFixesResult NoFixes(string filePath, int line) => new(
-        "no_fixes", filePath, line, [],
+        "no_fixes", RepoPath.OrNull(filePath), line, [],
         $"No code fixes available at {filePath}:{line}");
     public static GetCodeFixesResult NotLoaded() => new(
         "not_loaded", null, null, [],

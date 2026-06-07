@@ -131,6 +131,9 @@ public sealed class WorkspaceQueryService(WorkspaceSessionHolder holder, ILogger
 
     public async Task<SemanticModel?> GetSemanticModelAsync(string filePath, CancellationToken ct = default)
     {
+        // Resolve workspace-relative inputs (a client echoing a serialized RepoPath) to the absolute
+        // form Roslyn's path lookup requires. See CSharpWorkspaceSession.NormalizeInputPath.
+        filePath = Session.NormalizeInputPath(filePath);
         var solution = Session.CurrentSolution;
         var docId = solution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
         if (docId is null) return null;

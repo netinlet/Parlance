@@ -6,8 +6,8 @@ namespace Parlance.Mcp.Tests.Tools;
 public sealed class RepoPathFieldTests
 {
     [Fact]
-    public void AnalyzeDiagnostic_FileIsRepoPath() =>
-        Assert.Equal(typeof(RepoPath), typeof(AnalyzeDiagnostic).GetProperty("File")!.PropertyType);
+    public void AnalyzeDiagnostic_FileIsNullableRepoPath() =>
+        Assert.Equal(typeof(RepoPath?), typeof(AnalyzeDiagnostic).GetProperty("File")!.PropertyType);
 
     [Fact]
     public void SymbolMatch_FilePathIsNullableRepoPath() =>

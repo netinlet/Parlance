@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
 
@@ -38,19 +39,28 @@ public sealed class PreviewCodeActionTool
         if (preview.IsExpired)
             return PreviewCodeActionResult.Expired(actionId);
 
+        // Map the analysis-layer FileChange (absolute-string FilePath, outside Mcp.Tools and thus
+        // outside the RepoPath path-field guard) onto an MCP DTO whose FilePath is a workspace-relative
+        // RepoPath, so code-action previews follow the same path contract as every other tool result.
+        var changes = preview.Changes
+            .Select(c => new PreviewFileChange(RepoPath.OrNull(c.FilePath), c.Edits))
+            .ToImmutableList();
+
         return new PreviewCodeActionResult(
             Status: "found",
             ActionId: preview.ActionId,
             Title: preview.Title,
-            Changes: preview.Changes,
+            Changes: changes,
             Message: null)
         { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
+public sealed record PreviewFileChange(RepoPath? FilePath, ImmutableList<TextEdit> Edits);
+
 public sealed record PreviewCodeActionResult(
     string Status, string? ActionId, string? Title,
-    ImmutableList<FileChange> Changes,
+    ImmutableList<PreviewFileChange> Changes,
     string? Message)
 {
     public long SnapshotVersion { get; init; }

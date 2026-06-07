@@ -21,7 +21,7 @@ public sealed record WorkspaceStatusResult(
             Projects: session.Projects
                 .Select(p => new ProjectStatusEntry(
                     Name: p.Name,
-                    Path: p.ProjectPath,
+                    Path: RepoPath.OrNull(p.ProjectPath),
                     Status: p.Status.ToString(),
                     TargetFrameworks: p.TargetFrameworks,
                     LangVersion: p.LangVersion,
@@ -52,7 +52,7 @@ public sealed record WorkspaceStatusResult(
 
 public sealed record ProjectStatusEntry(
     string Name,
-    RepoPath Path,
+    RepoPath? Path,
     string Status,
     ImmutableList<string> TargetFrameworks,
     string? LangVersion,
