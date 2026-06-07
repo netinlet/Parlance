@@ -151,7 +151,8 @@ public sealed class GetTypeDependenciesTool
         }
 
         return GetTypeDependenciesResult.Found(
-            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable());
+            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable())
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -162,6 +163,8 @@ public sealed record GetTypeDependenciesResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GetTypeDependenciesResult NotFound(string typeName) => new(
         "not_found", typeName, [], [], [], $"Type '{typeName}' not found");
     public static GetTypeDependenciesResult NotLoaded() => new(

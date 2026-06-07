@@ -63,7 +63,8 @@ public sealed class AnalyzeTool
                 result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
                     d.FilePath, d.Line,
-                    d.FixClassification, d.Rationale)).ToImmutableList());
+                    d.FixClassification, d.Rationale)).ToImmutableList())
+            with { SnapshotVersion = session.SnapshotVersion };
         }
         catch (ArgumentException ex)
         {
@@ -79,6 +80,7 @@ public sealed record AnalyzeToolResult
     public string? CurationSet { get; init; }
     public AnalyzeSummary? Summary { get; init; }
     public ImmutableList<AnalyzeDiagnostic>? Diagnostics { get; init; }
+    public long SnapshotVersion { get; init; }
 
     public static AnalyzeToolResult LoadFailed(string message) => new()
     {

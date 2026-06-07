@@ -18,12 +18,12 @@ public sealed class OutlineFileTool
         string filePath, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(OutlineFileResult.NotLoaded()),
-            loaded: _ => RunAsync(query, filePath, ct),
+            loaded: session => RunAsync(query, session, filePath, ct),
             loadFailed: failure => Task.FromResult(OutlineFileResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(OutlineFileResult.NotLoaded()));
 
     private static async Task<OutlineFileResult> RunAsync(
-        WorkspaceQueryService query, string filePath, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string filePath, CancellationToken ct)
     {
         var semanticModel = await query.GetSemanticModelAsync(filePath, ct);
         if (semanticModel is null)
@@ -76,12 +76,15 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return OutlineFileResult.Found(filePath, types);
+        return OutlineFileResult.Found(filePath, types)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
 public sealed record OutlineFileResult(string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static OutlineFileResult NotFound(string filePath) => new(
         "not_found", filePath, [], $"File '{filePath}' not found in workspace");
     public static OutlineFileResult NotLoaded() => new(

@@ -61,7 +61,8 @@ public sealed class GetRefactoringsTool
             Status: "found",
             FilePath: filePath,
             Refactorings: refactorings,
-            Message: null);
+            Message: null)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -70,6 +71,8 @@ public sealed record GetRefactoringsResult(
     ImmutableList<RefactoringEntry> Refactorings,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GetRefactoringsResult NotFound(string filePath) => new(
         "not_found", filePath, [],
         $"File '{filePath}' not found in the workspace");

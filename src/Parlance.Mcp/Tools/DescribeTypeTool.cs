@@ -19,12 +19,12 @@ public sealed class DescribeTypeTool
         string typeName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(DescribeTypeResult.NotLoaded()),
-            loaded: _ => RunAsync(query, typeName, ct),
+            loaded: session => RunAsync(query, session, typeName, ct),
             loadFailed: failure => Task.FromResult(DescribeTypeResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(DescribeTypeResult.NotLoaded()));
 
     private static async Task<DescribeTypeResult> RunAsync(
-        WorkspaceQueryService query, string typeName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
 
@@ -65,7 +65,8 @@ public sealed class DescribeTypeTool
             resolved.Project.Name,
             type.Locations.FirstOrDefault()?.GetLineSpan().Path,
             type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
-            [.. baseTypes], interfaces, members);
+            [.. baseTypes], interfaces, members)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -77,6 +78,8 @@ public sealed record DescribeTypeResult(
     ImmutableList<MemberEntry> Members, ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static DescribeTypeResult NotFound(string typeName) => new(
         "not_found", typeName, null, null, null, false, false, false,
         null, null, null, [], [], [], [], $"Type '{typeName}' not found in the workspace");

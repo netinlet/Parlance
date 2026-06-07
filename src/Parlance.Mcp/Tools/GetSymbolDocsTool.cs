@@ -20,12 +20,12 @@ public sealed class GetSymbolDocsTool
         string symbolName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(GetSymbolDocsResult.NotLoaded()),
-            loaded: _ => RunAsync(query, logger, symbolName, ct),
+            loaded: session => RunAsync(query, session, logger, symbolName, ct),
             loadFailed: failure => Task.FromResult(GetSymbolDocsResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(GetSymbolDocsResult.NotLoaded()));
 
     private static async Task<GetSymbolDocsResult> RunAsync(
-        WorkspaceQueryService query, ILogger<GetSymbolDocsTool> logger,
+        WorkspaceQueryService query, CSharpWorkspaceSession session, ILogger<GetSymbolDocsTool> logger,
         string symbolName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
@@ -43,7 +43,8 @@ public sealed class GetSymbolDocsTool
 
         return GetSymbolDocsResult.Found(
             symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,
-            docs.Params, docs.TypeParams, docs.Exceptions);
+            docs.Params, docs.TypeParams, docs.Exceptions)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 
     private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)
@@ -170,6 +171,8 @@ public sealed record GetSymbolDocsResult(
     string? Remarks, ImmutableList<DocParam> Params, ImmutableList<DocParam> TypeParams,
     ImmutableList<DocParam> Exceptions, ImmutableList<SymbolCandidate> Candidates, string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GetSymbolDocsResult NotFound(string symbolName) => new(
         "not_found", symbolName, null, null, null, [], [], [], [], $"Symbol '{symbolName}' not found");
     public static GetSymbolDocsResult NotLoaded() => new(

@@ -54,7 +54,8 @@ public sealed class GetCodeFixesTool
             FilePath: filePath,
             Line: line,
             Fixes: fixes,
-            Message: null);
+            Message: null)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -63,6 +64,8 @@ public sealed record GetCodeFixesResult(
     ImmutableList<CodeFixEntry> Fixes,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GetCodeFixesResult NotFound(string filePath) => new(
         "not_found", filePath, null, [],
         $"File '{filePath}' not found in the workspace");

@@ -20,12 +20,12 @@ public sealed class GetTypeAtTool
         string filePath, int line, int column, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(GetTypeAtResult.NotLoaded()),
-            loaded: _ => RunAsync(query, filePath, line, column, ct),
+            loaded: session => RunAsync(query, session, filePath, line, column, ct),
             loadFailed: failure => Task.FromResult(GetTypeAtResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(GetTypeAtResult.NotLoaded()));
 
     private static async Task<GetTypeAtResult> RunAsync(
-        WorkspaceQueryService query, string filePath, int line, int column, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string filePath, int line, int column, CancellationToken ct)
     {
         // Convert from 1-based (editor) to 0-based (Roslyn)
         var zeroLine = line - 1;
@@ -102,7 +102,8 @@ public sealed class GetTypeAtTool
                 {
                     return GetTypeAtResult.Found(
                         symbol.Name, symbol.ToDisplayString(), symbol.Kind.ToString(),
-                        false, text.Lines[zeroLine].ToString().Trim());
+                        false, text.Lines[zeroLine].ToString().Trim())
+                        with { SnapshotVersion = session.SnapshotVersion };
                 }
             }
         }
@@ -114,7 +115,8 @@ public sealed class GetTypeAtTool
 
         return GetTypeAtResult.Found(
             typeSymbol.Name, typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
-            isInferred, sourceLine);
+            isInferred, sourceLine)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -127,6 +129,8 @@ public sealed record GetTypeAtResult(
     string? SourceText,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GetTypeAtResult NotFound(string filePath) => new(
         "not_found", null, null, null, false, null,
         $"File '{filePath}' not found in workspace or position out of range");

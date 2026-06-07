@@ -16,12 +16,12 @@ public sealed class FindImplementationsTool
         string typeName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(FindImplementationsResult.NotLoaded()),
-            loaded: _ => RunAsync(query, typeName, ct),
+            loaded: session => RunAsync(query, session, typeName, ct),
             loadFailed: failure => Task.FromResult(FindImplementationsResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(FindImplementationsResult.NotLoaded()));
 
     private static async Task<FindImplementationsResult> RunAsync(
-        WorkspaceQueryService query, string typeName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
@@ -42,7 +42,8 @@ public sealed class FindImplementationsTool
                 s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1))
             .ToImmutableList();
 
-        return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries);
+        return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -52,6 +53,8 @@ public sealed record FindImplementationsResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static FindImplementationsResult NotFound(string typeName) => new(
         "not_found", typeName, 0, [], [], $"Type '{typeName}' not found in the workspace");
     public static FindImplementationsResult NotLoaded() => new(

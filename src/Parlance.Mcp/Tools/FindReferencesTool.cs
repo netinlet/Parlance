@@ -16,12 +16,12 @@ public sealed class FindReferencesTool
         string symbolName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(FindReferencesResult.NotLoaded()),
-            loaded: _ => RunAsync(query, symbolName, ct),
+            loaded: session => RunAsync(query, session, symbolName, ct),
             loadFailed: failure => Task.FromResult(FindReferencesResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(FindReferencesResult.NotLoaded()));
 
     private static async Task<FindReferencesResult> RunAsync(
-        WorkspaceQueryService query, string symbolName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
@@ -75,7 +75,8 @@ public sealed class FindReferencesTool
             .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
             .ToImmutableList();
 
-        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups);
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -85,6 +86,8 @@ public sealed record FindReferencesResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static FindReferencesResult NotFound(string symbolName) => new(
         "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace");
     public static FindReferencesResult NotLoaded() => new(

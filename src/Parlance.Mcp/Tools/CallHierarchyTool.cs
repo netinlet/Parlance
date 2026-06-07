@@ -18,12 +18,12 @@ public sealed class CallHierarchyTool
         string methodName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(CallHierarchyResult.NotLoaded()),
-            loaded: _ => RunAsync(query, methodName, ct),
+            loaded: session => RunAsync(query, session, methodName, ct),
             loadFailed: failure => Task.FromResult(CallHierarchyResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(CallHierarchyResult.NotLoaded()));
 
     private static async Task<CallHierarchyResult> RunAsync(
-        WorkspaceQueryService query, string methodName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string methodName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(methodName, SymbolFilter.Member, ct: ct);
         var methodSymbols = symbols.Where(s => s.Symbol is IMethodSymbol).ToImmutableList();
@@ -115,7 +115,8 @@ public sealed class CallHierarchyTool
         }
 
         return CallHierarchyResult.Found(
-            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable());
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable())
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -123,6 +124,8 @@ public sealed record CallHierarchyResult(
     string Status, string? TargetMethod, ImmutableList<HierarchyEntry> Callers,
     ImmutableList<HierarchyEntry> Callees, ImmutableList<SymbolCandidate> Candidates, string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static CallHierarchyResult NotFound(string methodName) => new(
         "not_found", methodName, [], [], [], $"Method '{methodName}' not found");
     public static CallHierarchyResult NotLoaded() => new(

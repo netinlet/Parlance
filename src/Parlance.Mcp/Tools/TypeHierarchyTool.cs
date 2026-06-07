@@ -28,13 +28,13 @@ public sealed class TypeHierarchyTool
 
         return holder.State.Match(
             notLoaded: () => Task.FromResult(TypeHierarchyToolResult.NotLoaded()),
-            loaded: _ => RunAsync(query, typeName, maxDepth, ct),
+            loaded: session => RunAsync(query, session, typeName, maxDepth, ct),
             loadFailed: failure => Task.FromResult(TypeHierarchyToolResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(TypeHierarchyToolResult.NotLoaded()));
     }
 
     private static async Task<TypeHierarchyToolResult> RunAsync(
-        WorkspaceQueryService query, string typeName, int maxDepth, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, int maxDepth, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
@@ -56,7 +56,8 @@ public sealed class TypeHierarchyTool
             Subtypes: hierarchy.Subtypes,
             Truncated: hierarchy.Truncated,
             Candidates: [],
-            Message: null);
+            Message: null)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -68,6 +69,8 @@ public sealed record TypeHierarchyToolResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static TypeHierarchyToolResult NotFound(string typeName) => new(
         "not_found", typeName, null, [], [], false, [],
         $"Type '{typeName}' not found in the workspace");

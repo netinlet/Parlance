@@ -26,12 +26,12 @@ public sealed class GotoDefinitionTool
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(GotoDefinitionResult.NotLoaded()),
-            loaded: _ => RunAsync(query, symbolName, filePath, line, column, ct),
+            loaded: session => RunAsync(query, session, symbolName, filePath, line, column, ct),
             loadFailed: failure => Task.FromResult(GotoDefinitionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(GotoDefinitionResult.NotLoaded()));
 
     private static async Task<GotoDefinitionResult> RunAsync(
-        WorkspaceQueryService query, string? symbolName, string? filePath,
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string? symbolName, string? filePath,
         int? line, int? column, CancellationToken ct)
     {
         var hasPosition = filePath is not null && line is not null && column is not null;
@@ -85,7 +85,8 @@ public sealed class GotoDefinitionTool
             return GotoDefinitionResult.Metadata(
                 targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 targetSymbol.Kind.ToString(),
-                targetSymbol.ContainingAssembly?.Name);
+                targetSymbol.ContainingAssembly?.Name)
+                with { SnapshotVersion = session.SnapshotVersion };
         }
 
         var locations = new List<DefinitionLocation>();
@@ -111,7 +112,8 @@ public sealed class GotoDefinitionTool
         return GotoDefinitionResult.Found(
             targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             targetSymbol.Kind.ToString(),
-            [.. locations]);
+            [.. locations])
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -125,6 +127,8 @@ public sealed record GotoDefinitionResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static GotoDefinitionResult NotFound(string identifier) => new(
         "not_found", null, null, false, null, [], [],
         $"Symbol '{identifier}' not found in the workspace");

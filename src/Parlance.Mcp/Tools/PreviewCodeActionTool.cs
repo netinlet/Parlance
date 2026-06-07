@@ -21,12 +21,12 @@ public sealed class PreviewCodeActionTool
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()),
-            loaded: _ => RunAsync(codeActions, actionId, ct),
+            loaded: session => RunAsync(codeActions, session, actionId, ct),
             loadFailed: failure => Task.FromResult(PreviewCodeActionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()));
 
     private static async Task<PreviewCodeActionResult> RunAsync(
-        CodeActionService codeActions, string actionId, CancellationToken ct)
+        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
     {
         var preview = await codeActions.PreviewAsync(actionId, ct);
         if (preview is null)
@@ -43,7 +43,8 @@ public sealed class PreviewCodeActionTool
             ActionId: preview.ActionId,
             Title: preview.Title,
             Changes: preview.Changes,
-            Message: null);
+            Message: null)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -52,6 +53,8 @@ public sealed record PreviewCodeActionResult(
     ImmutableList<FileChange> Changes,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static PreviewCodeActionResult NotFound(string actionId) => new(
         "not_found", actionId, null, [],
         $"Action '{actionId}' not found. It may have expired or the ID is invalid.");

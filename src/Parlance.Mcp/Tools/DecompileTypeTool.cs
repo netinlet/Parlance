@@ -22,12 +22,12 @@ public sealed class DecompileTypeTool
         string typeName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(DecompileTypeResult.NotLoaded()),
-            loaded: _ => RunAsync(query, logger, typeName, ct),
+            loaded: session => RunAsync(query, session, logger, typeName, ct),
             loadFailed: failure => Task.FromResult(DecompileTypeResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(DecompileTypeResult.NotLoaded()));
 
     private static async Task<DecompileTypeResult> RunAsync(
-        WorkspaceQueryService query, ILogger<DecompileTypeTool> logger,
+        WorkspaceQueryService query, CSharpWorkspaceSession session, ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
         await foreach (var (_, compilation) in query.GetCompilationsAsync(ct))
@@ -59,7 +59,8 @@ public sealed class DecompileTypeTool
 
                     return DecompileTypeResult.Found(
                         typeSymbol.ToDisplayString(), assemblySymbol.Name, metaRef.FilePath, decompiledCode,
-                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null);
+                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null)
+                        with { SnapshotVersion = session.SnapshotVersion };
                 }
                 catch (Exception ex)
                 {
@@ -92,6 +93,8 @@ public sealed record DecompileTypeResult(
     string Status, string? TypeName, string? AssemblyName, string? AssemblyPath,
     string? DecompiledSource, string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static DecompileTypeResult NotFound(string typeName) => new(
         "not_found", typeName, null, null, null, $"Type '{typeName}' not found in any metadata reference");
     public static DecompileTypeResult NotLoaded() => new(

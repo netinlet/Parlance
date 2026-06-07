@@ -17,12 +17,12 @@ public sealed class SafeToDeleteTool
         string symbolName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(SafeToDeleteResult.NotLoaded()),
-            loaded: _ => RunAsync(query, symbolName, ct),
+            loaded: session => RunAsync(query, session, symbolName, ct),
             loadFailed: failure => Task.FromResult(SafeToDeleteResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(SafeToDeleteResult.NotLoaded()));
 
     private static async Task<SafeToDeleteResult> RunAsync(
-        WorkspaceQueryService query, string symbolName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, CancellationToken ct)
     {
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
@@ -53,7 +53,8 @@ public sealed class SafeToDeleteTool
         }
 
         return SafeToDeleteResult.Found(
-            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations]);
+            symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations])
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
@@ -63,6 +64,8 @@ public sealed record SafeToDeleteResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
+    public long SnapshotVersion { get; init; }
+
     public static SafeToDeleteResult NotFound(string symbolName) => new(
         "not_found", symbolName, false, 0, [], [], $"Symbol '{symbolName}' not found");
     public static SafeToDeleteResult NotLoaded() => new(
