@@ -1,17 +1,13 @@
-using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.CSharp.Workspace.Tests;
 
-public sealed class CSharpWorkspaceSessionRepoPathTests
+public sealed class CSharpWorkspaceSessionRepoPathTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     [Fact]
-    public async Task RepoPath_IsDirectoryOwningTheSolution()
+    public void RepoPath_IsDirectoryOwningTheSolution()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        var result = await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath);
-        var session = Assert.IsType<WorkspaceLoadResult.Success>(result).Session;
-        await using (session)
-            Assert.Equal(Path.GetDirectoryName(solutionPath), session.RepoPath);
+        Assert.Equal(Path.GetDirectoryName(solutionPath), fixture.Session.RepoPath);
     }
 }
