@@ -35,6 +35,10 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
         _ => throw new InvalidOperationException("Workspace is not loaded. Callers must pattern-match on State before invoking services.")
     };
 
+    /// <summary>The current snapshot version, or 0 when no session is loaded. For stamping results.</summary>
+    public long CurrentSnapshotVersion() =>
+        State is WorkspaceState.Loaded loaded ? loaded.Session.SnapshotVersion : 0;
+
     public void Dispose()
     {
         var previous = Interlocked.Exchange(ref _state, WorkspaceState.Disposed.Instance);

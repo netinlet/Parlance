@@ -24,11 +24,12 @@ public sealed class SearchSymbolsTool
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(SearchSymbolsResult.NotLoaded()),
-            loaded: _ => RunAsync(query, searchQuery, kind, maxResults, ct),
+            loaded: session => RunAsync(session, query, searchQuery, kind, maxResults, ct),
             loadFailed: failure => Task.FromResult(SearchSymbolsResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(SearchSymbolsResult.NotLoaded()));
 
     private static async Task<SearchSymbolsResult> RunAsync(
+        CSharpWorkspaceSession session,
         WorkspaceQueryService query, string searchQuery, string? kind, int maxResults, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(searchQuery))
@@ -72,7 +73,8 @@ public sealed class SearchSymbolsTool
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
-        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated);
+        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated)
+            with { SnapshotVersion = session.SnapshotVersion };
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
@@ -108,6 +110,8 @@ public sealed record SearchSymbolsResult(
         "load_failed", null, [], 0, false, message);
     public static SearchSymbolsResult Error(string message) => new(
         "error", null, [], 0, false, message);
+
+    public long SnapshotVersion { get; init; }
 }
 
 public sealed record SymbolMatch(
