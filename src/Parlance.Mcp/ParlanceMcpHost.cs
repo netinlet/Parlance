@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
+using Parlance.Mcp.Serialization;
 using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp;
@@ -39,27 +40,29 @@ public static class ParlanceMcpHost
             .Configure<ToolAnalytics>((options, analytics) =>
                 options.Filters.Request.CallToolFilters.Add(AnalyticsFilter.Create(analytics)));
 
+        var toolJson = ParlanceToolJson.Create();
+
         builder.Services
             .AddMcpServer()
             .WithStdioServerTransport()
-            .WithTools<WorkspaceStatusTool>()
-            .WithTools<DescribeTypeTool>()
-            .WithTools<FindImplementationsTool>()
-            .WithTools<FindReferencesTool>()
-            .WithTools<GetCodeFixesTool>()
-            .WithTools<GetRefactoringsTool>()
-            .WithTools<GotoDefinitionTool>()
-            .WithTools<GetTypeAtTool>()
-            .WithTools<OutlineFileTool>()
-            .WithTools<PreviewCodeActionTool>()
-            .WithTools<GetSymbolDocsTool>()
-            .WithTools<CallHierarchyTool>()
-            .WithTools<GetTypeDependenciesTool>()
-            .WithTools<SafeToDeleteTool>()
-            .WithTools<SearchSymbolsTool>()
-            .WithTools<TypeHierarchyTool>()
-            .WithTools<DecompileTypeTool>()
-            .WithTools<AnalyzeTool>();
+            .WithTools<WorkspaceStatusTool>(toolJson)
+            .WithTools<DescribeTypeTool>(toolJson)
+            .WithTools<FindImplementationsTool>(toolJson)
+            .WithTools<FindReferencesTool>(toolJson)
+            .WithTools<GetCodeFixesTool>(toolJson)
+            .WithTools<GetRefactoringsTool>(toolJson)
+            .WithTools<GotoDefinitionTool>(toolJson)
+            .WithTools<GetTypeAtTool>(toolJson)
+            .WithTools<OutlineFileTool>(toolJson)
+            .WithTools<PreviewCodeActionTool>(toolJson)
+            .WithTools<GetSymbolDocsTool>(toolJson)
+            .WithTools<CallHierarchyTool>(toolJson)
+            .WithTools<GetTypeDependenciesTool>(toolJson)
+            .WithTools<SafeToDeleteTool>(toolJson)
+            .WithTools<SearchSymbolsTool>(toolJson)
+            .WithTools<TypeHierarchyTool>(toolJson)
+            .WithTools<DecompileTypeTool>(toolJson)
+            .WithTools<AnalyzeTool>(toolJson);
 
         await builder.Build().RunAsync(cancellationToken);
     }
