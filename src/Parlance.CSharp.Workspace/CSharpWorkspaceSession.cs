@@ -26,6 +26,12 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     private volatile Solution _currentSolution;
     private readonly SemaphoreSlim _solutionLock = new(1, 1);
 
+    // Paths with a live client buffer overlay -> per-document version. Overlay wins over disk
+    // until CloseBufferAsync (D3). Keyed case-insensitively to match GetDocumentIdsWithFilePath.
+    // Lock ordering invariant: always acquire _solutionLock BEFORE this lock to avoid deadlock.
+    private readonly Dictionary<string, long> _openBufferVersions =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private CSharpWorkspaceSession(
         string workspacePath,
         MSBuildWorkspace workspace,
@@ -158,6 +164,13 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
                 var docIds = solution.GetDocumentIdsWithFilePath(filePath);
                 if (docIds.IsEmpty) continue;
 
+                // D3: overlay wins until close — skip disk changes for paths with a live buffer.
+                if (IsBufferOpen(filePath))
+                {
+                    _logger.LogDebug("Skipping disk change for overlaid buffer: {Path}", filePath);
+                    continue;
+                }
+
                 string content;
                 try
                 {
@@ -195,6 +208,113 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             _logger.LogInformation(
                 "File changes applied: {Count} file(s), SnapshotVersion={Version}",
                 changedPaths.Count, SnapshotVersion);
+        }
+        finally
+        {
+            _solutionLock.Release();
+        }
+    }
+
+    /// <summary>True while <paramref name="filePath"/> has a client buffer overlay (disk is ignored for it).</summary>
+    public bool IsBufferOpen(string filePath)
+    {
+        lock (_openBufferVersions)
+            return _openBufferVersions.ContainsKey(filePath);
+    }
+
+    /// <summary>
+    /// Overlays client buffer text onto the live solution (open or update). Returns the new
+    /// per-document version, or 0 if the path is not a document in this workspace. Disk is untouched.
+    /// </summary>
+    public async Task<long> SyncBufferAsync(string filePath, string text, CancellationToken ct = default)
+    {
+        if (_mode is WorkspaceMode.Report)
+            throw new InvalidOperationException("SyncBufferAsync is not supported in Report mode");
+
+        await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            var solution = _currentSolution;
+            var docIds = solution.GetDocumentIdsWithFilePath(filePath);
+            if (docIds.IsEmpty) return 0;
+
+            var existing = solution.GetDocument(docIds[0]);
+            var encoding = existing is not null
+                ? (await existing.GetTextAsync(ct)).Encoding
+                : Encoding.UTF8;
+            var newText = SourceText.From(text, encoding);
+
+            foreach (var docId in docIds)
+            {
+                solution = solution.WithDocumentText(docId, newText);
+                var projectId = solution.GetDocument(docId)?.Project.Id;
+                if (projectId is not null)
+                    _cache.MarkDirty(projectId);
+            }
+            _currentSolution = solution;
+
+            long version;
+            lock (_openBufferVersions)
+            {
+                version = _openBufferVersions.TryGetValue(filePath, out var v) ? v + 1 : 1;
+                _openBufferVersions[filePath] = version;
+            }
+
+            Interlocked.Increment(ref _snapshotVersion);
+            _logger.LogInformation(
+                "Buffer synced: {Path} (docVersion={DocVersion}, SnapshotVersion={Version})",
+                filePath, version, SnapshotVersion);
+            return version;
+        }
+        finally
+        {
+            _solutionLock.Release();
+        }
+    }
+
+    /// <summary>Drops the overlay for <paramref name="filePath"/> and reverts that document to disk text.</summary>
+    public async Task CloseBufferAsync(string filePath, CancellationToken ct = default)
+    {
+        if (_mode is WorkspaceMode.Report)
+            throw new InvalidOperationException("CloseBufferAsync is not supported in Report mode");
+
+        await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            // Check (do NOT remove) whether the path is open; if not, return early with no snapshot bump.
+            // Removing the key only happens AFTER a successful revert so that a disk-read failure
+            // leaves the buffer open and retryable (overlay suppression preserved, _currentSolution
+            // not in a half-reverted state).
+            bool wasOpen;
+            lock (_openBufferVersions)
+                wasOpen = _openBufferVersions.ContainsKey(filePath);
+            if (!wasOpen) return;
+
+            var solution = _currentSolution;
+            var docIds = solution.GetDocumentIdsWithFilePath(filePath);
+            if (!docIds.IsEmpty && File.Exists(filePath))
+            {
+                var existing = solution.GetDocument(docIds[0]);
+                var encoding = existing is not null
+                    ? (await existing.GetTextAsync(ct)).Encoding
+                    : Encoding.UTF8;
+                var diskText = SourceText.From(await File.ReadAllTextAsync(filePath, ct), encoding);
+                foreach (var docId in docIds)
+                {
+                    solution = solution.WithDocumentText(docId, diskText);
+                    var projectId = solution.GetDocument(docId)?.Project.Id;
+                    if (projectId is not null)
+                        _cache.MarkDirty(projectId);
+                }
+                _currentSolution = solution;
+            }
+
+            // Revert succeeded (or file was deleted — nothing to revert). Remove the key and bump.
+            lock (_openBufferVersions)
+                _openBufferVersions.Remove(filePath);
+
+            Interlocked.Increment(ref _snapshotVersion);
+            _logger.LogInformation("Buffer closed, reverted to disk: {Path}", filePath);
         }
         finally
         {
