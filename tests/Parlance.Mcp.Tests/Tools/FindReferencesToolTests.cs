@@ -5,22 +5,11 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class FindReferencesToolTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class FindReferencesToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private WorkspaceQueryService _query = null!;
-    private CSharpWorkspaceSession _session = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly WorkspaceQueryService _query = fixture.Query;
 
     [Fact]
     public async Task FindReferences_FindsReferencesOfKnownSymbol()

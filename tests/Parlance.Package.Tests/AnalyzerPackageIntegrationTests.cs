@@ -3,6 +3,7 @@ using System.IO.Compression;
 
 namespace Parlance.Package.Tests;
 
+[Trait("Category", "Integration")]
 public sealed class AnalyzerPackageIntegrationTests : IAsyncLifetime
 {
     private string _repoRoot = null!;

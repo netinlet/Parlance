@@ -8,27 +8,14 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class AnalyzeToolTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private WorkspaceQueryService _query = null!;
-    private AnalysisService _service = null!;
-    private CSharpWorkspaceSession _session = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
-        var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
-        _service = new AnalysisService(
-            _holder, _query, curationProvider,
-            NullLogger<AnalysisService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly AnalysisService _service = new(
+        fixture.Holder, fixture.Query,
+        new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        NullLogger<AnalysisService>.Instance);
 
     [Fact]
     public void NotLoaded_ReturnsNotLoaded()

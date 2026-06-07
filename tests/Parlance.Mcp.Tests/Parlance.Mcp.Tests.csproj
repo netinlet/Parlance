@@ -27,6 +27,9 @@
     <Compile Include="..\Parlance.CSharp.Workspace.Tests\Integration\TestPaths.cs">
       <Link>TestPaths.cs</Link>
     </Compile>
+    <Compile Include="..\Parlance.CSharp.Workspace.Tests\Integration\WorkspaceFixture.cs">
+      <Link>WorkspaceFixture.cs</Link>
+    </Compile>
   </ItemGroup>
 
 </Project>

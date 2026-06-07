@@ -6,22 +6,11 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class GetCodeFixesToolTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private CSharpWorkspaceSession _session = null!;
-    private CodeActionService _codeActions = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _codeActions = new CodeActionService(_holder, NullLogger<CodeActionService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
 
     [Fact]
     public async Task GetCodeFixes_KnownDiagnosticLine_ReturnsFixes()
