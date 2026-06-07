@@ -74,7 +74,8 @@ public sealed class AnalyzeTool
                     d.RuleId, d.Severity, d.Message,
                     d.FilePath, d.Line,
                     d.FixClassification, d.Rationale)).ToImmutableList())
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+            { SnapshotVersion = session.SnapshotVersion };
         }
         catch (ArgumentException ex)
         {

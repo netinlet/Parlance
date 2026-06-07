@@ -60,7 +60,8 @@ public sealed class DecompileTypeTool
                     return DecompileTypeResult.Found(
                         typeSymbol.ToDisplayString(), assemblySymbol.Name, metaRef.FilePath, decompiledCode,
                         truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null)
-                        with { SnapshotVersion = session.SnapshotVersion };
+                        with
+                    { SnapshotVersion = session.SnapshotVersion };
                 }
                 catch (Exception ex)
                 {

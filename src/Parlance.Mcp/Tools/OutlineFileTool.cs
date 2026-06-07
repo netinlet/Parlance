@@ -76,7 +76,8 @@ public sealed class OutlineFileTool
             .ToImmutableList();
 
         return OutlineFileResult.Found(types)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

@@ -55,7 +55,8 @@ public sealed class SafeToDeleteTool
 
         return SafeToDeleteResult.Found(
             symbol.ToDisplayString(), totalCount == 0, totalCount, [.. locations])
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

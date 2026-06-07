@@ -44,7 +44,8 @@ public sealed class GetSymbolDocsTool
         return GetSymbolDocsResult.Found(
             symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,
             docs.Params, docs.TypeParams, docs.Exceptions)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 
     private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)

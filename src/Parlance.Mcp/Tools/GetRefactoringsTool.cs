@@ -62,7 +62,8 @@ public sealed class GetRefactoringsTool
             FilePath: filePath,
             Refactorings: refactorings,
             Message: null)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

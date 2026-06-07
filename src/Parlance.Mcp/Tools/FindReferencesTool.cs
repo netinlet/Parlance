@@ -84,7 +84,8 @@ public sealed class FindReferencesTool
             .ToImmutableList();
 
         return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

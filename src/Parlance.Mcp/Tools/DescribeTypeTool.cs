@@ -67,7 +67,8 @@ public sealed class DescribeTypeTool
             type.Locations.FirstOrDefault()?.GetLineSpan().Path,
             type.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1,
             [.. baseTypes], interfaces, members)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

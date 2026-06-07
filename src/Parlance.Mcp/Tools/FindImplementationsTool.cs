@@ -48,7 +48,8 @@ public sealed class FindImplementationsTool
             .ToImmutableList();
 
         return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

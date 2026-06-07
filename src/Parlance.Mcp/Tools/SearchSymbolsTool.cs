@@ -75,7 +75,8 @@ public sealed class SearchSymbolsTool
         }).ToImmutableList();
 
         return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>

@@ -117,7 +117,8 @@ public sealed class CallHierarchyTool
 
         return CallHierarchyResult.Found(
             targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable())
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

@@ -87,7 +87,8 @@ public sealed class GotoDefinitionTool
                 targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 targetSymbol.Kind.ToString(),
                 targetSymbol.ContainingAssembly?.Name)
-                with { SnapshotVersion = session.SnapshotVersion };
+                with
+            { SnapshotVersion = session.SnapshotVersion };
         }
 
         var locations = new List<DefinitionLocation>();
@@ -114,7 +115,8 @@ public sealed class GotoDefinitionTool
             targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             targetSymbol.Kind.ToString(),
             [.. locations])
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

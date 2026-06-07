@@ -152,7 +152,8 @@ public sealed class GetTypeDependenciesTool
 
         return GetTypeDependenciesResult.Found(
             typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable())
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

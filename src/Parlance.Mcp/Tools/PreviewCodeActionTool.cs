@@ -44,7 +44,8 @@ public sealed class PreviewCodeActionTool
             Title: preview.Title,
             Changes: preview.Changes,
             Message: null)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 

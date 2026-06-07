@@ -103,7 +103,8 @@ public sealed class GetTypeAtTool
                     return GetTypeAtResult.Found(
                         symbol.ToDisplayString(), symbol.Kind.ToString(),
                         false, text.Lines[zeroLine].ToString().Trim())
-                        with { SnapshotVersion = session.SnapshotVersion };
+                        with
+                    { SnapshotVersion = session.SnapshotVersion };
                 }
             }
         }
@@ -116,7 +117,8 @@ public sealed class GetTypeAtTool
         return GetTypeAtResult.Found(
             typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
             isInferred, sourceLine)
-            with { SnapshotVersion = session.SnapshotVersion };
+            with
+        { SnapshotVersion = session.SnapshotVersion };
     }
 }
 
