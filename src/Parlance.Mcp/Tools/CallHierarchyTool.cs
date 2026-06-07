@@ -116,32 +116,39 @@ public sealed class CallHierarchyTool
         }
 
         return CallHierarchyResult.Found(
-            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable(),
-            session.SnapshotVersion);
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable(), session.SnapshotVersion);
     }
 }
 
 public sealed record CallHierarchyResult(
-    string Status, string? TargetMethod, ImmutableList<HierarchyEntry> Callers,
-    ImmutableList<HierarchyEntry> Callees, ImmutableList<SymbolCandidate> Candidates, string? Message)
+    string Status,
+    string? TargetMethod,
+    ImmutableList<HierarchyEntry> Callers,
+    ImmutableList<HierarchyEntry> Callees,
+    ImmutableList<SymbolCandidate> Candidates,
+    string? Message,
+    long SnapshotVersion)
 {
-    public long SnapshotVersion { get; init; }
-
     public static CallHierarchyResult NotFound(string methodName) => new(
-        "not_found", methodName, [], [], [], $"Method '{methodName}' not found");
+        "not_found", methodName, [], [], [], $"Method '{methodName}' not found", 0);
+
     public static CallHierarchyResult NotLoaded() => new(
-        "not_loaded", null, [], [], [], "Workspace is still loading");
+        "not_loaded", null, [], [], [], "Workspace is still loading", 0);
+
     public static CallHierarchyResult LoadFailed(string message) => new(
-        "load_failed", null, [], [], [], message);
+        "load_failed", null, [], [], [], message, 0);
+
     public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates) => new(
         "ambiguous", methodName, [], [], candidates,
-        $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.", 0);
+
     public static CallHierarchyResult Found(
         string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees,
-        long snapshotVersion) => new(
-        "found", targetMethod, callers, callees, [], null)
-        { SnapshotVersion = snapshotVersion };
+        long snapshotVersion) => new("found", targetMethod, callers, callees, [], null, snapshotVersion);
 }
 
 public sealed record HierarchyEntry(
-    string MethodName, string ContainingType, RepoPath? FilePath, int Line);
+    string MethodName,
+    string ContainingType,
+    RepoPath? FilePath,
+    int Line);
