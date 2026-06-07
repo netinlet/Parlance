@@ -123,9 +123,16 @@ public sealed class GetTypeDependenciesTool
         foreach (var treeGroup in locationsByTree)
         {
             var tree = treeGroup.Key;
-            var root = await tree.GetRootAsync(ct);
             var semanticModel = await query.GetSemanticModelAsync(tree.FilePath, ct);
             if (semanticModel is null) continue;
+
+            // Resolve the root from the semantic model's own tree, not from the reference's
+            // SourceTree. FindReferences and GetSemanticModelAsync each read CurrentSolution
+            // independently and can hand back distinct tree instances for the same file; a node
+            // taken from one tree throws "Syntax node is not within syntax tree" when passed to
+            // the other's GetDeclaredSymbol. The text is identical, so a span-based FindNode on
+            // the model's tree yields the equivalent, in-tree node.
+            var root = await semanticModel.SyntaxTree.GetRootAsync(ct);
 
             foreach (var location in treeGroup)
             {
