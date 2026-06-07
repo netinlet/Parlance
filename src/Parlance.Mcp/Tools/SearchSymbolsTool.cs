@@ -107,7 +107,7 @@ public sealed record SearchSymbolsResult(
         { SnapshotVersion = snapshotVersion };
     public static SearchSymbolsResult NoMatches(string searchQuery, long snapshotVersion) => new(
         "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static SearchSymbolsResult NotLoaded() => new(
         "not_loaded", null, [], 0, false, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(

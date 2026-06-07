@@ -176,7 +176,7 @@ public sealed record GetTypeDependenciesResult(
 
     public static GetTypeDependenciesResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", typeName, [], [], [], $"Type '{typeName}' not found")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult NotLoaded() => new(
         "not_loaded", null, [], [], [], "Workspace is still loading");
     public static GetTypeDependenciesResult LoadFailed(string message) => new(
@@ -184,7 +184,7 @@ public sealed record GetTypeDependenciesResult(
     public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult Found(
         string typeName, ImmutableList<TypeDependencyEntry> dependencies,
         ImmutableList<TypeDependencyEntry> dependents, long snapshotVersion) => new(

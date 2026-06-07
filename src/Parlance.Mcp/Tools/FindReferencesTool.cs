@@ -104,7 +104,7 @@ public sealed record FindReferencesResult(
 
     public static FindReferencesResult NotFound(string symbolName, long snapshotVersion) => new(
         "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static FindReferencesResult NotLoaded() => new(
         "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindReferencesResult LoadFailed(string message) => new(
@@ -112,7 +112,7 @@ public sealed record FindReferencesResult(
     public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static FindReferencesResult Found(
         string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups, long snapshotVersion) => new(
         "found", symbolName, totalCount, fileGroups, [], null)

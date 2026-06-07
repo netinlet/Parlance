@@ -70,7 +70,7 @@ public sealed record SafeToDeleteResult(
 
     public static SafeToDeleteResult NotFound(string symbolName, long snapshotVersion) => new(
         "not_found", symbolName, false, 0, [], [], $"Symbol '{symbolName}' not found")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static SafeToDeleteResult NotLoaded() => new(
         "not_loaded", null, false, 0, [], [], "Workspace is still loading");
     public static SafeToDeleteResult LoadFailed(string message) => new(
@@ -78,7 +78,7 @@ public sealed record SafeToDeleteResult(
     public static SafeToDeleteResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, false, 0, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static SafeToDeleteResult Found(
         string symbolName, bool safe, int referenceCount,
         ImmutableList<DeleteReferenceLocation> sampleLocations, long snapshotVersion) => new(

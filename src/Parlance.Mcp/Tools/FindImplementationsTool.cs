@@ -62,7 +62,7 @@ public sealed record FindImplementationsResult(
 
     public static FindImplementationsResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", typeName, 0, [], [], $"Type '{typeName}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static FindImplementationsResult NotLoaded() => new(
         "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindImplementationsResult LoadFailed(string message) => new(
@@ -70,7 +70,7 @@ public sealed record FindImplementationsResult(
     public static FindImplementationsResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, 0, [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static FindImplementationsResult Found(
         string targetType, ImmutableList<ImplementationEntry> implementations, long snapshotVersion) => new(
         "found", targetType, implementations.Count, implementations, [], null)

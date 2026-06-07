@@ -85,7 +85,7 @@ public sealed record DescribeTypeResult(
     public static DescribeTypeResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", null, null, null, false, false, false,
         null, default(RepoPath?), null, [], [], [], [], $"Type '{typeName}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static DescribeTypeResult NotLoaded() => new(
         "not_loaded", null, null, null, false, false, false,
@@ -99,7 +99,7 @@ public sealed record DescribeTypeResult(
         "ambiguous", null, null, null, false, false, false,
         null, default(RepoPath?), null, [], [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static DescribeTypeResult Found(
         string fullyQualifiedName, string kind, string accessibility,

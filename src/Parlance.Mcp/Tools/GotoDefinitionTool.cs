@@ -135,7 +135,7 @@ public sealed record GotoDefinitionResult(
     public static GotoDefinitionResult NotFound(string identifier, long snapshotVersion) => new(
         "not_found", null, null, false, null, [], [],
         $"Symbol '{identifier}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult NotLoaded() => new(
         "not_loaded", null, null, false, null, [], [],
@@ -147,7 +147,7 @@ public sealed record GotoDefinitionResult(
     public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, null, false, null, [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult Error(string message) => new(
         "error", null, null, false, null, [], [], message);
