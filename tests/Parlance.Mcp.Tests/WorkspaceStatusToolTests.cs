@@ -20,7 +20,7 @@ public sealed class WorkspaceStatusToolTests
         var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
 
         Assert.Equal("Failed", result.Status);
-        Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
+        Assert.Equal("/path/to/Solution.sln", result.SolutionPath.Absolute);
         Assert.Equal(0, result.SnapshotVersion);
         Assert.Single(result.Diagnostics);
         Assert.Equal("LoadFailure", result.Diagnostics[0].Code);
@@ -36,7 +36,7 @@ public sealed class WorkspaceStatusToolTests
         var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, logger);
 
         Assert.Equal("Loading", result.Status);
-        Assert.Equal("/path/to/Solution.sln", result.SolutionPath);
+        Assert.Equal("/path/to/Solution.sln", result.SolutionPath.Absolute);
         Assert.Equal(0, result.SnapshotVersion);
         Assert.Empty(result.Projects);
         Assert.Empty(result.Diagnostics);
@@ -53,4 +53,8 @@ public sealed class WorkspaceStatusToolTests
 
         Assert.Equal("Failed", result.Status);
     }
+
+    [Fact]
+    public void ProjectStatusEntry_HasNoScalarTargetFramework() =>
+        Assert.Null(typeof(ProjectStatusEntry).GetProperty("TargetFramework"));
 }

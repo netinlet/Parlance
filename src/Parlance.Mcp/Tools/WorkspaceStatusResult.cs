@@ -1,11 +1,12 @@
 using System.Collections.Immutable;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
 
 public sealed record WorkspaceStatusResult(
     string Status,
-    string SolutionPath,
+    RepoPath SolutionPath,
     long SnapshotVersion,
     int ProjectCount,
     ImmutableList<ProjectStatusEntry> Projects,
@@ -22,7 +23,6 @@ public sealed record WorkspaceStatusResult(
                     Name: p.Name,
                     Path: p.ProjectPath,
                     Status: p.Status.ToString(),
-                    TargetFramework: p.ActiveTargetFramework,
                     TargetFrameworks: p.TargetFrameworks,
                     LangVersion: p.LangVersion,
                     DependsOn: p.ProjectReferences))
@@ -52,9 +52,8 @@ public sealed record WorkspaceStatusResult(
 
 public sealed record ProjectStatusEntry(
     string Name,
-    string Path,
+    RepoPath Path,
     string Status,
-    string? TargetFramework,
     ImmutableList<string> TargetFrameworks,
     string? LangVersion,
     ImmutableList<string> DependsOn);

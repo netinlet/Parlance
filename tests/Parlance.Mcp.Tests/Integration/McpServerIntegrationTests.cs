@@ -28,7 +28,9 @@ public sealed class McpServerIntegrationTests
 
         var status = root.GetProperty("status").GetString();
         Assert.True(status is "Loaded" or "Degraded", $"Expected Loaded or Degraded, got {status}");
-        Assert.Equal(SolutionPath, root.GetProperty("solutionPath").GetString());
+        Assert.Equal(
+            Path.GetRelativePath(Path.GetDirectoryName(SolutionPath)!, SolutionPath),
+            root.GetProperty("solutionPath").GetString());
         Assert.True(root.GetProperty("snapshotVersion").GetInt64() >= 1);
         Assert.True(root.GetProperty("projectCount").GetInt32() > 0);
 
