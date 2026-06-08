@@ -55,7 +55,7 @@ Parlance.Analysis               AnalysisService, CurationSetProvider, CodeAction
     ↑
 Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, compilation cache, file watching)
     ↑
-├── Parlance.Mcp                MCP server — 20 tools (18 read-only + sync/close-buffer), stdio transport, Microsoft.Extensions.Hosting
+├── Parlance.Mcp                MCP server — 18 read-only tools, stdio transport, Microsoft.Extensions.Hosting
 └── Parlance.Cli                CLI — analyze/rules commands, System.CommandLine 2.0.3
 ```
 
@@ -70,7 +70,7 @@ Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, comp
 
 ### MCP tool pattern
 
-Tools are static methods on `[McpServerToolType]` classes. They receive services via DI parameters. All tools are `ReadOnly = true` **except** the buffer-overlay pair (`sync-buffer` / `close-buffer`), which mutate in-memory overlay state — never disk — and therefore omit the flag. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
+Tools are static methods on `[McpServerToolType]` classes. They receive services via DI parameters. All tools are `ReadOnly = true`. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
 
 ```csharp
 [McpServerToolType]
@@ -207,22 +207,13 @@ When the repo is integrated, Parlance MCP tools are available in this repo via `
 | Hand-write a refactor | `get-refactorings` | Discovering refactorings (extract, inline, generate, …) available at a span |
 | Edit blind, then re-read | `preview-code-action` | Previewing a fix/refactoring diff before applying it |
 
-### Live editing & staleness (LSP-parity loop)
+### Versioning & staleness
 
-`sync-buffer` / `close-buffer` are the only mutating tools — they overlay unsaved
-buffer text in-memory (no disk write) and revert on close. Use them to make
-analysis and navigation reflect an in-flight edit before you commit it to disk:
-
-1. `sync-buffer { path, text }` — push the full edited buffer; returns the new
-   per-document version and the global `snapshotVersion`.
-2. `analyze` / navigation / `get-code-fixes` / `get-refactorings` / `preview-code-action`
-   now see the overlaid text.
-3. `close-buffer { path }` — drop the overlay; the document reverts to disk.
-
-Every tool result carries a `snapshotVersion`. To guard against acting on a
-stale snapshot, pass `expectedSnapshotVersion` to `analyze` — a mismatch returns
-status `stale` (best-effort, never a hard error) with the actual version stamped.
-Output paths are workspace-relative. `find-references` snippets are opt-in via
+Every tool result carries a `snapshotVersion` (the workspace advances it as
+on-disk files change). To guard against acting on a stale snapshot, pass
+`expectedSnapshotVersion` to `analyze` — a mismatch returns status `stale`
+(best-effort, never a hard error) with the actual version stamped. Output paths
+are workspace-relative. `find-references` snippets are opt-in via
 `includeSnippets` (default off — verbose on hot symbols).
 
 ### When you fall back to a native tool
