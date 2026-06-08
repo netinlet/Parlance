@@ -219,39 +219,40 @@ public sealed class CodeActionService(
 
     public async Task<CodeActionPreview?> PreviewAsync(string actionId, CancellationToken ct = default)
     {
-        if (!_actionCache.TryGetValue(actionId, out var cached))
-            return null;
-
-        if (cached.SnapshotVersion != Session.SnapshotVersion)
-            return CodeActionPreview.Expired(actionId, cached.Action.Title);
-
-        ImmutableArray<CodeActionOperation> operations;
-        try
+        var resolution = await ResolveApplyOperationAsync(actionId, ct);
+        return resolution switch
         {
-            operations = await cached.Action.GetOperationsAsync(ct);
-        }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            logger.LogError(ex, "Code action '{ActionId}' failed due to missing assembly dependencies", actionId);
-            return CodeActionPreview.Failed(actionId, cached.Action.Title,
-                "Code action failed: missing runtime dependency. " +
-                string.Join("; ", ex.LoaderExceptions?.Select(e => e?.Message).Where(m => m is not null).Distinct() ?? []));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Code action '{ActionId}' failed during preview", actionId);
-            return CodeActionPreview.Failed(actionId, cached.Action.Title, "Code action failed: " + ex.Message);
-        }
+            null => null,
+            ActionResolution.Expired e => CodeActionPreview.Expired(actionId, e.Action.Title),
+            ActionResolution.Failed f => CodeActionPreview.Failed(actionId, f.Action.Title, f.Message),
+            ActionResolution.Resolved r => await BuildPreviewAsync(actionId, r.Action.Title, r.Operation, ct),
+            _ => null,
+        };
+    }
 
-        var applyOp = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
-        if (applyOp is null)
-            return CodeActionPreview.Failed(actionId, cached.Action.Title,
-                "Code action does not produce text changes that can be previewed.");
+    /// <summary>
+    /// Computes the complete, applyable <see cref="CodeActionEdit"/> (LSP <c>WorkspaceEdit</c>) for a cached
+    /// action — text edits plus create/delete/rename resource operations. Returns <c>null</c> when the
+    /// action ID is unknown. Parlance never writes the result to disk; the caller applies and persists it.
+    /// </summary>
+    public async Task<CodeActionEdit?> ApplyAsync(string actionId, CancellationToken ct = default)
+    {
+        var resolution = await ResolveApplyOperationAsync(actionId, ct);
+        return resolution switch
+        {
+            null => null,
+            ActionResolution.Expired e => CodeActionEdit.Expired(actionId, e.Action.Title),
+            ActionResolution.Failed f => CodeActionEdit.Failed(actionId, f.Action.Title, f.Message),
+            ActionResolution.Resolved r => await WorkspaceEditBuilder.BuildAsync(
+                actionId, r.Action.Title, Session.CurrentSolution, r.Operation.ChangedSolution,
+                Session.BufferVersion, ct),
+            _ => null,
+        };
+    }
 
+    private async Task<CodeActionPreview> BuildPreviewAsync(
+        string actionId, string title, ApplyChangesOperation applyOp, CancellationToken ct)
+    {
         var changedSolution = applyOp.ChangedSolution;
         var currentSolution = Session.CurrentSolution;
 
@@ -274,7 +275,54 @@ public sealed class CodeActionService(
             }
         }
 
-        return new CodeActionPreview(actionId, cached.Action.Title, [.. changes]);
+        return new CodeActionPreview(actionId, title, [.. changes]);
+    }
+
+    // Shared lookup → operation resolution behind both preview and apply: cache hit, snapshot match,
+    // GetOperationsAsync, and extraction of the ApplyChangesOperation. Returns null when the ID is unknown.
+    private async Task<ActionResolution?> ResolveApplyOperationAsync(string actionId, CancellationToken ct)
+    {
+        if (!_actionCache.TryGetValue(actionId, out var cached))
+            return null;
+
+        if (cached.SnapshotVersion != Session.SnapshotVersion)
+            return new ActionResolution.Expired(cached.Action);
+
+        ImmutableArray<CodeActionOperation> operations;
+        try
+        {
+            operations = await cached.Action.GetOperationsAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (ReflectionTypeLoadException ex)
+        {
+            logger.LogError(ex, "Code action '{ActionId}' failed due to missing assembly dependencies", actionId);
+            return new ActionResolution.Failed(cached.Action,
+                "Code action failed: missing runtime dependency. " +
+                string.Join("; ", ex.LoaderExceptions?.Select(e => e?.Message).Where(m => m is not null).Distinct() ?? []));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Code action '{ActionId}' failed during resolution", actionId);
+            return new ActionResolution.Failed(cached.Action, "Code action failed: " + ex.Message);
+        }
+
+        var applyOp = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
+        if (applyOp is null)
+            return new ActionResolution.Failed(cached.Action,
+                "Code action does not produce text changes that can be applied.");
+
+        return new ActionResolution.Resolved(cached.Action, applyOp);
+    }
+
+    private abstract record ActionResolution
+    {
+        public sealed record Resolved(CodeAction Action, ApplyChangesOperation Operation) : ActionResolution;
+        public sealed record Expired(CodeAction Action) : ActionResolution;
+        public sealed record Failed(CodeAction Action, string Message) : ActionResolution;
     }
 
     // Drop cached actions from superseded snapshots. Cached entries pin Roslyn CodeAction
