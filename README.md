@@ -8,7 +8,7 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 
 ## Features
 
-18 MCP tools across 6 categories:
+20 MCP tools across 7 categories:
 
 **Navigation (7)**
 - `describe-type` — members, signatures, base types, interfaces
@@ -34,11 +34,33 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 **Analysis (1)**
 - `analyze` — run curated analyzer rules, get enriched diagnostics
 
+**Live Editing (2)**
+- `sync-buffer` — overlay unsaved buffer text so analysis/navigation reflect an edit, without writing to disk
+- `close-buffer` — drop the overlay and revert the file to its on-disk contents
+
 **Workspace (1)**
 - `workspace-status` — health, loaded projects, target frameworks, project graph
 
 **Decompilation (1)**
 - `decompile-type` — inspect types from NuGet packages
+
+### Live editing & versioning
+
+Parlance steals the *concepts* of a language server without the LSP wire. Agents
+push unsaved buffers and read back version-stamped results, so an edit can be
+analyzed before it ever touches disk:
+
+- **Buffer overlay.** `sync-buffer` applies full-text buffer replacement in
+  memory; the overlay wins over disk until `close-buffer` reverts it. Disk is
+  never written. `sync-buffer` / `close-buffer` are the only non–read-only tools.
+- **Version stamping.** Every tool result carries a `snapshotVersion`; open
+  buffers also get a per-document version. Pass `expectedSnapshotVersion` to
+  `analyze` for a best-effort staleness check — a mismatch yields status `stale`
+  (never a hard error), with the actual version always stamped.
+- **Pull-based diagnostics.** After an edit, call `analyze`; there are no push
+  notifications.
+- **Compact payloads.** Output paths are emitted workspace-relative;
+  `find-references` snippets are opt-in via `includeSnippets` (default off).
 
 ## Requirements
 
