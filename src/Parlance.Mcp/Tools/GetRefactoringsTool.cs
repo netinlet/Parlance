@@ -62,7 +62,7 @@ public sealed class GetRefactoringsTool
 
         return new GetRefactoringsResult(
             Status: "found",
-            FilePath: RepoPath.OrNull(resolved),
+            FilePath: resolved.ToRepoPath(),
             Refactorings: refactorings,
             Message: null)
         { SnapshotVersion = session.SnapshotVersion };
@@ -77,10 +77,10 @@ public sealed record GetRefactoringsResult(
     public long SnapshotVersion { get; init; }
 
     public static GetRefactoringsResult NotFound(string filePath) => new(
-        "not_found", RepoPath.OrNull(filePath), [],
+        "not_found", filePath.ToRepoPath(), [],
         $"File '{filePath}' not found in the workspace");
     public static GetRefactoringsResult NoRefactorings(string filePath) => new(
-        "no_refactorings", RepoPath.OrNull(filePath), [],
+        "no_refactorings", filePath.ToRepoPath(), [],
         $"No refactorings available at the specified location in {filePath}");
     public static GetRefactoringsResult NotLoaded() => new(
         "not_loaded", null, [],

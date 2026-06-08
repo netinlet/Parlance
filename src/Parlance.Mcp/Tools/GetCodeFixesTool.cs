@@ -54,7 +54,7 @@ public sealed class GetCodeFixesTool
 
         return new GetCodeFixesResult(
             Status: "found",
-            FilePath: RepoPath.OrNull(resolved),
+            FilePath: resolved.ToRepoPath(),
             Line: line,
             Fixes: fixes,
             Message: null)
@@ -70,10 +70,10 @@ public sealed record GetCodeFixesResult(
     public long SnapshotVersion { get; init; }
 
     public static GetCodeFixesResult NotFound(string filePath) => new(
-        "not_found", RepoPath.OrNull(filePath), null, [],
+        "not_found", filePath.ToRepoPath(), null, [],
         $"File '{filePath}' not found in the workspace");
     public static GetCodeFixesResult NoFixes(string filePath, int line) => new(
-        "no_fixes", RepoPath.OrNull(filePath), line, [],
+        "no_fixes", filePath.ToRepoPath(), line, [],
         $"No code fixes available at {filePath}:{line}");
     public static GetCodeFixesResult NotLoaded() => new(
         "not_loaded", null, null, [],

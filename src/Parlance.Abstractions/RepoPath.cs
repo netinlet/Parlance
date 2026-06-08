@@ -10,16 +10,20 @@ public readonly record struct RepoPath(string Absolute)
 {
     public string Relative(string workspaceRoot) =>
         string.IsNullOrEmpty(Absolute) || string.IsNullOrEmpty(workspaceRoot)
-            ? Absolute ?? ""
+            ? Absolute ?? string.Empty
             : Path.GetRelativePath(workspaceRoot, Absolute);
-
-    /// <summary>A <see cref="RepoPath"/> for a non-empty path, or <c>null</c> for a null/empty one.
-    /// Use at construction sites instead of the implicit operator, which would wrap an empty string
-    /// into a present-but-empty value.</summary>
-    public static RepoPath? OrNull(string? absolute) =>
-        string.IsNullOrEmpty(absolute) ? (RepoPath?)null : new RepoPath(absolute!);
 
     public static implicit operator RepoPath(string absolute) => new(absolute);
 
     public override string ToString() => Absolute;
+}
+
+/// <summary>String → <see cref="RepoPath"/> conversion for DTO/tool construction sites.</summary>
+public static class RepoPathExtensions
+{
+    /// <summary>A <see cref="RepoPath"/> for a non-empty path, or <c>null</c> for a null/empty one.
+    /// Use at construction sites instead of the implicit operator, which would wrap an empty string
+    /// into a present-but-empty value.</summary>
+    public static RepoPath? ToRepoPath(this string? absolute) =>
+        string.IsNullOrEmpty(absolute) ? (RepoPath?)null : new RepoPath(absolute!);
 }

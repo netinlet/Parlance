@@ -21,7 +21,7 @@ public sealed record WorkspaceStatusResult(
             Projects: session.Projects
                 .Select(p => new ProjectStatusEntry(
                     Name: p.Name,
-                    Path: RepoPath.OrNull(p.ProjectPath),
+                    Path: p.ProjectPath.ToRepoPath(),
                     Status: p.Status.ToString(),
                     TargetFrameworks: p.TargetFrameworks,
                     LangVersion: p.LangVersion,

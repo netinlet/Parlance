@@ -8,5 +8,5 @@ public static class FileLinePositionSpanExtensions
 {
     /// <summary>The span's file path as a <see cref="RepoPath"/>, or null when the path is
     /// empty (e.g. metadata/synthetic locations).</summary>
-    public static RepoPath? ToRepoPath(this FileLinePositionSpan span) => RepoPath.OrNull(span.Path);
+    public static RepoPath? ToRepoPath(this FileLinePositionSpan span) => span.Path.ToRepoPath();
 }

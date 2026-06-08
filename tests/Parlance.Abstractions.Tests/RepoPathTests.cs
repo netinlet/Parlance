@@ -30,16 +30,16 @@ public sealed class RepoPathTests
     }
 
     [Fact]
-    public void OrNull_NullOrEmpty_ReturnsNull()
+    public void ToRepoPath_NullOrEmpty_ReturnsNull()
     {
-        Assert.False(RepoPath.OrNull(null).HasValue);
-        Assert.False(RepoPath.OrNull("").HasValue);
+        Assert.False(((string?)null).ToRepoPath().HasValue);
+        Assert.False("".ToRepoPath().HasValue);
     }
 
     [Fact]
-    public void OrNull_NonEmpty_WrapsAbsolute()
+    public void ToRepoPath_NonEmpty_WrapsAbsolute()
     {
-        var path = RepoPath.OrNull("/repo/a.cs");
+        var path = "/repo/a.cs".ToRepoPath();
         Assert.NotNull(path);
         Assert.Equal("/repo/a.cs", path!.Value.Absolute);
     }

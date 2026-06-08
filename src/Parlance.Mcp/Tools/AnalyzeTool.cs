@@ -72,7 +72,7 @@ public sealed class AnalyzeTool
                     result.Summary.IdiomaticScore),
                 result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
-                    RepoPath.OrNull(d.FilePath), d.Line,
+                    d.FilePath.ToRepoPath(), d.Line,
                     d.FixClassification, d.Rationale)).ToImmutableList(),
                 session.SnapshotVersion);
         }

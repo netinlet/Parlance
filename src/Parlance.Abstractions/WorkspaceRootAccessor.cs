@@ -6,11 +6,11 @@ namespace Parlance.Abstractions;
 /// </summary>
 public sealed class WorkspaceRootAccessor
 {
-    private volatile string _root = "";
+    private volatile string _root = string.Empty;
 
     public string Root
     {
         get => _root;
-        set => _root = value ?? "";
+        set => _root = value ?? string.Empty;
     }
 }

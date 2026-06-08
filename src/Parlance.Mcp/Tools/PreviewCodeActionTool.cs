@@ -43,7 +43,7 @@ public sealed class PreviewCodeActionTool
         // outside the RepoPath path-field guard) onto an MCP DTO whose FilePath is a workspace-relative
         // RepoPath, so code-action previews follow the same path contract as every other tool result.
         var changes = preview.Changes
-            .Select(c => new PreviewFileChange(RepoPath.OrNull(c.FilePath), c.Edits))
+            .Select(c => new PreviewFileChange(c.FilePath.ToRepoPath(), c.Edits))
             .ToImmutableList();
 
         return new PreviewCodeActionResult(
