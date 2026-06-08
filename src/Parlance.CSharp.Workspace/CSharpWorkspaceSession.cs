@@ -249,6 +249,26 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// The live client-buffer overlay version for <paramref name="filePath"/>, or <c>null</c> when the
+    /// path is not a workspace document or has no open overlay. This is the per-document (didChange-style)
+    /// version that <c>sync-buffer</c> returns; an applied edit stamps it so a client can detect when its
+    /// in-flight buffer moved out from under a computed edit.
+    /// </summary>
+    public long? BufferVersion(string filePath)
+    {
+        var docIds = _currentSolution.GetDocumentIdsWithFilePath(filePath);
+        if (docIds.IsEmpty) return null;
+        lock (_openBufferVersions)
+        {
+            long? version = null;
+            foreach (var docId in docIds)
+                if (_openBufferVersions.TryGetValue(docId, out var v))
+                    version = version is { } existing ? Math.Max(existing, v) : v;
+            return version;
+        }
+    }
+
+    /// <summary>
     /// Overlays client buffer text onto the live solution (open or update). Returns the new
     /// per-document version, or 0 if the path is not a document in this workspace. Disk is untouched.
     /// </summary>

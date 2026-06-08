@@ -88,6 +88,25 @@ public sealed class BufferOverlayTests
     }
 
     [Fact]
+    public async Task BufferVersion_TracksOpenOverlay_AndIsNullOtherwise()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var path = AnyDocumentPath(session);
+
+        Assert.Null(session.BufferVersion(path));          // no overlay yet
+        Assert.Null(session.BufferVersion("/not/in/solution.cs")); // not a document
+
+        var v1 = await session.SyncBufferAsync(path, "// a");
+        Assert.Equal(v1, session.BufferVersion(path));     // overlay version surfaced
+
+        var v2 = await session.SyncBufferAsync(path, "// b");
+        Assert.Equal(v2, session.BufferVersion(path));     // advances with the overlay
+
+        await session.CloseBufferAsync(path);
+        Assert.Null(session.BufferVersion(path));          // null again after close
+    }
+
+    [Fact]
     public async Task CloseBuffer_NotOpen_IsNoOp()
     {
         await using var session = await LoadServerSessionAsync();
