@@ -8,7 +8,12 @@ namespace Parlance.Mcp.Tools;
 public sealed class SyncBufferTool
 {
     [McpServerTool(Name = "sync-buffer")]
-    [Description("Overlay unsaved buffer text for a file so analysis/navigation reflect the edit without writing to disk. Returns the new per-document version and snapshot.")]
+    [Description("SPECULATIVE in-memory buffer overlay (LSP didChange-style). Pushes full-text buffer " +
+                 "content so analyze/navigation/code-action tools see an in-flight edit before it is saved. " +
+                 "Does NOT write to disk and does NOT persist anything — the overlay lives only in memory and " +
+                 "wins over disk until close-buffer reverts it. Returns the new per-document version and " +
+                 "snapshot. To save an edit the agent writes with its own tools; to materialize a code action " +
+                 "into an applyable edit use apply-code-action.")]
     public static Task<SyncBufferResult> SyncBuffer(
         WorkspaceSessionHolder holder,
         [Description("Absolute path of the file being edited")] string path,
@@ -21,7 +26,8 @@ public sealed class SyncBufferTool
             disposed: () => Task.FromResult(SyncBufferResult.NotLoaded()));
 
     [McpServerTool(Name = "close-buffer")]
-    [Description("Drop the unsaved-buffer overlay for a file and revert it to the on-disk contents.")]
+    [Description("Drop the SPECULATIVE in-memory buffer overlay for a file, reverting it to the on-disk " +
+                 "contents. Never writes to disk; it only discards the in-memory overlay sync-buffer created.")]
     public static Task<SyncBufferResult> CloseBuffer(
         WorkspaceSessionHolder holder,
         [Description("Absolute path whose overlay should be dropped")] string path,
