@@ -29,7 +29,7 @@ public sealed class FindReferencesTool
     {
         // Capture the version the operation begins against and stamp THAT on every outcome. Reading
         // session.SnapshotVersion after the Roslyn work completes could return a newer version than the
-        // payload was computed from (sync-buffer/file-watcher can advance the solution concurrently),
+        // payload was computed from (the file-watcher can advance the solution concurrently),
         // which would let a client treat stale data as current. Stamping the start version never
         // over-reports.
         var snapshotVersion = session.SnapshotVersion;
