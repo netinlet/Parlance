@@ -33,7 +33,7 @@ public sealed class ApplyCodeActionTool
                 {
                     var actual = holder.CurrentSnapshotVersion();
                     return Task.FromResult(ApplyCodeActionResult.Stale(actual,
-                        $"Workspace moved past the expected snapshot (expected {expectedSnapshotVersion!.Value}, now {actual}). Re-query."));
+                        StalenessMessage.ExpectedMismatch(expectedSnapshotVersion!.Value, actual)));
                 }
                 return RunAsync(codeActions, session, actionId, ct);
             },
@@ -48,7 +48,7 @@ public sealed class ApplyCodeActionTool
             return ApplyCodeActionResult.NotFound(actionId);
         if (edit.IsExpired)
             return ApplyCodeActionResult.Stale(session.SnapshotVersion,
-                $"Action '{actionId}' was computed against a superseded snapshot. Re-query fixes or refactorings.");
+                StalenessMessage.ActionSuperseded(actionId));
         if (edit.ErrorMessage is not null)
             return ApplyCodeActionResult.NotApplicable(actionId, edit.ErrorMessage);
 
@@ -63,8 +63,10 @@ public sealed class ApplyCodeActionTool
             .Select(MapResourceOperation)
             .ToImmutableList();
 
+        // Stamp the version the edit was actually computed against (captured at resolution), not a
+        // post-await re-read of the live session, which could have advanced under a concurrent refresh.
         return ApplyCodeActionResult.Success(
-            edit.ActionId, edit.Title, documentEdits, resourceOperations, session.SnapshotVersion);
+            edit.ActionId, edit.Title, documentEdits, resourceOperations, edit.SnapshotVersion);
     }
 
     private static WorkspaceResourceOperation MapResourceOperation(ResourceOperation op) => op switch

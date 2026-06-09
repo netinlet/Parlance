@@ -120,6 +120,54 @@ public sealed class BufferOverlayTests
     }
 
     [Fact]
+    public async Task BufferVersion_IsMonotonic_AcrossCloseAndReopen()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var path = AnyDocumentPath(session);
+
+        var v1 = await session.SyncBufferAsync(path, "// a");
+        await session.CloseBufferAsync(path);
+        var v2 = await session.SyncBufferAsync(path, "// b"); // reopen must not restart at 1
+
+        Assert.Equal(1, v1);
+        Assert.True(v2 > v1, $"reopen version {v2} must exceed prior version {v1}");
+    }
+
+    [Fact]
+    public async Task CloseBuffer_TextMatchesDisk_DoesNotBumpSnapshot()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var path = AnyDocumentPath(session);
+        var disk = await File.ReadAllTextAsync(path);
+
+        await session.SyncBufferAsync(path, disk); // overlay equals disk: no recompile, no bump
+        var snapAfterOpen = session.SnapshotVersion;
+
+        var outcome = await session.CloseBufferAsync(path); // no-op revert: must not churn the version
+
+        Assert.Equal(CloseBufferOutcome.Closed, outcome);
+        Assert.Equal(snapAfterOpen, session.SnapshotVersion);
+        Assert.False(session.IsBufferOpen(path));
+    }
+
+    [Fact]
+    public async Task SyncAndCloseBuffer_AcceptWorkspaceRelativePaths()
+    {
+        await using var session = await LoadServerSessionAsync();
+        var absolute = AnyDocumentPath(session);
+        var relative = Path.GetRelativePath(session.RepoPath, absolute);
+        Assert.False(Path.IsPathRooted(relative));
+
+        var version = await session.SyncBufferAsync(relative, "// overlaid via relative path");
+        Assert.NotEqual(0, version);                 // resolved, not not_in_workspace
+        Assert.True(session.IsBufferOpen(absolute)); // same document as the absolute form
+
+        var outcome = await session.CloseBufferAsync(relative);
+        Assert.Equal(CloseBufferOutcome.Closed, outcome);
+        Assert.False(session.IsBufferOpen(absolute));
+    }
+
+    [Fact]
     public async Task RefreshAsync_DoesNotClobberOpenOverlay()
     {
         await using var session = await LoadServerSessionAsync();

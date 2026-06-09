@@ -66,7 +66,8 @@ public static class ParlanceMcpHost
             .WithTools<TypeHierarchyTool>(toolJson)
             .WithTools<DecompileTypeTool>(toolJson)
             .WithTools<AnalyzeTool>(toolJson)
-            .WithTools<SyncBufferTool>(toolJson);
+            .WithTools<SyncBufferTool>(toolJson)
+            .WithTools<ApplyCodeActionTool>(toolJson);
 
         await builder.Build().RunAsync(cancellationToken);
     }

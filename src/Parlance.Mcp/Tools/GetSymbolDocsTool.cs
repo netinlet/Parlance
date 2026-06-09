@@ -28,18 +28,22 @@ public sealed class GetSymbolDocsTool
         WorkspaceQueryService query, CSharpWorkspaceSession session, ILogger<GetSymbolDocsTool> logger,
         string symbolName, CancellationToken ct)
     {
+        // Workspace is loaded here, so every negative result carries the live snapshot too.
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
-            return GetSymbolDocsResult.NotFound(symbolName);
+            return GetSymbolDocsResult.NotFound(symbolName) with { SnapshotVersion = session.SnapshotVersion };
 
         if (symbols.Count > 1 && !symbolName.Contains('.'))
-            return GetSymbolDocsResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+        {
+            var candidates = symbols.Select(s => s.ToCandidate()).ToImmutableList();
+            return GetSymbolDocsResult.Ambiguous(symbolName, candidates) with { SnapshotVersion = session.SnapshotVersion };
+        }
 
         var symbol = symbols[0].Symbol;
         var docs = GetDocs(symbol, logger);
 
         if (docs is null)
-            return GetSymbolDocsResult.NoDocs(symbolName);
+            return GetSymbolDocsResult.NoDocs(symbolName) with { SnapshotVersion = session.SnapshotVersion };
 
         return GetSymbolDocsResult.Found(
             symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,

@@ -79,6 +79,17 @@ public sealed class McpServerIntegrationTests
         Assert.Contains("get-type-dependencies", toolNames);
         Assert.Contains("safe-to-delete", toolNames);
         Assert.Contains("decompile-type", toolNames);
+        Assert.Contains("search-symbols", toolNames);
+        Assert.Contains("goto-definition", toolNames);
+        Assert.Contains("type-hierarchy", toolNames);
+        Assert.Contains("analyze", toolNames);
+        Assert.Contains("get-code-fixes", toolNames);
+        Assert.Contains("get-refactorings", toolNames);
+        Assert.Contains("preview-code-action", toolNames);
+        // The code-action apply half and the buffer-overlay pair must be reachable over MCP.
+        Assert.Contains("apply-code-action", toolNames);
+        Assert.Contains("sync-buffer", toolNames);
+        Assert.Contains("close-buffer", toolNames);
     }
 
     [Fact]

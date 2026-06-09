@@ -43,15 +43,24 @@ public sealed class AnalyzeTool
         int? maxDiagnostics,
         CancellationToken ct)
     {
-        // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
-        // GetFullPath normalises .. segments for both relative and rooted inputs.
-        // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
-        var workspaceRoot = session.RepoPath;
-        var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        // Resolve workspace-root-relative paths through the one normalization boundary
+        // (NormalizeInputPath collapses .. for both relative and rooted inputs), then reject paths that
+        // escape the workspace root. Trailing separator on the prefix prevents sibling-prefix bypass
+        // (e.g. workspace-tmp/). Normalization is guarded so a malformed path is a clean failure, not a throw.
+        var workspacePrefix = session.RepoPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)
         {
-            var resolved = Path.IsPathRooted(f) ? Path.GetFullPath(f) : Path.GetFullPath(f, workspaceRoot);
+            string resolved;
+            try
+            {
+                resolved = session.NormalizeInputPath(f);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return AnalyzeToolResult.Failed($"Path '{f}' is not a valid file path: {ex.Message}");
+            }
+
             if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
                 return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.");
             resolvedFiles.Add(resolved);
@@ -124,7 +133,7 @@ public sealed record AnalyzeToolResult
     public static AnalyzeToolResult Stale(long actual, long expected) => new()
     {
         Status = "stale",
-        Error = $"Workspace moved past the expected snapshot (expected {expected}, now {actual}). Re-query.",
+        Error = StalenessMessage.ExpectedMismatch(expected, actual),
         SnapshotVersion = actual,
     };
 }

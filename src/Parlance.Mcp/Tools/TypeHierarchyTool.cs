@@ -36,15 +36,19 @@ public sealed class TypeHierarchyTool
     private static async Task<TypeHierarchyToolResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, int maxDepth, CancellationToken ct)
     {
+        // Workspace is loaded here, so every negative result carries the live snapshot too.
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
-            return TypeHierarchyToolResult.NotFound(typeName);
+            return TypeHierarchyToolResult.NotFound(typeName) with { SnapshotVersion = session.SnapshotVersion };
 
         if (symbols.Count > 1 && !typeName.Contains('.'))
-            return TypeHierarchyToolResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+        {
+            var candidates = symbols.Select(s => s.ToCandidate()).ToImmutableList();
+            return TypeHierarchyToolResult.Ambiguous(typeName, candidates) with { SnapshotVersion = session.SnapshotVersion };
+        }
 
         if (symbols[0].Symbol is not INamedTypeSymbol namedType)
-            return TypeHierarchyToolResult.NotFound(typeName);
+            return TypeHierarchyToolResult.NotFound(typeName) with { SnapshotVersion = session.SnapshotVersion };
 
         var hierarchy = await query.GetTypeHierarchyAsync(namedType, maxDepth, ct);
 

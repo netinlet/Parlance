@@ -19,6 +19,7 @@ internal static class WorkspaceEditBuilder
         Solution currentSolution,
         Solution changedSolution,
         Func<string, long?> bufferVersion,
+        long snapshotVersion,
         CancellationToken ct)
     {
         var documentEdits = ImmutableList.CreateBuilder<DocumentEdit>();
@@ -32,6 +33,8 @@ internal static class WorkspaceEditBuilder
                 var newDoc = changedSolution.GetDocument(docId);
                 if (newDoc?.FilePath is null) continue;
                 var text = await newDoc.GetTextAsync(ct);
+                // Materialise the content once; detect the newline from the SourceText line table rather
+                // than a second full ToString().
                 resourceOps.Add(new ResourceOperation.CreateFile(
                     newDoc.FilePath, text.ToString(),
                     SourceTextFacts.DetectNewline(text),
@@ -64,19 +67,11 @@ internal static class WorkspaceEditBuilder
 
                 var oldText = await oldDoc.GetTextAsync(ct);
                 var newText = await newDoc.GetTextAsync(ct);
-                var textChanges = newText.GetTextChanges(oldText);
-                if (textChanges.Count == 0) continue;
 
                 // Respect the existing file's line ending so the agent's write does not churn EOLs.
                 var newline = SourceTextFacts.DetectNewline(oldText);
-                var edits = textChanges
-                    .OrderBy(c => c.Span.Start)
-                    .Select(c =>
-                    {
-                        var edit = CodeActionService.ToTextEdit(oldText, c);
-                        return edit with { NewText = SourceTextFacts.NormalizeNewlines(edit.NewText, newline) };
-                    })
-                    .ToImmutableList();
+                var edits = ExtractDocumentEdits(oldText, newText, newline);
+                if (edits.IsEmpty) continue;
 
                 // Edits target the pre-change (old) path; any move is the separate rename op above.
                 documentEdits.Add(new DocumentEdit(
@@ -89,7 +84,33 @@ internal static class WorkspaceEditBuilder
             }
         }
 
-        return new CodeActionEdit(actionId, title, documentEdits.ToImmutable(), resourceOps.ToImmutable());
+        return new CodeActionEdit(
+            actionId, title, documentEdits.ToImmutable(), resourceOps.ToImmutable(), snapshotVersion);
+    }
+
+    /// <summary>
+    /// The single changed-document edit extraction shared by preview and apply: the line-ending is detected
+    /// from <paramref name="oldText"/>, each replacement is normalised to it, and the edits are returned
+    /// <em>descending</em> by span start so sequential (bottom-to-top) application leaves earlier ranges valid.
+    /// Returns empty when the texts are identical.
+    /// </summary>
+    public static ImmutableList<TextEdit> ExtractDocumentEdits(SourceText oldText, SourceText newText) =>
+        ExtractDocumentEdits(oldText, newText, SourceTextFacts.DetectNewline(oldText));
+
+    private static ImmutableList<TextEdit> ExtractDocumentEdits(
+        SourceText oldText, SourceText newText, string newline)
+    {
+        var textChanges = newText.GetTextChanges(oldText);
+        if (textChanges.Count == 0) return [];
+
+        return textChanges
+            .OrderByDescending(c => c.Span.Start)
+            .Select(c =>
+            {
+                var edit = CodeActionService.ToTextEdit(oldText, c);
+                return edit with { NewText = SourceTextFacts.NormalizeNewlines(edit.NewText, newline) };
+            })
+            .ToImmutableList();
     }
 }
 
@@ -97,21 +118,26 @@ internal static class WorkspaceEditBuilder
 /// to the existing file's line ending and encoding.</summary>
 internal static class SourceTextFacts
 {
-    /// <summary>The dominant line ending in <paramref name="text"/>; defaults to <c>"\n"</c> when there is none.</summary>
+    /// <summary>The dominant line ending in <paramref name="text"/>; defaults to <c>"\n"</c> when there is none.
+    /// Walks the <see cref="SourceText"/> line table and indexes single characters rather than materialising
+    /// the whole file into one contiguous string.</summary>
     public static string DetectNewline(SourceText text)
     {
-        var s = text.ToString();
         int crlf = 0, lf = 0, cr = 0;
-        for (var i = 0; i < s.Length; i++)
+        foreach (var line in text.Lines)
         {
-            if (s[i] == '\r')
+            var breakLength = line.EndIncludingLineBreak - line.End;
+            switch (breakLength)
             {
-                if (i + 1 < s.Length && s[i + 1] == '\n') { crlf++; i++; }
-                else cr++;
-            }
-            else if (s[i] == '\n')
-            {
-                lf++;
+                case 2:
+                    crlf++;
+                    break;
+                case 1 when text[line.End] == '\r':
+                    cr++;
+                    break;
+                case 1:
+                    lf++;
+                    break;
             }
         }
 

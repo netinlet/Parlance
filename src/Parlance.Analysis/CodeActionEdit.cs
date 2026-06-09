@@ -15,6 +15,7 @@ public sealed record CodeActionEdit(
     string Title,
     ImmutableList<DocumentEdit> DocumentEdits,
     ImmutableList<ResourceOperation> ResourceOperations,
+    long SnapshotVersion = 0,
     bool IsExpired = false,
     string? ErrorMessage = null)
 {
@@ -30,9 +31,11 @@ public sealed record CodeActionEdit(
 /// <summary>
 /// Ordered text edits against one existing document. <see cref="FilePath"/> is the document's pre-change
 /// path; a move is carried separately as a <see cref="ResourceOperation.RenameFile"/>. Edits are
-/// non-overlapping and ordered by ascending position. <see cref="Newline"/>/<see cref="Encoding"/> describe
-/// the existing file so the agent's write does not churn line endings — each edit's replacement text has
-/// already been normalised to <see cref="Newline"/>.
+/// non-overlapping and ordered <em>descending</em> by position (bottom-to-top): apply them in the given
+/// order and each edit's range stays valid against the original text, because no earlier-applied edit
+/// shifts the offsets of a later one. <see cref="Newline"/>/<see cref="Encoding"/> describe the existing
+/// file so the agent's write does not churn line endings — each edit's replacement text has already been
+/// normalised to <see cref="Newline"/>.
 /// </summary>
 public sealed record DocumentEdit(
     string FilePath,

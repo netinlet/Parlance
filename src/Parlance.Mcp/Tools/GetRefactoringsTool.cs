@@ -54,10 +54,11 @@ public sealed class GetRefactoringsTool
 
         if (refactorings.IsEmpty)
         {
+            // Workspace is loaded here, so stamp the live snapshot on the negative result too.
             var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
-            if (docId is null)
-                return GetRefactoringsResult.NotFound(resolved);
-            return GetRefactoringsResult.NoRefactorings(resolved);
+            return docId is null
+                ? GetRefactoringsResult.NotFound(resolved) with { SnapshotVersion = session.SnapshotVersion }
+                : GetRefactoringsResult.NoRefactorings(resolved) with { SnapshotVersion = session.SnapshotVersion };
         }
 
         return new GetRefactoringsResult(

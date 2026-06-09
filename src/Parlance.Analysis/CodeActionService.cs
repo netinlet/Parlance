@@ -225,7 +225,7 @@ public sealed class CodeActionService(
             null => null,
             ActionResolution.Expired e => CodeActionPreview.Expired(actionId, e.Action.Title),
             ActionResolution.Failed f => CodeActionPreview.Failed(actionId, f.Action.Title, f.Message),
-            ActionResolution.Resolved r => await BuildPreviewAsync(actionId, r.Action.Title, r.Operation, ct),
+            ActionResolution.Resolved r => await BuildPreviewAsync(actionId, r.Action.Title, r, ct),
             _ => null,
         };
     }
@@ -244,17 +244,19 @@ public sealed class CodeActionService(
             ActionResolution.Expired e => CodeActionEdit.Expired(actionId, e.Action.Title),
             ActionResolution.Failed f => CodeActionEdit.Failed(actionId, f.Action.Title, f.Message),
             ActionResolution.Resolved r => await WorkspaceEditBuilder.BuildAsync(
-                actionId, r.Action.Title, Session.CurrentSolution, r.Operation.ChangedSolution,
-                Session.BufferVersion, ct),
+                actionId, r.Action.Title, r.Solution, r.Operation.ChangedSolution,
+                Session.BufferVersion, r.SnapshotVersion, ct),
             _ => null,
         };
     }
 
     private async Task<CodeActionPreview> BuildPreviewAsync(
-        string actionId, string title, ApplyChangesOperation applyOp, CancellationToken ct)
+        string actionId, string title, ActionResolution.Resolved resolved, CancellationToken ct)
     {
-        var changedSolution = applyOp.ChangedSolution;
-        var currentSolution = Session.CurrentSolution;
+        // Diff against the same solution snapshot the action was resolved against (not a re-read of
+        // Session.CurrentSolution), so a concurrent refresh can't shift the preview baseline.
+        var changedSolution = resolved.Operation.ChangedSolution;
+        var currentSolution = resolved.Solution;
 
         var changes = new List<FileChange>();
         foreach (var projectChanges in changedSolution.GetChanges(currentSolution).GetProjectChanges())
@@ -267,9 +269,11 @@ public sealed class CodeActionService(
 
                 var oldText = await oldDoc.GetTextAsync(ct);
                 var newText = await newDoc.GetTextAsync(ct);
-                var textChanges = newText.GetTextChanges(oldText);
 
-                var edits = textChanges.Select(change => ToTextEdit(oldText, change)).ToImmutableList();
+                // Same extraction (EOL-normalised, descending order) apply uses, so a previewed diff is
+                // byte-identical to what apply-code-action returns for the same document.
+                var edits = WorkspaceEditBuilder.ExtractDocumentEdits(oldText, newText);
+                if (edits.IsEmpty) continue;
 
                 changes.Add(new FileChange(oldDoc.FilePath ?? "", edits));
             }
@@ -285,7 +289,15 @@ public sealed class CodeActionService(
         if (!_actionCache.TryGetValue(actionId, out var cached))
             return null;
 
-        if (cached.SnapshotVersion != Session.SnapshotVersion)
+        // Capture the diff baseline (solution) and the version to stamp as one consistent read: read the
+        // version, the solution, then the version again, and require all three to agree with the snapshot
+        // the action was cached against. A concurrent file-watch / sync-buffer that advances the solution
+        // mid-resolution surfaces as a mismatch → Expired (best-effort staleness, never a false success),
+        // rather than an edit diffed against the wrong base or stamped with a newer version than computed on.
+        var versionBefore = Session.SnapshotVersion;
+        var solution = Session.CurrentSolution;
+        var versionAfter = Session.SnapshotVersion;
+        if (cached.SnapshotVersion != versionBefore || versionBefore != versionAfter)
             return new ActionResolution.Expired(cached.Action);
 
         ImmutableArray<CodeActionOperation> operations;
@@ -315,12 +327,15 @@ public sealed class CodeActionService(
             return new ActionResolution.Failed(cached.Action,
                 "Code action does not produce text changes that can be applied.");
 
-        return new ActionResolution.Resolved(cached.Action, applyOp);
+        return new ActionResolution.Resolved(cached.Action, applyOp, solution, versionBefore);
     }
 
     private abstract record ActionResolution
     {
-        public sealed record Resolved(CodeAction Action, ApplyChangesOperation Operation) : ActionResolution;
+        // Solution/SnapshotVersion are the consistent capture the action was diffed against and is stamped with.
+        public sealed record Resolved(
+            CodeAction Action, ApplyChangesOperation Operation, Solution Solution, long SnapshotVersion)
+            : ActionResolution;
         public sealed record Expired(CodeAction Action) : ActionResolution;
         public sealed record Failed(CodeAction Action, string Message) : ActionResolution;
     }

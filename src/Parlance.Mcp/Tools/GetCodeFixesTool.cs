@@ -45,11 +45,12 @@ public sealed class GetCodeFixesTool
 
         if (fixes.IsEmpty)
         {
-            // Distinguish "file not found" from "no fixes"
+            // Distinguish "file not found" from "no fixes". The workspace is loaded here, so stamp the live
+            // snapshot: a negative result still carries the staleness signal the contract promises.
             var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
-            if (docId is null)
-                return GetCodeFixesResult.NotFound(resolved);
-            return GetCodeFixesResult.NoFixes(resolved, line);
+            return docId is null
+                ? GetCodeFixesResult.NotFound(resolved) with { SnapshotVersion = session.SnapshotVersion }
+                : GetCodeFixesResult.NoFixes(resolved, line) with { SnapshotVersion = session.SnapshotVersion };
         }
 
         return new GetCodeFixesResult(

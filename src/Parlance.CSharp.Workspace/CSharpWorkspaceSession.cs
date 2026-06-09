@@ -35,6 +35,13 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     // Lock ordering invariant: always acquire _solutionLock BEFORE this lock to avoid deadlock.
     private readonly Dictionary<DocumentId, long> _openBufferVersions = new();
 
+    // Highest per-document buffer version ever issued, retained across close. The open-version map above
+    // is cleared on CloseBufferAsync, so a close/reopen would otherwise restart at 1 and collide with the
+    // DocumentVersion stamped on an in-flight applied edit. Versions are drawn from this water-mark so they
+    // are strictly monotonic per document for the whole session and a reused number can never pass the guard.
+    // Guarded by the same lock as _openBufferVersions.
+    private readonly Dictionary<DocumentId, long> _bufferVersionWatermark = new();
+
     private CSharpWorkspaceSession(
         string workspacePath,
         MSBuildWorkspace workspace,
@@ -116,6 +123,11 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             var solution = _currentSolution;
             var affectedProjects = new HashSet<ProjectId>();
 
+            // Snapshot the open-buffer ids once (this runs under _solutionLock, which sync/close also take,
+            // so the set is stable for the loop). Common case: no overlays → null, and the per-document
+            // overlay check below is skipped entirely instead of a solution-wide lookup per document.
+            var openDocs = SnapshotOpenBufferDocuments();
+
             foreach (var project in solution.Projects)
             {
                 foreach (var document in project.Documents)
@@ -124,7 +136,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
                         continue;
 
                     // D3: overlay wins until close — skip disk revert for paths with a live buffer.
-                    if (IsBufferOpen(document.FilePath))
+                    if (openDocs?.Contains(document.Id) == true)
                         continue;
 
                     var currentText = await document.GetTextAsync(ct);
@@ -181,13 +193,17 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             var affectedProjects = new HashSet<ProjectId>();
             var hasChanges = false;
 
+            // Snapshot the open-buffer ids once and reuse the docIds already resolved per path, rather than
+            // a second solution-wide lookup inside IsBufferOpen for every changed file.
+            var openDocs = SnapshotOpenBufferDocuments();
+
             foreach (var filePath in changedPaths)
             {
                 var docIds = solution.GetDocumentIdsWithFilePath(filePath);
                 if (docIds.IsEmpty) continue;
 
                 // D3: overlay wins until close — skip disk changes for paths with a live buffer.
-                if (IsBufferOpen(filePath))
+                if (openDocs is not null && docIds.Any(openDocs.Contains))
                 {
                     _logger.LogDebug("Skipping disk change for overlaid buffer: {Path}", filePath);
                     continue;
@@ -237,6 +253,17 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The set of documents with a live overlay, or <c>null</c> when there are none. Callers already holding
+    /// <c>_solutionLock</c> (refresh / file-watch) snapshot once and membership-test in hand instead of a
+    /// solution-wide path lookup per document.
+    /// </summary>
+    private HashSet<DocumentId>? SnapshotOpenBufferDocuments()
+    {
+        lock (_openBufferVersions)
+            return _openBufferVersions.Count == 0 ? null : [.. _openBufferVersions.Keys];
+    }
+
     /// <summary>True while <paramref name="filePath"/> has a client buffer overlay (disk is ignored for it).</summary>
     public bool IsBufferOpen(string filePath)
     {
@@ -277,6 +304,10 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         if (_mode is WorkspaceMode.Report)
             throw new InvalidOperationException("SyncBufferAsync is not supported in Report mode");
 
+        // Resolve a workspace-relative input (a client echoing a serialized RepoPath) to the absolute form
+        // Roslyn document lookup expects — the same boundary every other file-input tool funnels through.
+        filePath = NormalizeInputPath(filePath);
+
         await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -296,17 +327,22 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             lock (_openBufferVersions)
             {
                 var alreadyOpen = docIds.Any(_openBufferVersions.ContainsKey);
-                var previous = docIds.Max(id => _openBufferVersions.TryGetValue(id, out var v) ? v : 0L);
 
                 // Re-syncing identical text (focus/save/idle echoes) must not advance the snapshot or
                 // recompile (RefreshAsync guards the same way). For an already-open buffer that is a
                 // pure no-op, return the current version untouched.
                 if (!textChanged && alreadyOpen)
-                    return previous;
+                    return docIds.Max(id => _openBufferVersions.TryGetValue(id, out var v) ? v : 0L);
 
+                // Draw the next version from the session-scoped water-mark, not the open-version map, so it
+                // stays monotonic across a close/reopen of the same document.
+                var previous = docIds.Max(id => _bufferVersionWatermark.TryGetValue(id, out var v) ? v : 0L);
                 version = previous + 1;
                 foreach (var docId in docIds)
+                {
                     _openBufferVersions[docId] = version;
+                    _bufferVersionWatermark[docId] = version;
+                }
             }
 
             if (!textChanged)
@@ -345,6 +381,10 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         if (_mode is WorkspaceMode.Report)
             throw new InvalidOperationException("CloseBufferAsync is not supported in Report mode");
 
+        // Resolve a workspace-relative input to absolute, matching SyncBufferAsync; otherwise a client
+        // echoing a serialized RepoPath would silently no-op (NotOpen) while the real overlay leaks.
+        filePath = NormalizeInputPath(filePath);
+
         await _solutionLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
@@ -369,23 +409,41 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             }
 
             var existing = solution.GetDocument(docIds[0]);
-            var encoding = existing is not null
-                ? (await existing.GetTextAsync(ct)).Encoding ?? Encoding.UTF8
-                : Encoding.UTF8;
-            var diskText = SourceText.From(await File.ReadAllTextAsync(filePath, ct), encoding);
-            foreach (var docId in docIds)
+            var currentText = existing is not null ? await existing.GetTextAsync(ct) : null;
+            var encoding = currentText?.Encoding ?? Encoding.UTF8;
+            var diskContent = await File.ReadAllTextAsync(filePath, ct);
+
+            // Closing a buffer whose overlay text already equals disk (e.g. opened with matching text, or
+            // saved before close) is a no-op revert: drop the overlay keys but skip the solution swap,
+            // recompile and snapshot bump, mirroring SyncBufferAsync's identical-text guard. Otherwise the
+            // version churns for nothing and spuriously invalidates still-valid cached actions.
+            var textChanged = currentText is null || currentText.ToString() != diskContent;
+            if (textChanged)
             {
-                solution = solution.WithDocumentText(docId, diskText);
-                _cache.MarkDirty(docId.ProjectId);
+                var diskText = SourceText.From(diskContent, encoding);
+                foreach (var docId in docIds)
+                {
+                    solution = solution.WithDocumentText(docId, diskText);
+                    _cache.MarkDirty(docId.ProjectId);
+                }
+                _currentSolution = solution;
             }
-            _currentSolution = solution;
 
             lock (_openBufferVersions)
                 foreach (var docId in docIds)
                     _openBufferVersions.Remove(docId);
 
-            Interlocked.Increment(ref _snapshotVersion);
-            _logger.LogInformation("Buffer closed, reverted to disk: {Path}", filePath);
+            if (textChanged)
+            {
+                Interlocked.Increment(ref _snapshotVersion);
+                _logger.LogInformation("Buffer closed, reverted to disk: {Path}", filePath);
+            }
+            else
+            {
+                _logger.LogInformation(
+                    "Buffer closed (overlay already matched disk, no recompile): {Path}", filePath);
+            }
+
             return CloseBufferOutcome.Closed;
         }
         finally

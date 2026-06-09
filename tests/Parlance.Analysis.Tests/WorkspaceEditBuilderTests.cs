@@ -25,16 +25,19 @@ public sealed class WorkspaceEditBuilderTests
         return (solution.AddDocument(docId, name, source, filePath: RepoDir + name), docId);
     }
 
+    private const long SnapshotVersion = 42;
+
     private static Task<CodeActionEdit> Build(Solution current, Solution changed, Func<string, long?>? buffer = null) =>
-        WorkspaceEditBuilder.BuildAsync("fix-1", "T", current, changed, buffer ?? (_ => null), CancellationToken.None);
+        WorkspaceEditBuilder.BuildAsync(
+            "fix-1", "T", current, changed, buffer ?? (_ => null), SnapshotVersion, CancellationToken.None);
 
     // Applies a DocumentEdit's text edits to the original source the way an agent would, exercising the
-    // line/column ranges round-trip. Non-overlapping ascending edits are applied last-to-first so earlier
-    // offsets stay valid.
+    // line/column ranges round-trip. Edits are emitted descending, so applying them in the given order keeps
+    // earlier offsets valid; this helper applies in the supplied order to assert exactly that.
     private static string Apply(string original, IEnumerable<TextEdit> edits)
     {
         var text = SourceText.From(original);
-        foreach (var e in edits.OrderByDescending(e => e.Range.StartLine).ThenByDescending(e => e.Range.StartColumn))
+        foreach (var e in edits)
         {
             var start = text.Lines.GetPosition(new LinePosition(e.Range.StartLine - 1, e.Range.StartColumn - 1));
             var end = text.Lines.GetPosition(new LinePosition(e.Range.EndLine - 1, e.Range.EndColumn - 1));
@@ -155,6 +158,49 @@ public sealed class WorkspaceEditBuilderTests
         var edit = await Build(current, changed, path => path == "/repo/A.cs" ? 7 : null);
 
         Assert.Equal(7, edit.DocumentEdits[0].DocumentVersion);
+    }
+
+    [Fact]
+    public async Task MultipleEditsInOneFile_AreEmittedDescending_SoInOrderApplyRoundTrips()
+    {
+        // Two well-separated changes. The changed text is derived via WithChanges (as a real code action's
+        // changed document is), so GetTextChanges yields both as distinct edits rather than coalescing them.
+        // Edits are emitted descending by position, so applying them in the given order (top of list = bottom
+        // of file) leaves the earlier ranges valid.
+        const string before = "class A {}\nclass B {}\nclass C {}\nclass D {}\n";
+        var (s0, project) = NewProject();
+        var (current, docId) = WithDocument(s0, project, "A.cs", before);
+        var oldText = await current.GetDocument(docId)!.GetTextAsync();
+        var newText = oldText.WithChanges(
+            new TextChange(new TextSpan(before.IndexOf("A {}", StringComparison.Ordinal), 1), "A2"),
+            new TextChange(new TextSpan(before.IndexOf("D {}", StringComparison.Ordinal), 1), "D2"));
+        var after = newText.ToString();
+        var changed = current.WithDocumentText(docId, newText);
+
+        var edit = await Build(current, changed);
+        var edits = edit.DocumentEdits[0].Edits;
+
+        Assert.True(edits.Count >= 2, "expected two distinct text changes");
+        // Descending: each edit starts at or before the previous one in the list.
+        for (var i = 1; i < edits.Count; i++)
+        {
+            var prev = (edits[i - 1].Range.StartLine, edits[i - 1].Range.StartColumn);
+            var curr = (edits[i].Range.StartLine, edits[i].Range.StartColumn);
+            Assert.True(curr.CompareTo(prev) <= 0, "edits must be ordered descending by position");
+        }
+        Assert.Equal(after, Apply(before, edits));
+    }
+
+    [Fact]
+    public async Task Edit_IsStampedWithTheComputedAgainstSnapshotVersion()
+    {
+        var (s0, project) = NewProject();
+        var (current, docId) = WithDocument(s0, project, "A.cs", "class A {}");
+        var changed = current.WithDocumentText(docId, SourceText.From("class B {}"));
+
+        var edit = await Build(current, changed);
+
+        Assert.Equal(SnapshotVersion, edit.SnapshotVersion);
     }
 
     [Fact]
