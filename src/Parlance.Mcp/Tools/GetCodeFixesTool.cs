@@ -75,11 +75,11 @@ public sealed record GetCodeFixesResult(
     public static GetCodeFixesResult NotFound(string filePath, long snapshotVersion) => new(
         "not_found", filePath.ToRepoPath(), null, [],
         $"File '{filePath}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetCodeFixesResult NoFixes(string filePath, int line, long snapshotVersion) => new(
         "no_fixes", filePath.ToRepoPath(), line, [],
         $"No code fixes available at {filePath}:{line}")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetCodeFixesResult NotLoaded() => new(
         "not_loaded", null, null, [],
         "Workspace is still loading");

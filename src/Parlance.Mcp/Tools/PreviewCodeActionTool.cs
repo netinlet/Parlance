@@ -71,11 +71,11 @@ public sealed record PreviewCodeActionResult(
     public static PreviewCodeActionResult NotFound(string actionId, long snapshotVersion) => new(
         "not_found", actionId, null, [],
         $"Action '{actionId}' not found. It may have expired or the ID is invalid.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static PreviewCodeActionResult Expired(string actionId, long snapshotVersion) => new(
         "expired", actionId, null, [],
         $"Action '{actionId}' has expired because the workspace changed. Re-query fixes or refactorings.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static PreviewCodeActionResult NotLoaded() => new(
         "not_loaded", null, null, [],
         "Workspace is still loading");
@@ -83,5 +83,5 @@ public sealed record PreviewCodeActionResult(
         "load_failed", null, null, [], message);
     public static PreviewCodeActionResult Error(string actionId, string message, long snapshotVersion) => new(
         "error", actionId, null, [], message)
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 }

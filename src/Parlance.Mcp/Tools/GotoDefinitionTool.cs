@@ -152,7 +152,7 @@ public sealed record GotoDefinitionResult(
 
     public static GotoDefinitionResult Error(string message, long snapshotVersion) => new(
         "error", null, null, false, null, [], [], message)
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult Found(string symbolName, string kind,
         ImmutableList<DefinitionLocation> locations, long snapshotVersion) => new(

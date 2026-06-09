@@ -134,7 +134,7 @@ public sealed record GetTypeAtResult(
     public static GetTypeAtResult NotFound(string filePath, long snapshotVersion) => new(
         "not_found", null, null, false, null,
         $"File '{filePath}' not found in workspace or position out of range")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public static GetTypeAtResult NotLoaded() => new(
         "not_loaded", null, null, false, null, "Workspace is still loading");

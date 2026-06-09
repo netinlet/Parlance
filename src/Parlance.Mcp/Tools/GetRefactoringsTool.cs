@@ -82,11 +82,11 @@ public sealed record GetRefactoringsResult(
     public static GetRefactoringsResult NotFound(string filePath, long snapshotVersion) => new(
         "not_found", filePath.ToRepoPath(), [],
         $"File '{filePath}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetRefactoringsResult NoRefactorings(string filePath, long snapshotVersion) => new(
         "no_refactorings", filePath.ToRepoPath(), [],
         $"No refactorings available at the specified location in {filePath}")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetRefactoringsResult NotLoaded() => new(
         "not_loaded", null, [],
         "Workspace is still loading");

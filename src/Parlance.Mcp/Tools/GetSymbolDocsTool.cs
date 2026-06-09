@@ -177,18 +177,18 @@ public sealed record GetSymbolDocsResult(
 
     public static GetSymbolDocsResult NotFound(string symbolName, long snapshotVersion) => new(
         "not_found", symbolName, null, null, null, [], [], [], [], $"Symbol '{symbolName}' not found")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetSymbolDocsResult NotLoaded() => new(
         "not_loaded", null, null, null, null, [], [], [], [], "Workspace is still loading");
     public static GetSymbolDocsResult LoadFailed(string message) => new(
         "load_failed", null, null, null, null, [], [], [], [], message);
     public static GetSymbolDocsResult NoDocs(string symbolName, long snapshotVersion) => new(
         "no_docs", symbolName, null, null, null, [], [], [], [], $"No documentation found for '{symbolName}'")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetSymbolDocsResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, null, null, null, [], [], [], candidates,
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static GetSymbolDocsResult Found(
         string symbolName, string? summary, string? returns, string? remarks,
         ImmutableList<DocParam> parms, ImmutableList<DocParam> typeParams,

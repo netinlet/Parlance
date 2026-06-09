@@ -77,7 +77,7 @@ public sealed record TypeHierarchyToolResult(
     public static TypeHierarchyToolResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", typeName, null, [], [], false, [],
         $"Type '{typeName}' not found in the workspace")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static TypeHierarchyToolResult NotLoaded() => new(
         "not_loaded", null, null, [], [], false, [],
         "Workspace is still loading");
@@ -86,7 +86,7 @@ public sealed record TypeHierarchyToolResult(
     public static TypeHierarchyToolResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, null, [], [], false, candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static TypeHierarchyToolResult Error(string message) => new(
         "error", null, null, [], [], false, [], message);
 }

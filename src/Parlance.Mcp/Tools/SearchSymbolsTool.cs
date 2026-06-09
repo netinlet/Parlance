@@ -114,7 +114,7 @@ public sealed record SearchSymbolsResult(
         "load_failed", null, [], 0, false, message);
     public static SearchSymbolsResult Error(string message, long snapshotVersion) => new(
         "error", null, [], 0, false, message)
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
 
     public long SnapshotVersion { get; init; }
 }

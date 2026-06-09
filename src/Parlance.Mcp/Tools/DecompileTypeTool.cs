@@ -100,14 +100,14 @@ public sealed record DecompileTypeResult(
 
     public static DecompileTypeResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", typeName, null, null, null, $"Type '{typeName}' not found in any metadata reference")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static DecompileTypeResult NotLoaded() => new(
         "not_loaded", null, null, null, null, "Workspace is still loading");
     public static DecompileTypeResult LoadFailed(string message) => new(
         "load_failed", null, null, null, null, message);
     public static DecompileTypeResult DecompilationFailed(string typeName, string error, long snapshotVersion) => new(
         "decompile_failed", typeName, null, null, null, $"Decompilation failed: {error}")
-        { SnapshotVersion = snapshotVersion };
+    { SnapshotVersion = snapshotVersion };
     public static DecompileTypeResult Found(
         string typeName, string assemblyName, string assemblyPath,
         string decompiledSource, string? message, long snapshotVersion) => new(
