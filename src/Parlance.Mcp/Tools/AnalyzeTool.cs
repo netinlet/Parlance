@@ -28,9 +28,15 @@ public sealed class AnalyzeTool
             notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
             loaded: session =>
             {
-                if (holder.IsStale(expectedSnapshotVersion))
-                    return Task.FromResult(AnalyzeToolResult.Stale(holder.CurrentSnapshotVersion(), expectedSnapshotVersion!.Value));
-                return RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct);
+                // Capture the snapshot once: the staleness verdict and the stamp must come from the
+                // same read, or a file-watcher tick between two reads could stamp a "not stale"
+                // result with a newer version than the verdict was computed against. This tool's
+                // stamp is the one round-tripped via expectedSnapshotVersion, so the agreement matters
+                // most here.
+                var snapshotVersion = session.SnapshotVersion;
+                if (expectedSnapshotVersion is { } expected && expected != 0 && expected != snapshotVersion)
+                    return Task.FromResult(AnalyzeToolResult.Stale(snapshotVersion, expected));
+                return RunAsync(analysis, session, snapshotVersion, files, curationSet, maxDiagnostics, ct);
             },
             loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
@@ -39,28 +45,26 @@ public sealed class AnalyzeTool
     private static async Task<AnalyzeToolResult> RunAsync(
         AnalysisService analysis,
         CSharpWorkspaceSession session,
+        long snapshotVersion,
         string[] files,
         string? curationSet,
         int? maxDiagnostics,
         CancellationToken ct)
     {
-        // Capture the version the operation begins against and stamp THAT on every outcome — reading
-        // session.SnapshotVersion after the awaited analysis could return a newer version than the
-        // payload was computed from (the file watcher advances the solution concurrently), which would
-        // let a staleness-aware client treat stale diagnostics as current. This tool's stamp is the one
-        // round-tripped via expectedSnapshotVersion, so over-reporting here is the costliest case.
-        var snapshotVersion = session.SnapshotVersion;
-
-        // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
-        // GetFullPath normalises .. segments for both relative and rooted inputs.
-        // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
-        var workspaceRoot = session.Root.Absolute;
-        var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        // Resolve through the same single boundary every other file-input tool uses (rooted inputs
+        // normalised in place, relative inputs resolved against the root), then reject paths that
+        // escape the workspace root. The prefix carries a trailing separator to block sibling-prefix
+        // bypass (e.g. workspace-tmp/); comparison is case-sensitive except on Windows, matching the
+        // host filesystem so a case-variant sibling dir on Linux isn't treated as in-tree.
+        var workspacePrefix = session.Root.Absolute.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)
         {
-            var resolved = Path.IsPathRooted(f) ? Path.GetFullPath(f) : Path.GetFullPath(f, workspaceRoot);
-            if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
+            var resolved = session.NormalizeInputPath(f);
+            if (!resolved.StartsWith(workspacePrefix, pathComparison))
                 return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.", snapshotVersion);
             resolvedFiles.Add(resolved);
         }

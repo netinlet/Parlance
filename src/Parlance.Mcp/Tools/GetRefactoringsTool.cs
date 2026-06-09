@@ -59,8 +59,8 @@ public sealed class GetRefactoringsTool
         {
             var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
             if (docId is null)
-                return GetRefactoringsResult.NotFound(resolved, snapshotVersion);
-            return GetRefactoringsResult.NoRefactorings(resolved, snapshotVersion);
+                return GetRefactoringsResult.NotFound(resolved, session.Root, snapshotVersion);
+            return GetRefactoringsResult.NoRefactorings(resolved, session.Root, snapshotVersion);
         }
 
         return new GetRefactoringsResult(
@@ -79,13 +79,15 @@ public sealed record GetRefactoringsResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GetRefactoringsResult NotFound(string filePath, long snapshotVersion) => new(
+    // Messages echo the workspace-relative path (file.Relative(root)) to match the structured FilePath
+    // field — the absolute host path the RepoPath migration hides must not re-leak through prose.
+    public static GetRefactoringsResult NotFound(string filePath, RepoPath root, long snapshotVersion) => new(
         "not_found", filePath.ToRepoPath(), [],
-        $"File '{filePath}' not found in the workspace")
+        $"File '{new RepoPath(filePath).Relative(root)}' not found in the workspace")
     { SnapshotVersion = snapshotVersion };
-    public static GetRefactoringsResult NoRefactorings(string filePath, long snapshotVersion) => new(
+    public static GetRefactoringsResult NoRefactorings(string filePath, RepoPath root, long snapshotVersion) => new(
         "no_refactorings", filePath.ToRepoPath(), [],
-        $"No refactorings available at the specified location in {filePath}")
+        $"No refactorings available at the specified location in {new RepoPath(filePath).Relative(root)}")
     { SnapshotVersion = snapshotVersion };
     public static GetRefactoringsResult NotLoaded() => new(
         "not_loaded", null, [],

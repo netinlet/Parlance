@@ -55,6 +55,19 @@ public sealed class WorkspaceStatusToolTests
     }
 
     [Fact]
+    public void GetStatus_ExposesAbsoluteWorkspaceRoot_AnchoringTheRelativeSolutionPath()
+    {
+        var holder = new WorkspaceSessionHolder();
+        var result = WorkspaceStatusTool.GetStatus(holder, DefaultConfig, NullLogger<WorkspaceStatusTool>.Instance);
+
+        // SolutionPath serializes workspace-relative like every other path; WorkspaceRoot is the
+        // absolute anchor a client needs to recover the repo location and resolve those relative
+        // paths from a different cwd. It must be absolute and own the solution file.
+        Assert.True(Path.IsPathRooted(result.WorkspaceRoot));
+        Assert.StartsWith(result.WorkspaceRoot, result.SolutionPath.Absolute);
+    }
+
+    [Fact]
     public void ProjectStatusEntry_HasNoScalarTargetFramework() =>
         Assert.Null(typeof(ProjectStatusEntry).GetProperty("TargetFramework"));
 }

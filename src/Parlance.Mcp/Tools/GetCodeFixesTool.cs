@@ -51,8 +51,8 @@ public sealed class GetCodeFixesTool
             // Distinguish "file not found" from "no fixes"
             var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
             if (docId is null)
-                return GetCodeFixesResult.NotFound(resolved, snapshotVersion);
-            return GetCodeFixesResult.NoFixes(resolved, line, snapshotVersion);
+                return GetCodeFixesResult.NotFound(resolved, session.Root, snapshotVersion);
+            return GetCodeFixesResult.NoFixes(resolved, line, session.Root, snapshotVersion);
         }
 
         return new GetCodeFixesResult(
@@ -72,13 +72,15 @@ public sealed record GetCodeFixesResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GetCodeFixesResult NotFound(string filePath, long snapshotVersion) => new(
+    // Messages echo the workspace-relative path (file.Relative(root)) to match the structured FilePath
+    // field — the absolute host path the RepoPath migration hides must not re-leak through prose.
+    public static GetCodeFixesResult NotFound(string filePath, RepoPath root, long snapshotVersion) => new(
         "not_found", filePath.ToRepoPath(), null, [],
-        $"File '{filePath}' not found in the workspace")
+        $"File '{new RepoPath(filePath).Relative(root)}' not found in the workspace")
     { SnapshotVersion = snapshotVersion };
-    public static GetCodeFixesResult NoFixes(string filePath, int line, long snapshotVersion) => new(
+    public static GetCodeFixesResult NoFixes(string filePath, int line, RepoPath root, long snapshotVersion) => new(
         "no_fixes", filePath.ToRepoPath(), line, [],
-        $"No code fixes available at {filePath}:{line}")
+        $"No code fixes available at {new RepoPath(filePath).Relative(root)}:{line}")
     { SnapshotVersion = snapshotVersion };
     public static GetCodeFixesResult NotLoaded() => new(
         "not_loaded", null, null, [],

@@ -87,7 +87,7 @@ public sealed class FindReferencesTool
         }
 
         var fileGroups = locationsByFile
-            .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
+            .Select(kvp => new ReferenceFileGroup(new RepoPath(kvp.Key), [.. kvp.Value]))
             .ToImmutableList();
 
         return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups, snapshotVersion);

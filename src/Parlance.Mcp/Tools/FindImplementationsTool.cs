@@ -37,15 +37,12 @@ public sealed class FindImplementationsTool
         var implementations = await query.FindImplementationsAsync(targetSymbol, ct);
 
         var entries = implementations
-            .Select(s =>
-            {
-                return new ImplementationEntry(
-                    s.Name,
-                    s.ToDisplayString(),
-                    s.Kind.ToString(),
-                    s.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
-                    s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1);
-            })
+            .Select(s => new ImplementationEntry(
+                s.Name,
+                s.ToDisplayString(),
+                s.Kind.ToString(),
+                s.Locations.FirstOrDefault()?.GetLineSpan().ToRepoPath(),
+                s.Locations.FirstOrDefault()?.GetLineSpan().StartLinePosition.Line + 1))
             .ToImmutableList();
 
         return FindImplementationsResult.Found(targetSymbol.ToDisplayString(), entries, snapshotVersion);

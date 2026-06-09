@@ -7,6 +7,10 @@ namespace Parlance.Mcp.Tools;
 public sealed record WorkspaceStatusResult(
     string Status,
     RepoPath SolutionPath,
+    // The absolute repo anchor, kept verbatim (not relativized). SolutionPath serializes
+    // workspace-relative like every other path, so this is the one field a client reads to recover
+    // the absolute root and resolve those relative paths from a different working directory.
+    string WorkspaceRoot,
     long SnapshotVersion,
     int ProjectCount,
     ImmutableList<ProjectStatusEntry> Projects,
@@ -15,7 +19,8 @@ public sealed record WorkspaceStatusResult(
     public static WorkspaceStatusResult FromSession(CSharpWorkspaceSession session) =>
         new(
             Status: session.Health.Status.ToString(),
-            SolutionPath: session.WorkspacePath,
+            SolutionPath: new RepoPath(session.WorkspacePath),
+            WorkspaceRoot: session.Root.Absolute,
             SnapshotVersion: session.SnapshotVersion,
             ProjectCount: session.Projects.Count,
             Projects: session.Projects
@@ -34,7 +39,8 @@ public sealed record WorkspaceStatusResult(
     public static WorkspaceStatusResult FromLoadFailure(WorkspaceLoadFailure failure) =>
         new(
             Status: "Failed",
-            SolutionPath: failure.SolutionPath,
+            SolutionPath: new RepoPath(failure.SolutionPath),
+            WorkspaceRoot: RepoPath.Containing(failure.SolutionPath).Absolute,
             SnapshotVersion: 0,
             ProjectCount: 0,
             Projects: [],
@@ -43,7 +49,8 @@ public sealed record WorkspaceStatusResult(
     public static WorkspaceStatusResult Loading(string solutionPath) =>
         new(
             Status: "Loading",
-            SolutionPath: solutionPath,
+            SolutionPath: new RepoPath(solutionPath),
+            WorkspaceRoot: RepoPath.Containing(solutionPath).Absolute,
             SnapshotVersion: 0,
             ProjectCount: 0,
             Projects: [],
