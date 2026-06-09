@@ -9,6 +9,6 @@ public sealed class CSharpWorkspaceSessionRepoPathTests(WorkspaceFixture fixture
     public void RepoPath_IsDirectoryOwningTheSolution()
     {
         var solutionPath = TestPaths.FindSolutionPath();
-        Assert.Equal(Path.GetDirectoryName(solutionPath), fixture.Session.RepoPath);
+        Assert.Equal(Path.GetDirectoryName(solutionPath), fixture.Session.Root.Absolute);
     }
 }

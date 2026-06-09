@@ -28,22 +28,25 @@ public sealed class GetSymbolDocsTool
         WorkspaceQueryService query, CSharpWorkspaceSession session, ILogger<GetSymbolDocsTool> logger,
         string symbolName, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
-            return GetSymbolDocsResult.NotFound(symbolName);
+            return GetSymbolDocsResult.NotFound(symbolName, snapshotVersion);
 
         if (symbols.Count > 1 && !symbolName.Contains('.'))
-            return GetSymbolDocsResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return GetSymbolDocsResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var symbol = symbols[0].Symbol;
         var docs = GetDocs(symbol, logger);
 
         if (docs is null)
-            return GetSymbolDocsResult.NoDocs(symbolName);
+            return GetSymbolDocsResult.NoDocs(symbolName, snapshotVersion);
 
         return GetSymbolDocsResult.Found(
             symbol.ToDisplayString(), docs.Summary, docs.Returns, docs.Remarks,
-            docs.Params, docs.TypeParams, docs.Exceptions, session.SnapshotVersion);
+            docs.Params, docs.TypeParams, docs.Exceptions, snapshotVersion);
     }
 
     private static ParsedDocs? GetDocs(ISymbol symbol, ILogger? logger = null)
@@ -172,17 +175,20 @@ public sealed record GetSymbolDocsResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GetSymbolDocsResult NotFound(string symbolName) => new(
-        "not_found", symbolName, null, null, null, [], [], [], [], $"Symbol '{symbolName}' not found");
+    public static GetSymbolDocsResult NotFound(string symbolName, long snapshotVersion) => new(
+        "not_found", symbolName, null, null, null, [], [], [], [], $"Symbol '{symbolName}' not found")
+        { SnapshotVersion = snapshotVersion };
     public static GetSymbolDocsResult NotLoaded() => new(
         "not_loaded", null, null, null, null, [], [], [], [], "Workspace is still loading");
     public static GetSymbolDocsResult LoadFailed(string message) => new(
         "load_failed", null, null, null, null, [], [], [], [], message);
-    public static GetSymbolDocsResult NoDocs(string symbolName) => new(
-        "no_docs", symbolName, null, null, null, [], [], [], [], $"No documentation found for '{symbolName}'");
-    public static GetSymbolDocsResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static GetSymbolDocsResult NoDocs(string symbolName, long snapshotVersion) => new(
+        "no_docs", symbolName, null, null, null, [], [], [], [], $"No documentation found for '{symbolName}'")
+        { SnapshotVersion = snapshotVersion };
+    public static GetSymbolDocsResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, null, null, null, [], [], [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+        { SnapshotVersion = snapshotVersion };
     public static GetSymbolDocsResult Found(
         string symbolName, string? summary, string? returns, string? remarks,
         ImmutableList<DocParam> parms, ImmutableList<DocParam> typeParams,

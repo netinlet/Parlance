@@ -6,11 +6,14 @@ namespace Parlance.Abstractions;
 /// </summary>
 public sealed class WorkspaceRootAccessor
 {
+    // Backed by a volatile string: the accessor's job is thread-safe publication of the one root
+    // (set on the load thread, read on request threads), and a readonly struct can't be volatile.
+    // The RepoPath surface keeps the type honest end-to-end at the serialization boundary.
     private volatile string _root = string.Empty;
 
-    public string Root
+    public RepoPath Root
     {
-        get => _root;
-        set => _root = value ?? string.Empty;
+        get => new(_root);
+        set => _root = value.Absolute ?? string.Empty;
     }
 }

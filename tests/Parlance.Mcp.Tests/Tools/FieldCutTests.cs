@@ -44,4 +44,22 @@ public sealed class FieldCutTests
         var json = JsonSerializer.Serialize(OutlineFileResult.Found([], 0), Json);
         Assert.DoesNotContain("filePath", json, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void AnalyzeResult_KeepsEmptyDiagnosticsArray()
+    {
+        // [KeepWhenEmpty] exempts the analyze diagnostics list from the global empty-collection drop:
+        // "analyzed, zero diagnostics" must survive as [] so a client can tell clean from never-run.
+        var clean = AnalyzeToolResult.Success("default", new AnalyzeSummary(0, 0, 0, 0, 100), [], 5);
+        var json = JsonSerializer.Serialize(clean, Json);
+        Assert.Contains("\"diagnostics\":[]", json);
+    }
+
+    [Fact]
+    public void DropEmptyCollections_StillDropsUnmarkedEmptyArrays()
+    {
+        // The opt-out is scoped: an unmarked empty list still vanishes (the global payload win).
+        var json = JsonSerializer.Serialize(SearchSymbolsResult.NoMatches("q", 5), Json);
+        Assert.DoesNotContain("\"matches\"", json);
+    }
 }

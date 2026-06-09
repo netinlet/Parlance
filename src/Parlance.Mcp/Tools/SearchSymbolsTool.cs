@@ -33,18 +33,18 @@ public sealed class SearchSymbolsTool
         CSharpWorkspaceSession session,
         WorkspaceQueryService query, string searchQuery, string? kind, int maxResults, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         if (string.IsNullOrWhiteSpace(searchQuery))
-            return SearchSymbolsResult.Error("searchQuery must not be blank.");
+            return SearchSymbolsResult.Error("searchQuery must not be blank.", snapshotVersion);
         if (maxResults < 1)
-            return SearchSymbolsResult.Error("maxResults must be >= 1.");
+            return SearchSymbolsResult.Error("maxResults must be >= 1.", snapshotVersion);
         maxResults = Math.Min(maxResults, 250);
 
         var parsed = kind is not null ? ParseKind(kind) : null;
         if (kind is not null && parsed is null)
-            return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
-
-        // Snapshot the version the query runs against (see FindReferencesTool for the rationale).
-        var snapshotVersion = session.SnapshotVersion;
+            return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.", snapshotVersion);
 
         // Request more than maxResults so we can post-filter by specific kind
         var requestLimit = maxResults * 10;
@@ -112,8 +112,9 @@ public sealed record SearchSymbolsResult(
         "not_loaded", null, [], 0, false, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(
         "load_failed", null, [], 0, false, message);
-    public static SearchSymbolsResult Error(string message) => new(
-        "error", null, [], 0, false, message);
+    public static SearchSymbolsResult Error(string message, long snapshotVersion) => new(
+        "error", null, [], 0, false, message)
+        { SnapshotVersion = snapshotVersion };
 
     public long SnapshotVersion { get; init; }
 }

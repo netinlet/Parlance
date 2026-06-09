@@ -27,17 +27,20 @@ public sealed class GetTypeAtTool
     private static async Task<GetTypeAtResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string filePath, int line, int column, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         // Convert from 1-based (editor) to 0-based (Roslyn)
         var zeroLine = line - 1;
         var zeroCol = column - 1;
 
         var semanticModel = await query.GetSemanticModelAsync(filePath, ct);
         if (semanticModel is null)
-            return GetTypeAtResult.NotFound(filePath);
+            return GetTypeAtResult.NotFound(filePath, snapshotVersion);
 
         var text = await semanticModel.SyntaxTree.GetTextAsync(ct);
         if (zeroLine < 0 || zeroLine >= text.Lines.Count)
-            return GetTypeAtResult.NotFound(filePath);
+            return GetTypeAtResult.NotFound(filePath, snapshotVersion);
 
         var lineLength = text.Lines[zeroLine].Span.Length;
         var safeCol = Math.Clamp(zeroCol, 0, lineLength);
@@ -47,7 +50,7 @@ public sealed class GetTypeAtTool
         var node = token.Parent;
 
         if (node is null)
-            return GetTypeAtResult.NotFound(filePath);
+            return GetTypeAtResult.NotFound(filePath, snapshotVersion);
 
         // Check for var inference
         bool isInferred = false;
@@ -102,19 +105,19 @@ public sealed class GetTypeAtTool
                 {
                     return GetTypeAtResult.Found(
                         symbol.ToDisplayString(), symbol.Kind.ToString(),
-                        false, text.Lines[zeroLine].ToString().Trim(), session.SnapshotVersion);
+                        false, text.Lines[zeroLine].ToString().Trim(), snapshotVersion);
                 }
             }
         }
 
         if (typeSymbol is null)
-            return GetTypeAtResult.NotFound(filePath);
+            return GetTypeAtResult.NotFound(filePath, snapshotVersion);
 
         var sourceLine = zeroLine < text.Lines.Count ? text.Lines[zeroLine].ToString().Trim() : null;
 
         return GetTypeAtResult.Found(
             typeSymbol.ToDisplayString(), typeSymbol.TypeKind.ToString(),
-            isInferred, sourceLine, session.SnapshotVersion);
+            isInferred, sourceLine, snapshotVersion);
     }
 }
 
@@ -128,9 +131,10 @@ public sealed record GetTypeAtResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static GetTypeAtResult NotFound(string filePath) => new(
+    public static GetTypeAtResult NotFound(string filePath, long snapshotVersion) => new(
         "not_found", null, null, false, null,
-        $"File '{filePath}' not found in workspace or position out of range");
+        $"File '{filePath}' not found in workspace or position out of range")
+        { SnapshotVersion = snapshotVersion };
 
     public static GetTypeAtResult NotLoaded() => new(
         "not_loaded", null, null, false, null, "Workspace is still loading");

@@ -39,9 +39,17 @@ public static class ParlanceToolJson
         foreach (var property in typeInfo.Properties)
         {
             var type = property.PropertyType;
+            // string and byte[] both serialize as JSON strings (byte[] → base64), not arrays, so
+            // they are not "empty collections" to drop — excluding byte[] keeps a hypothetical
+            // byte[] property's shape uniform (string when set, key present) rather than vanishing.
             if (type == typeof(string) ||
+                type == typeof(byte[]) ||
                 !typeof(IEnumerable).IsAssignableFrom(type) ||
                 IsDictionary(type))
+                continue;
+
+            // An explicit opt-out: a property whose empty [] is a meaningful signal stays present.
+            if (property.AttributeProvider?.IsDefined(typeof(KeepWhenEmptyAttribute), inherit: false) == true)
                 continue;
 
             var inner = property.ShouldSerialize;

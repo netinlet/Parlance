@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Parlance.Abstractions;
 
 namespace Parlance.Mcp;
 
@@ -89,6 +90,6 @@ public sealed record ParlanceMcpConfiguration(
         if (!string.IsNullOrWhiteSpace(envValue))
             return Path.GetFullPath(envValue);
 
-        return Path.Combine(Path.GetDirectoryName(fullSolutionPath)!, ".parlance", "logs");
+        return Path.Combine(RepoPath.Containing(fullSolutionPath).Absolute, ".parlance", "logs");
     }
 }

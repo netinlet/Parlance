@@ -20,7 +20,7 @@ public sealed class InputPathNormalizationTests(WorkspaceFixture fixture) : ICla
             .First(p => p is not null)!;
 
         // The exact string a client receives from any tool's serialized RepoPath output.
-        var relative = new RepoPath(absolute).Relative(fixture.Session.RepoPath);
+        var relative = new RepoPath(absolute).Relative(fixture.Session.Root);
         Assert.NotEqual(absolute, relative); // sanity: it really is the relative form
         return relative;
     }

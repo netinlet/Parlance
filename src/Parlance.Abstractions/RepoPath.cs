@@ -8,10 +8,19 @@ namespace Parlance.Abstractions;
 /// </summary>
 public readonly record struct RepoPath(string Absolute)
 {
-    public string Relative(string workspaceRoot) =>
-        string.IsNullOrEmpty(Absolute) || string.IsNullOrEmpty(workspaceRoot)
+    public string Relative(RepoPath root) =>
+        string.IsNullOrEmpty(Absolute) || string.IsNullOrEmpty(root.Absolute)
             ? Absolute ?? string.Empty
-            : Path.GetRelativePath(workspaceRoot, Absolute);
+            : Path.GetRelativePath(root.Absolute, Absolute);
+
+    /// <summary>The repo root that owns a solution/project file: the directory containing it.
+    /// The single home for that derivation — full-paths the input first so a bare or relative
+    /// solution name still yields a usable absolute root (an empty root makes every
+    /// <see cref="Relative"/> leak the absolute path).</summary>
+    public static RepoPath Containing(string path) =>
+        string.IsNullOrEmpty(path)
+            ? new RepoPath(path ?? string.Empty)
+            : new RepoPath(Path.GetDirectoryName(Path.GetFullPath(path)) ?? path);
 
     public static implicit operator RepoPath(string absolute) => new(absolute);
 
