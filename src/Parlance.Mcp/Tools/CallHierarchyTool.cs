@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -18,21 +19,23 @@ public sealed class CallHierarchyTool
         string methodName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(CallHierarchyResult.NotLoaded()),
-            loaded: _ => RunAsync(query, methodName, ct),
+            loaded: session => RunAsync(query, session, methodName, ct),
             loadFailed: failure => Task.FromResult(CallHierarchyResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(CallHierarchyResult.NotLoaded()));
 
     private static async Task<CallHierarchyResult> RunAsync(
-        WorkspaceQueryService query, string methodName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string methodName, CancellationToken ct)
     {
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(methodName, SymbolFilter.Member, ct: ct);
         var methodSymbols = symbols.Where(s => s.Symbol is IMethodSymbol).ToImmutableList();
 
         if (methodSymbols.IsEmpty)
-            return CallHierarchyResult.NotFound(methodName);
+            return CallHierarchyResult.NotFound(methodName, snapshotVersion);
 
         if (methodSymbols.Count > 1 && !methodName.Contains('.'))
-            return CallHierarchyResult.Ambiguous(methodName, methodSymbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return CallHierarchyResult.Ambiguous(methodName, methodSymbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var targetSymbol = methodSymbols[0].Symbol as IMethodSymbol;
 
@@ -68,7 +71,7 @@ public sealed class CallHierarchyTool
                 callersBuilder.Add(new HierarchyEntry(
                     MethodName: containingMethod?.Identifier.Text ?? "<unknown>",
                     ContainingType: containingType?.Identifier.Text ?? "<unknown>",
-                    FilePath: span.Path,
+                    FilePath: span.ToRepoPath(),
                     Line: span.StartLinePosition.Line + 1));
             }
         }
@@ -107,7 +110,7 @@ public sealed class CallHierarchyTool
                         calleesBuilder.Add(new HierarchyEntry(
                             MethodName: calledMethod.Name,
                             ContainingType: calledMethod.ContainingType?.Name ?? "<unknown>",
-                            FilePath: callSpan.Path,
+                            FilePath: callSpan.ToRepoPath(),
                             Line: callSpan.StartLinePosition.Line + 1));
                     }
                 }
@@ -115,27 +118,39 @@ public sealed class CallHierarchyTool
         }
 
         return CallHierarchyResult.Found(
-            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable());
+            targetSymbol.ToDisplayString(), callersBuilder.ToImmutable(), calleesBuilder.ToImmutable(), snapshotVersion);
     }
 }
 
 public sealed record CallHierarchyResult(
-    string Status, string? TargetMethod, ImmutableList<HierarchyEntry> Callers,
-    ImmutableList<HierarchyEntry> Callees, ImmutableList<SymbolCandidate> Candidates, string? Message)
+    string Status,
+    string? TargetMethod,
+    ImmutableList<HierarchyEntry> Callers,
+    ImmutableList<HierarchyEntry> Callees,
+    ImmutableList<SymbolCandidate> Candidates,
+    string? Message,
+    long SnapshotVersion)
 {
-    public static CallHierarchyResult NotFound(string methodName) => new(
-        "not_found", methodName, [], [], [], $"Method '{methodName}' not found");
+    public static CallHierarchyResult NotFound(string methodName, long snapshotVersion) => new(
+        "not_found", methodName, [], [], [], $"Method '{methodName}' not found", snapshotVersion);
+
     public static CallHierarchyResult NotLoaded() => new(
-        "not_loaded", null, [], [], [], "Workspace is still loading");
+        "not_loaded", null, [], [], [], "Workspace is still loading", 0);
+
     public static CallHierarchyResult LoadFailed(string message) => new(
-        "load_failed", null, [], [], [], message);
-    public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates) => new(
+        "load_failed", null, [], [], [], message, 0);
+
+    public static CallHierarchyResult Ambiguous(string methodName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", methodName, [], [], candidates,
-        $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple methods match '{methodName}'. Use a fully qualified name to disambiguate.", snapshotVersion);
+
     public static CallHierarchyResult Found(
-        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees) => new(
-        "found", targetMethod, callers, callees, [], null);
+        string targetMethod, ImmutableList<HierarchyEntry> callers, ImmutableList<HierarchyEntry> callees,
+        long snapshotVersion) => new("found", targetMethod, callers, callees, [], null, snapshotVersion);
 }
 
 public sealed record HierarchyEntry(
-    string MethodName, string ContainingType, string? FilePath, int Line);
+    string MethodName,
+    string ContainingType,
+    RepoPath? FilePath,
+    int Line);

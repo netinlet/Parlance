@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace.Internal;
 
 namespace Parlance.CSharp.Workspace;
@@ -36,6 +37,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         ILoggerFactory loggerFactory)
     {
         WorkspacePath = workspacePath;
+        Root = RepoPath.Containing(workspacePath);
         _workspace = workspace;
         _currentSolution = initialSolution;   // must precede _cache initialisation
         _cache = mode switch
@@ -51,6 +53,29 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
     }
 
     public string WorkspacePath { get; }
+
+    /// <summary>
+    /// The directory that owns the solution/project file — the root for repo-relative paths and
+    /// the <c>.parlance/</c> convention directory. Derived once at construction through
+    /// <see cref="RepoPath.Containing"/> (the single home for that rule); <see cref="WorkspacePath"/>
+    /// is invariant, so there is nothing to recompute per access.
+    /// </summary>
+    public RepoPath Root { get; }
+
+    /// <summary>
+    /// Normalizes a client-supplied file path to the absolute form Roslyn document lookups expect.
+    /// Tool output serializes paths workspace-relative (<see cref="Abstractions.RepoPath"/>), so a
+    /// client naturally feeds a relative <c>src/...</c> value from one tool's result straight into the
+    /// next tool's file argument. Rooted inputs are normalized in place (collapsing <c>.</c>/<c>..</c>);
+    /// relative inputs are resolved against the workspace root. The single boundary every file-input
+    /// tool/query funnels through so chained calls resolve instead of returning <c>not_found</c>.
+    /// </summary>
+    public string NormalizeInputPath(string filePath) =>
+        string.IsNullOrEmpty(filePath)
+            ? filePath
+            : Path.IsPathRooted(filePath)
+                ? Path.GetFullPath(filePath)
+                : Path.GetFullPath(filePath, Root.Absolute);
 
     public long SnapshotVersion => Interlocked.Read(ref _snapshotVersion);
 

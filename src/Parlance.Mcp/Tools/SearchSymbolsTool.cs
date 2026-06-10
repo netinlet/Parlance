@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -24,22 +25,26 @@ public sealed class SearchSymbolsTool
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(SearchSymbolsResult.NotLoaded()),
-            loaded: _ => RunAsync(query, searchQuery, kind, maxResults, ct),
+            loaded: session => RunAsync(session, query, searchQuery, kind, maxResults, ct),
             loadFailed: failure => Task.FromResult(SearchSymbolsResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(SearchSymbolsResult.NotLoaded()));
 
     private static async Task<SearchSymbolsResult> RunAsync(
+        CSharpWorkspaceSession session,
         WorkspaceQueryService query, string searchQuery, string? kind, int maxResults, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         if (string.IsNullOrWhiteSpace(searchQuery))
-            return SearchSymbolsResult.Error("searchQuery must not be blank.");
+            return SearchSymbolsResult.Error("searchQuery must not be blank.", snapshotVersion);
         if (maxResults < 1)
-            return SearchSymbolsResult.Error("maxResults must be >= 1.");
+            return SearchSymbolsResult.Error("maxResults must be >= 1.", snapshotVersion);
         maxResults = Math.Min(maxResults, 250);
 
         var parsed = kind is not null ? ParseKind(kind) : null;
         if (kind is not null && parsed is null)
-            return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.");
+            return SearchSymbolsResult.Error($"Unknown kind '{kind}'. Valid values: class, struct, interface, enum, method, property, field, event.", snapshotVersion);
 
         // Request more than maxResults so we can post-filter by specific kind
         var requestLimit = maxResults * 10;
@@ -54,7 +59,7 @@ public sealed class SearchSymbolsTool
         };
 
         if (results.IsEmpty)
-            return SearchSymbolsResult.NoMatches(searchQuery);
+            return SearchSymbolsResult.NoMatches(searchQuery, snapshotVersion);
 
         var totalMatches = parsed is not null ? results.Count : totalCount;
         var isTruncated = totalMatches > maxResults;
@@ -64,15 +69,14 @@ public sealed class SearchSymbolsTool
             var loc = r.Symbol.Locations.FirstOrDefault();
             var span = loc?.GetLineSpan();
             return new SymbolMatch(
-                r.Symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 r.Symbol.ToDisplayString(),
                 r.Symbol.Kind.ToString(),
                 r.Project.Name,
-                span?.Path,
+                span?.ToRepoPath(),
                 span is null ? null : span.Value.StartLinePosition.Line + 1);
         }).ToImmutableList();
 
-        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated);
+        return SearchSymbolsResult.Found(searchQuery, matches, totalMatches, isTruncated, snapshotVersion);
     }
 
     private static (SymbolFilter Filter, TypeKind? TypeKind, SymbolKind? MemberKind)? ParseKind(string kind) =>
@@ -98,18 +102,23 @@ public sealed record SearchSymbolsResult(
     string? Message)
 {
     public static SearchSymbolsResult Found(string searchQuery, ImmutableList<SymbolMatch> matches,
-        int totalMatches, bool isTruncated) => new(
-        "found", searchQuery, matches, totalMatches, isTruncated, null);
-    public static SearchSymbolsResult NoMatches(string searchQuery) => new(
-        "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace");
+        int totalMatches, bool isTruncated, long snapshotVersion) => new(
+        "found", searchQuery, matches, totalMatches, isTruncated, null)
+        { SnapshotVersion = snapshotVersion };
+    public static SearchSymbolsResult NoMatches(string searchQuery, long snapshotVersion) => new(
+        "no_matches", searchQuery, [], 0, false, $"No symbols matching '{searchQuery}' found in the workspace")
+    { SnapshotVersion = snapshotVersion };
     public static SearchSymbolsResult NotLoaded() => new(
         "not_loaded", null, [], 0, false, "Workspace is still loading");
     public static SearchSymbolsResult LoadFailed(string message) => new(
         "load_failed", null, [], 0, false, message);
-    public static SearchSymbolsResult Error(string message) => new(
-        "error", null, [], 0, false, message);
+    public static SearchSymbolsResult Error(string message, long snapshotVersion) => new(
+        "error", null, [], 0, false, message)
+    { SnapshotVersion = snapshotVersion };
+
+    public long SnapshotVersion { get; init; }
 }
 
 public sealed record SymbolMatch(
-    string DisplayName, string FullyQualifiedName, string Kind,
-    string ProjectName, string? FilePath, int? Line);
+    string FullyQualifiedName, string Kind,
+    string ProjectName, RepoPath? FilePath, int? Line);

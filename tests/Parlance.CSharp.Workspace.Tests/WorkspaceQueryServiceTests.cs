@@ -1,25 +1,13 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.CSharp.Workspace.Tests;
 
-public sealed class WorkspaceQueryServiceTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class WorkspaceQueryServiceTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private CSharpWorkspaceSession _session = null!;
-    private WorkspaceQueryService _query = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        var holder = new WorkspaceSessionHolder();
-        holder.SetSession(_session);
-        _query = new WorkspaceQueryService(holder, NullLogger<WorkspaceQueryService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceQueryService _query = fixture.Query;
 
     [Fact]
     public async Task FindSymbolsAsync_FindsTypeByName()

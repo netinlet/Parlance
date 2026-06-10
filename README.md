@@ -40,6 +40,20 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 **Decompilation (1)**
 - `decompile-type` — inspect types from NuGet packages
 
+### Versioning & payloads
+
+Every tool result is version-stamped so an agent can tell when the workspace has
+moved underneath it:
+
+- **Version stamping.** Every tool result carries a `snapshotVersion`, which the
+  workspace advances as on-disk files change. Pass `expectedSnapshotVersion` to
+  `analyze` for a best-effort staleness check — a mismatch yields status `stale`
+  (never a hard error), with the actual version always stamped.
+- **Pull-based diagnostics.** After an edit, call `analyze`; there are no push
+  notifications.
+- **Compact payloads.** Output paths are emitted workspace-relative;
+  `find-references` snippets are opt-in via `includeSnippets` (default off).
+
 ## Requirements
 
 - [.NET 10.0 SDK](https://dotnet.microsoft.com/download)

@@ -3,6 +3,7 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.CSharp.Workspace.Tests;
 
+[Trait("Category", "Integration")]
 public sealed class WorkspaceLoadResultTests
 {
     [Fact]

@@ -55,7 +55,7 @@ Parlance.Analysis               AnalysisService, CurationSetProvider, CodeAction
     ↑
 Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, compilation cache, file watching)
     ↑
-├── Parlance.Mcp                MCP server — 18 tools, stdio transport, Microsoft.Extensions.Hosting
+├── Parlance.Mcp                MCP server — 18 read-only tools, stdio transport, Microsoft.Extensions.Hosting
 └── Parlance.Cli                CLI — analyze/rules commands, System.CommandLine 2.0.3
 ```
 
@@ -70,7 +70,7 @@ Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, comp
 
 ### MCP tool pattern
 
-Tools are static methods on `[McpServerToolType]` classes. All tools are `ReadOnly = true`. They receive services via DI parameters. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
+Tools are static methods on `[McpServerToolType]` classes. They receive services via DI parameters. All tools are `ReadOnly = true`. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
 
 ```csharp
 [McpServerToolType]
@@ -201,6 +201,20 @@ When the repo is integrated, Parlance MCP tools are available in this repo via `
 | Read XML docs | `get-symbol-docs` | Getting documentation for a symbol |
 | Guess if something is unused | `safe-to-delete` | Checking if a symbol has zero references |
 | Read to resolve `var` | `get-type-at` | Finding what type a `var` actually is |
+| Grep for implementors | `find-implementations` | Finding concrete implementations of an interface/abstract member |
+| Read to map a type's deps | `get-type-dependencies` | Listing the types a given type depends on |
+| Hand-fix a diagnostic | `get-code-fixes` | Listing the code fixes available for a diagnostic |
+| Hand-write a refactor | `get-refactorings` | Discovering refactorings (extract, inline, generate, …) available at a span |
+| Edit blind, then re-read | `preview-code-action` | Previewing a fix/refactoring diff before applying it |
+
+### Versioning & staleness
+
+Every tool result carries a `snapshotVersion` (the workspace advances it as
+on-disk files change). To guard against acting on a stale snapshot, pass
+`expectedSnapshotVersion` to `analyze` — a mismatch returns status `stale`
+(best-effort, never a hard error) with the actual version stamped. Output paths
+are workspace-relative. `find-references` snippets are opt-in via
+`includeSnippets` (default off — verbose on hot symbols).
 
 ### When you fall back to a native tool
 

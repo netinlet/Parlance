@@ -16,6 +16,7 @@
     <Project Path="src/Parlance.Mcp/Parlance.Mcp.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Parlance.Abstractions.Tests/Parlance.Abstractions.Tests.csproj" />
     <Project Path="tests/Parlance.Analysis.Tests/Parlance.Analysis.Tests.csproj" />
     <Project Path="tests/Parlance.Analyzers.Upstream.Tests/Parlance.Analyzers.Upstream.Tests.csproj" />
     <Project Path="tests/Parlance.Cli.Tests/Parlance.Cli.Tests.csproj" />

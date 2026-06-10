@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -13,28 +14,39 @@ public sealed class FindReferencesTool
     [Description("Find all references to a symbol (type, method, property, field) across the solution.")]
     public static Task<FindReferencesResult> FindReferences(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
-        string symbolName, CancellationToken ct) =>
+        string symbolName,
+        [Description("Include one source line per reference. Off by default — verbose on hot symbols.")]
+        bool includeSnippets = false,
+        CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(FindReferencesResult.NotLoaded()),
-            loaded: _ => RunAsync(query, symbolName, ct),
+            loaded: session => RunAsync(query, session, symbolName, includeSnippets, ct),
             loadFailed: failure => Task.FromResult(FindReferencesResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(FindReferencesResult.NotLoaded()));
 
     private static async Task<FindReferencesResult> RunAsync(
-        WorkspaceQueryService query, string symbolName, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string symbolName, bool includeSnippets, CancellationToken ct)
     {
+        // Capture the version the operation begins against and stamp THAT on every outcome. Reading
+        // session.SnapshotVersion after the Roslyn work completes could return a newer version than the
+        // payload was computed from (the file-watcher can advance the solution concurrently),
+        // which would let a client treat stale data as current. Stamping the start version never
+        // over-reports.
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(symbolName, ct: ct);
         if (symbols.IsEmpty)
-            return FindReferencesResult.NotFound(symbolName);
+            return FindReferencesResult.NotFound(symbolName, snapshotVersion);
 
         if (symbols.Count > 1 && !symbolName.Contains('.'))
-            return FindReferencesResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return FindReferencesResult.Ambiguous(symbolName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var targetSymbol = symbols[0].Symbol;
         var referencedSymbols = await query.FindReferencesAsync(targetSymbol, ct);
 
         var locationsByFile = new Dictionary<string, List<ReferenceLocation>>();
-        var textCache = new Dictionary<SyntaxTree, Microsoft.CodeAnalysis.Text.SourceText>();
+        Dictionary<SyntaxTree, Microsoft.CodeAnalysis.Text.SourceText>? textCache =
+            includeSnippets ? [] : null;
         var totalCount = 0;
 
         foreach (var refSymbol in referencedSymbols)
@@ -49,17 +61,20 @@ public sealed class FindReferencesTool
                 totalCount++;
 
                 string? snippet = null;
-                var tree = location.Location.SourceTree;
-                if (tree is not null)
+                if (includeSnippets)
                 {
-                    if (!textCache.TryGetValue(tree, out var text))
+                    var tree = location.Location.SourceTree;
+                    if (tree is not null)
                     {
-                        text = await tree.GetTextAsync(ct);
-                        textCache[tree] = text;
+                        if (!textCache!.TryGetValue(tree, out var text))
+                        {
+                            text = await tree.GetTextAsync(ct);
+                            textCache![tree] = text;
+                        }
+                        var line = span.StartLinePosition.Line;
+                        if (line >= 0 && line < text.Lines.Count)
+                            snippet = text.Lines[line].ToString().Trim();
                     }
-                    var line = span.StartLinePosition.Line;
-                    if (line >= 0 && line < text.Lines.Count)
-                        snippet = text.Lines[line].ToString().Trim();
                 }
 
                 if (!locationsByFile.TryGetValue(filePath, out var list))
@@ -72,10 +87,10 @@ public sealed class FindReferencesTool
         }
 
         var fileGroups = locationsByFile
-            .Select(kvp => new ReferenceFileGroup(kvp.Key, [.. kvp.Value]))
+            .Select(kvp => new ReferenceFileGroup(new RepoPath(kvp.Key), [.. kvp.Value]))
             .ToImmutableList();
 
-        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups);
+        return FindReferencesResult.Found(targetSymbol.ToDisplayString(), totalCount, fileGroups, snapshotVersion);
     }
 }
 
@@ -85,18 +100,24 @@ public sealed record FindReferencesResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
-    public static FindReferencesResult NotFound(string symbolName) => new(
-        "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace");
+    public long SnapshotVersion { get; init; }
+
+    public static FindReferencesResult NotFound(string symbolName, long snapshotVersion) => new(
+        "not_found", symbolName, 0, [], [], $"Symbol '{symbolName}' not found in the workspace")
+    { SnapshotVersion = snapshotVersion };
     public static FindReferencesResult NotLoaded() => new(
         "not_loaded", null, 0, [], [], "Workspace is still loading");
     public static FindReferencesResult LoadFailed(string message) => new(
         "load_failed", null, 0, [], [], message);
-    public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static FindReferencesResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, 0, [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
-    public static FindReferencesResult Found(string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups) => new(
-        "found", symbolName, totalCount, fileGroups, [], null);
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+    { SnapshotVersion = snapshotVersion };
+    public static FindReferencesResult Found(
+        string symbolName, int totalCount, ImmutableList<ReferenceFileGroup> fileGroups, long snapshotVersion) => new(
+        "found", symbolName, totalCount, fileGroups, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
-public sealed record ReferenceFileGroup(string FilePath, ImmutableList<ReferenceLocation> Locations);
+public sealed record ReferenceFileGroup(RepoPath FilePath, ImmutableList<ReferenceLocation> Locations);
 public sealed record ReferenceLocation(int Line, string? Snippet);

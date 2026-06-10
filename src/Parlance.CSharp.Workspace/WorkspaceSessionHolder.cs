@@ -35,6 +35,25 @@ public sealed class WorkspaceSessionHolder : IDisposable, IAsyncDisposable
         _ => throw new InvalidOperationException("Workspace is not loaded. Callers must pattern-match on State before invoking services.")
     };
 
+    /// <summary>The current snapshot version, or 0 when no session is loaded. For stamping results.</summary>
+    public long CurrentSnapshotVersion() =>
+        State is WorkspaceState.Loaded loaded ? loaded.Session.SnapshotVersion : 0;
+
+    /// <summary>
+    /// True when an expected snapshot version is supplied and no longer matches the current snapshot.
+    /// Best-effort staleness signal. Meaningful only when the workspace is loaded: it compares against
+    /// <see cref="CurrentSnapshotVersion"/>, which returns 0 when not loaded — so callers must gate on
+    /// the loaded state first (e.g. inside a <c>loaded:</c> match branch) before treating a true result
+    /// as "stale" rather than "not loaded".
+    /// <para>
+    /// A value of <c>0</c> is treated as "no expectation" (identical to <c>null</c>): snapshot versions
+    /// start at 1 and only increment, so a client that serializes a default <c>0</c> on the wire instead
+    /// of omitting the field would otherwise always be reported stale on a fresh workspace.
+    /// </para>
+    /// </summary>
+    public bool IsStale(long? expectedSnapshotVersion) =>
+        expectedSnapshotVersion is { } expected && expected != 0 && expected != CurrentSnapshotVersion();
+
     public void Dispose()
     {
         var previous = Interlocked.Exchange(ref _state, WorkspaceState.Disposed.Instance);

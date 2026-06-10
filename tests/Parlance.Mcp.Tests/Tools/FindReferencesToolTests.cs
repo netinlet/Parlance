@@ -5,29 +5,18 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class FindReferencesToolTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class FindReferencesToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private WorkspaceQueryService _query = null!;
-    private CSharpWorkspaceSession _session = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly WorkspaceQueryService _query = fixture.Query;
 
     [Fact]
     public async Task FindReferences_FindsReferencesOfKnownSymbol()
     {
         var result = await FindReferencesTool.FindReferences(
             _holder, _query,
-            "CSharpWorkspaceSession", CancellationToken.None);
+            "CSharpWorkspaceSession", ct: CancellationToken.None);
 
         Assert.Equal("found", result.Status);
         Assert.NotNull(result.SymbolName);
@@ -36,9 +25,29 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
         Assert.NotEmpty(result.FileGroups);
         Assert.All(result.FileGroups, group =>
         {
-            Assert.NotEmpty(group.FilePath);
+            Assert.NotEmpty(group.FilePath.Absolute);
             Assert.NotEmpty(group.Locations);
         });
+    }
+
+    [Fact]
+    public async Task FindReferences_WithSnippets_ReturnsNonNullSnippets()
+    {
+        var result = await FindReferencesTool.FindReferences(
+            _holder, _query,
+            "CSharpWorkspaceSession", includeSnippets: true, ct: CancellationToken.None);
+
+        Assert.Equal("found", result.Status);
+        Assert.NotNull(result.SymbolName);
+        Assert.Contains("CSharpWorkspaceSession", result.SymbolName);
+        Assert.True(result.TotalCount > 0);
+        Assert.NotEmpty(result.FileGroups);
+
+        var allReferences = result.FileGroups
+            .SelectMany(group => group.Locations)
+            .ToList();
+
+        Assert.Contains(allReferences, r => r.Snippet is not null);
     }
 
     [Fact]
@@ -46,7 +55,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
     {
         var result = await FindReferencesTool.FindReferences(
             _holder, _query,
-            "ThisSymbolDoesNotExistAnywhere", CancellationToken.None);
+            "ThisSymbolDoesNotExistAnywhere", ct: CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
         Assert.Equal(0, result.TotalCount);
@@ -61,7 +70,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
 
         var result = FindReferencesTool.FindReferences(
             holder, query,
-            "Anything", CancellationToken.None).Result;
+            "Anything", ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
         Assert.Equal(0, result.TotalCount);
@@ -77,7 +86,7 @@ public sealed class FindReferencesToolTests : IAsyncLifetime
 
         var result = FindReferencesTool.FindReferences(
             holder, query,
-            "Anything", CancellationToken.None).Result;
+            "Anything", ct: CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
         Assert.Equal("boom", result.Message);

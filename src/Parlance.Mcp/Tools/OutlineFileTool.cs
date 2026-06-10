@@ -12,22 +12,25 @@ public sealed class OutlineFileTool
 {
     [McpServerTool(Name = "outline-file", ReadOnly = true)]
     [Description("Returns the structural outline of a C# file — types, members, and signatures — without method bodies. " +
-                 "Use absolute file paths.")]
+                 "Accepts absolute or workspace-relative file paths.")]
     public static Task<OutlineFileResult> OutlineFile(
         WorkspaceSessionHolder holder, WorkspaceQueryService query,
         string filePath, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(OutlineFileResult.NotLoaded()),
-            loaded: _ => RunAsync(query, filePath, ct),
+            loaded: session => RunAsync(query, session, filePath, ct),
             loadFailed: failure => Task.FromResult(OutlineFileResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(OutlineFileResult.NotLoaded()));
 
     private static async Task<OutlineFileResult> RunAsync(
-        WorkspaceQueryService query, string filePath, CancellationToken ct)
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string filePath, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var semanticModel = await query.GetSemanticModelAsync(filePath, ct);
         if (semanticModel is null)
-            return OutlineFileResult.NotFound(filePath);
+            return OutlineFileResult.NotFound(filePath, snapshotVersion);
 
         var root = await semanticModel.SyntaxTree.GetRootAsync(ct);
 
@@ -62,7 +65,6 @@ public sealed class OutlineFileTool
 
                         var sig = symbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
                         return new OutlineMember(
-                            symbol.Name,
                             symbol.Kind.ToString(),
                             symbol.DeclaredAccessibility.ToString(),
                             sig,
@@ -76,20 +78,27 @@ public sealed class OutlineFileTool
             })
             .ToImmutableList();
 
-        return OutlineFileResult.Found(filePath, types);
+        return OutlineFileResult.Found(types, snapshotVersion);
     }
 }
 
 public sealed record OutlineFileResult(string Status, string? FilePath, ImmutableList<OutlineType> Types, string? Message)
 {
-    public static OutlineFileResult NotFound(string filePath) => new(
-        "not_found", filePath, [], $"File '{filePath}' not found in workspace");
+    public long SnapshotVersion { get; init; }
+
+    public static OutlineFileResult NotFound(string filePath, long snapshotVersion) => new(
+        "not_found", filePath, [], $"File '{filePath}' not found in workspace")
+    { SnapshotVersion = snapshotVersion };
     public static OutlineFileResult NotLoaded() => new(
         "not_loaded", null, [], "Workspace is still loading");
     public static OutlineFileResult LoadFailed(string message) => new(
         "load_failed", null, [], message);
-    public static OutlineFileResult Found(string filePath, ImmutableList<OutlineType> types) => new(
-        "found", filePath, types, null);
+    // FilePath is intentionally omitted on success (the client already knows the file it asked to
+    // outline) — see FieldCutTests.OutlineFileResult_OmitsFilePathOnSuccess. NotFound keeps it for
+    // the error message.
+    public static OutlineFileResult Found(ImmutableList<OutlineType> types, long snapshotVersion) => new(
+        "found", null, types, null)
+    { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record OutlineType(
@@ -97,5 +106,5 @@ public sealed record OutlineType(
     ImmutableList<OutlineMember> Members);
 
 public sealed record OutlineMember(
-    string Name, string Kind, string Accessibility, string Signature,
+    string Kind, string Accessibility, string Signature,
     bool IsStatic, int Line);

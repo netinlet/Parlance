@@ -28,6 +28,8 @@ public sealed class CodeActionService(
 
     private ResolvedDocument? ResolveDocument(string filePath)
     {
+        // Resolve workspace-relative inputs (a client echoing a serialized RepoPath) to absolute.
+        filePath = Session.NormalizeInputPath(filePath);
         var docId = Session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
         if (docId is null) return null;
 

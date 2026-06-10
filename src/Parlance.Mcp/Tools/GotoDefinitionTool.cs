@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using System.ComponentModel;
 using Microsoft.CodeAnalysis;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -26,48 +27,51 @@ public sealed class GotoDefinitionTool
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(GotoDefinitionResult.NotLoaded()),
-            loaded: _ => RunAsync(query, symbolName, filePath, line, column, ct),
+            loaded: session => RunAsync(query, session, symbolName, filePath, line, column, ct),
             loadFailed: failure => Task.FromResult(GotoDefinitionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(GotoDefinitionResult.NotLoaded()));
 
     private static async Task<GotoDefinitionResult> RunAsync(
-        WorkspaceQueryService query, string? symbolName, string? filePath,
+        WorkspaceQueryService query, CSharpWorkspaceSession session, string? symbolName, string? filePath,
         int? line, int? column, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var hasPosition = filePath is not null && line is not null && column is not null;
         var hasPartialPosition = filePath is not null && (line is null || column is null);
         var hasName = symbolName is not null;
 
         if (hasPartialPosition)
-            return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.");
+            return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.", snapshotVersion);
 
         if (!hasPosition && !hasName)
-            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
+            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.", snapshotVersion);
 
         ISymbol? targetSymbol;
 
         if (hasPosition)
         {
             if (line!.Value < 1 || column!.Value < 1)
-                return GotoDefinitionResult.Error("line and column must be >= 1 (1-based).");
+                return GotoDefinitionResult.Error("line and column must be >= 1 (1-based).", snapshotVersion);
 
             var zeroLine = line.Value - 1;
             var zeroCol = column.Value - 1;
             targetSymbol = await query.GetSymbolAtPositionAsync(filePath!, zeroLine, zeroCol, ct);
 
             if (targetSymbol is null)
-                return GotoDefinitionResult.NotFound(filePath!);
+                return GotoDefinitionResult.NotFound(filePath!, snapshotVersion);
         }
         else
         {
             var symbols = await query.FindSymbolsAsync(symbolName!, ct: ct);
             if (symbols.IsEmpty)
-                return GotoDefinitionResult.NotFound(symbolName!);
+                return GotoDefinitionResult.NotFound(symbolName!, snapshotVersion);
 
             if (symbols.Count > 1 && !symbolName!.Contains('.'))
             {
                 return GotoDefinitionResult.Ambiguous(symbolName,
-                    [.. symbols.Select(s => s.ToCandidate())]);
+                    [.. symbols.Select(s => s.ToCandidate())], snapshotVersion);
             }
 
             targetSymbol = symbols[0].Symbol;
@@ -85,7 +89,8 @@ public sealed class GotoDefinitionTool
             return GotoDefinitionResult.Metadata(
                 targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
                 targetSymbol.Kind.ToString(),
-                targetSymbol.ContainingAssembly?.Name);
+                targetSymbol.ContainingAssembly?.Name,
+                snapshotVersion);
         }
 
         var locations = new List<DefinitionLocation>();
@@ -102,7 +107,7 @@ public sealed class GotoDefinitionTool
             }
 
             locations.Add(new DefinitionLocation(
-                span.Path,
+                span.ToRepoPath(),
                 span.StartLinePosition.Line + 1,
                 span.StartLinePosition.Character + 1,
                 snippet));
@@ -111,7 +116,8 @@ public sealed class GotoDefinitionTool
         return GotoDefinitionResult.Found(
             targetSymbol.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat),
             targetSymbol.Kind.ToString(),
-            [.. locations]);
+            [.. locations],
+            snapshotVersion);
     }
 }
 
@@ -125,9 +131,12 @@ public sealed record GotoDefinitionResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
-    public static GotoDefinitionResult NotFound(string identifier) => new(
+    public long SnapshotVersion { get; init; }
+
+    public static GotoDefinitionResult NotFound(string identifier, long snapshotVersion) => new(
         "not_found", null, null, false, null, [], [],
-        $"Symbol '{identifier}' not found in the workspace");
+        $"Symbol '{identifier}' not found in the workspace")
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult NotLoaded() => new(
         "not_loaded", null, null, false, null, [], [],
@@ -136,20 +145,25 @@ public sealed record GotoDefinitionResult(
     public static GotoDefinitionResult LoadFailed(string message) => new(
         "load_failed", null, null, false, null, [], [], message);
 
-    public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static GotoDefinitionResult Ambiguous(string symbolName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", symbolName, null, false, null, [], candidates,
-        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
+    { SnapshotVersion = snapshotVersion };
 
-    public static GotoDefinitionResult Error(string message) => new(
-        "error", null, null, false, null, [], [], message);
+    public static GotoDefinitionResult Error(string message, long snapshotVersion) => new(
+        "error", null, null, false, null, [], [], message)
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult Found(string symbolName, string kind,
-        ImmutableList<DefinitionLocation> locations) => new(
-        "found", symbolName, kind, false, null, locations, [], null);
+        ImmutableList<DefinitionLocation> locations, long snapshotVersion) => new(
+        "found", symbolName, kind, false, null, locations, [], null)
+        { SnapshotVersion = snapshotVersion };
 
-    public static GotoDefinitionResult Metadata(string symbolName, string kind, string? assemblyName) => new(
+    public static GotoDefinitionResult Metadata(
+        string symbolName, string kind, string? assemblyName, long snapshotVersion) => new(
         "found", symbolName, kind, true, assemblyName, [], [],
-        $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.");
+        $"Symbol is defined in metadata assembly '{assemblyName}'. Use decompile-type to view source.")
+        { SnapshotVersion = snapshotVersion };
 }
 
-public sealed record DefinitionLocation(string FilePath, int Line, int Column, string? Snippet);
+public sealed record DefinitionLocation(RepoPath? FilePath, int Line, int Column, string? Snippet);
