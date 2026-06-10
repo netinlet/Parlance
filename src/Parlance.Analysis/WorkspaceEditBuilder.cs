@@ -66,11 +66,15 @@ internal static class WorkspaceEditBuilder
                 }
 
                 var oldText = await oldDoc.GetTextAsync(ct);
-                var newText = await newDoc.GetTextAsync(ct);
 
                 // Respect the existing file's line ending so the agent's write does not churn EOLs.
                 var newline = SourceTextFacts.DetectNewline(oldText);
-                var edits = ExtractDocumentEdits(oldText, newText, newline);
+                // Document-level diff: yields minimal text changes even when the changed document shares no
+                // text-snapshot lineage with the original — which is the normal case, since a code fix hands
+                // back a reparsed/reformatted document. SourceText.GetTextChanges would fall back to a single
+                // whole-document replacement here, doubling the entire file over the wire.
+                var changes = await newDoc.GetTextChangesAsync(oldDoc, ct);
+                var edits = ToOrderedEdits(oldText, changes, newline);
                 if (edits.IsEmpty) continue;
 
                 // Edits target the pre-change (old) path; any move is the separate rename op above.
@@ -89,21 +93,14 @@ internal static class WorkspaceEditBuilder
     }
 
     /// <summary>
-    /// The single changed-document edit extraction shared by preview and apply: the line-ending is detected
-    /// from <paramref name="oldText"/>, each replacement is normalised to it, and the edits are returned
-    /// <em>descending</em> by span start so sequential (bottom-to-top) application leaves earlier ranges valid.
-    /// Returns empty when the texts are identical.
+    /// Turns a set of minimal <see cref="TextChange"/>s into applyable <see cref="TextEdit"/>s: each
+    /// replacement is normalised to <paramref name="newline"/>, and the edits are returned <em>descending</em>
+    /// by span start so sequential (bottom-to-top) application leaves earlier ranges valid. Returns empty when
+    /// there are no changes.
     /// </summary>
-    public static ImmutableList<TextEdit> ExtractDocumentEdits(SourceText oldText, SourceText newText) =>
-        ExtractDocumentEdits(oldText, newText, SourceTextFacts.DetectNewline(oldText));
-
-    private static ImmutableList<TextEdit> ExtractDocumentEdits(
-        SourceText oldText, SourceText newText, string newline)
-    {
-        var textChanges = newText.GetTextChanges(oldText);
-        if (textChanges.Count == 0) return [];
-
-        return textChanges
+    private static ImmutableList<TextEdit> ToOrderedEdits(
+        SourceText oldText, IEnumerable<TextChange> changes, string newline) =>
+        changes
             .OrderByDescending(c => c.Span.Start)
             .Select(c =>
             {
@@ -111,7 +108,6 @@ internal static class WorkspaceEditBuilder
                 return edit with { NewText = SourceTextFacts.NormalizeNewlines(edit.NewText, newline) };
             })
             .ToImmutableList();
-    }
 }
 
 /// <summary>Small, pure observations about a <see cref="SourceText"/> used to keep applied edits faithful

@@ -192,6 +192,32 @@ public sealed class WorkspaceEditBuilderTests
     }
 
     [Fact]
+    public async Task ChangedDocumentWithoutTextLineage_ProducesMinimalEdit_NotWholeFileReplacement()
+    {
+        // A real code fix reparses/reformats and hands back a document whose text shares no change-tracking
+        // lineage with the original — exactly what WithDocumentText(SourceText.From(...)) models here. The
+        // extraction must still diff down to the changed region, not fall back to a whole-document replacement
+        // (which doubles the entire file over the wire as originalText + newText).
+        const string before = "class A {}\nclass B {}\nclass C {}\n";
+        const string after = "class A {}\nclass B2 {}\nclass C {}\n"; // only the middle line changes
+        var (s0, project) = NewProject();
+        var (current, docId) = WithDocument(s0, project, "A.cs", before);
+        var changed = current.WithDocumentText(docId, SourceText.From(after));
+
+        var edit = await Build(current, changed);
+        var edits = edit.DocumentEdits[0].Edits;
+
+        // The edit's originalText must cover only the changed region — never the untouched neighbours.
+        Assert.All(edits, e =>
+        {
+            Assert.DoesNotContain("class A", e.OriginalText);
+            Assert.DoesNotContain("class C", e.OriginalText);
+        });
+        // And it still round-trips: applying the edits to the original reproduces the changed text.
+        Assert.Equal(after, Apply(before, edits));
+    }
+
+    [Fact]
     public async Task Edit_IsStampedWithTheComputedAgainstSnapshotVersion()
     {
         var (s0, project) = NewProject();

@@ -149,7 +149,9 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
         {
             Assert.NotNull(change.FilePath);
             Assert.NotEmpty(change.FilePath.Value.Absolute);
-            Assert.NotEmpty(change.Edits);
+            // Preview now returns a unified diff (hunks with context) per file, for judging the change.
+            Assert.NotEmpty(change.Diff);
+            Assert.Contains("@@", change.Diff);
         });
     }
 }

@@ -13,7 +13,8 @@ public sealed class PreviewCodeActionTool
     [McpServerTool(Name = "preview-code-action", ReadOnly = true)]
     [Description("Preview the changes a code fix or refactoring would make before applying. " +
                  "Pass an action ID from get-code-fixes or get-refactorings. " +
-                 "Returns the exact text edits per file.")]
+                 "Returns a unified diff (hunks with surrounding context) per file — read it to judge whether " +
+                 "the result is good before applying. Use apply-code-action to get the applyable edits.")]
     public static Task<PreviewCodeActionResult> PreviewCodeAction(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
@@ -43,7 +44,7 @@ public sealed class PreviewCodeActionTool
         // outside the RepoPath path-field guard) onto an MCP DTO whose FilePath is a workspace-relative
         // RepoPath, so code-action previews follow the same path contract as every other tool result.
         var changes = preview.Changes
-            .Select(c => new PreviewFileChange(c.FilePath.ToRepoPath(), c.Edits))
+            .Select(c => new PreviewFileChange(c.FilePath.ToRepoPath(), c.Diff))
             .ToImmutableList();
 
         return new PreviewCodeActionResult(
@@ -56,7 +57,8 @@ public sealed class PreviewCodeActionTool
     }
 }
 
-public sealed record PreviewFileChange(RepoPath? FilePath, ImmutableList<TextEdit> Edits);
+/// <summary>One changed file in a preview: its workspace-relative path and a unified diff of the change.</summary>
+public sealed record PreviewFileChange(RepoPath? FilePath, string Diff);
 
 public sealed record PreviewCodeActionResult(
     string Status, string? ActionId, string? Title,

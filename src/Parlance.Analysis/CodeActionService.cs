@@ -270,12 +270,13 @@ public sealed class CodeActionService(
                 var oldText = await oldDoc.GetTextAsync(ct);
                 var newText = await newDoc.GetTextAsync(ct);
 
-                // Same extraction (EOL-normalised, descending order) apply uses, so a previewed diff is
-                // byte-identical to what apply-code-action returns for the same document.
-                var edits = WorkspaceEditBuilder.ExtractDocumentEdits(oldText, newText);
-                if (edits.IsEmpty) continue;
+                // Preview is a judgment surface: render the change as a unified diff (hunks with context) so
+                // the agent can read how the result actually reads — long lines, nesting, a switch expression
+                // gone ugly — before applying. The minimal applyable edits come from apply-code-action.
+                var diff = UnifiedDiff.Render(oldText, newText);
+                if (diff.Length == 0) continue;
 
-                changes.Add(new FileChange(oldDoc.FilePath ?? "", edits));
+                changes.Add(new FileChange(oldDoc.FilePath ?? "", diff));
             }
         }
 
@@ -450,7 +451,8 @@ public sealed record CodeActionPreview(
         new(actionId, title, [], ErrorMessage: errorMessage);
 }
 
-public sealed record FileChange(string FilePath, ImmutableList<TextEdit> Edits);
+/// <summary>One changed file in a preview: its path plus a unified diff (hunks with context) of the change.</summary>
+public sealed record FileChange(string FilePath, string Diff);
 
 public sealed record TextEdit(TextRange Range, string OriginalText, string NewText);
 
