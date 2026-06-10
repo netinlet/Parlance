@@ -36,6 +36,43 @@ public sealed class FileWatcherTests
     }
 
     [Fact]
+    public async Task DetectsAtomicRenameSave()
+    {
+        // Editors — and the Claude Code Edit/Write tools — save atomically:
+        // write to a temp file, then rename it over the target. The tracked
+        // path therefore receives a MOVED_TO (rename), never a MODIFY (content
+        // change). The temp name does not match *.cs, so its MOVED_FROM is
+        // filtered out and .NET surfaces the destination as a Created event.
+        var dir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var filePath = Path.Combine(dir, "Test.cs");
+            await File.WriteAllTextAsync(filePath, "// original");
+
+            var tcs = new TaskCompletionSource<IReadOnlyList<string>>();
+            await using var watcher = new WorkspaceFileWatcher(
+                [dir],
+                [filePath],
+                changes => { tcs.TrySetResult(changes); return Task.CompletedTask; },
+                NullLoggerFactory.Instance);
+
+            await Task.Delay(200); // Let watcher start
+
+            var tempPath = Path.Combine(dir, "Test.cs.tmp.0d5f1a");
+            await File.WriteAllTextAsync(tempPath, "// modified");
+            File.Move(tempPath, filePath, overwrite: true);
+
+            var result = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Contains(result, p => p.EndsWith("Test.cs"));
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
     public async Task IgnoresUntrackedCsFiles()
     {
         var dir = Path.Combine(Path.GetTempPath(), $"parlance-test-{Guid.NewGuid():N}");

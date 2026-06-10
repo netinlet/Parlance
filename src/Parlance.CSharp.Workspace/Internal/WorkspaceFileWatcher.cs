@@ -35,11 +35,16 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
             {
                 var watcher = new FileSystemWatcher(dir, "*.cs")
                 {
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
                     IncludeSubdirectories = true,
                     EnableRaisingEvents = true
                 };
+                // Editors and the agent's own Edit/Write tools save atomically
+                // (write-temp + rename). .NET pairs the rename into a single
+                // Renamed event whose new path is the tracked file, so without
+                // subscribing to Renamed those saves are silently missed.
                 watcher.Changed += OnFileChanged;
+                watcher.Renamed += OnFileChanged;
                 return watcher;
             })
             .ToArray();
