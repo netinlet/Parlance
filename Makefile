@@ -13,7 +13,8 @@ ARTIFACTS_DIR ?= $(CURDIR)/artifacts
 TOOL_ARTIFACTS_DIR ?= $(ARTIFACTS_DIR)/tool
 TARGET_PROJECT ?= /absolute/path/to/target-repo
 SOLUTION ?= YourSolution.sln
-TOOL_VERSION ?= 0.1.0
+# Single-sourced from Directory.Build.props so a version bump never desyncs the tool install/reinstall.
+TOOL_VERSION ?= $(shell sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' $(CURDIR)/Directory.Build.props)
 TOOL_PACKAGE_ID ?= Parlance.Cli
 TOOL_COMMAND_NAME ?= parlance
 
