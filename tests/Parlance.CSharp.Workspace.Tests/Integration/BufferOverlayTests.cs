@@ -155,7 +155,7 @@ public sealed class BufferOverlayTests
     {
         await using var session = await LoadServerSessionAsync();
         var absolute = AnyDocumentPath(session);
-        var relative = Path.GetRelativePath(session.RepoPath, absolute);
+        var relative = Path.GetRelativePath(session.Root.Absolute, absolute);
         Assert.False(Path.IsPathRooted(relative));
 
         var version = await session.SyncBufferAsync(relative, "// overlaid via relative path");

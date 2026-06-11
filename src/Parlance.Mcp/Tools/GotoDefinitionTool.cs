@@ -35,24 +35,25 @@ public sealed class GotoDefinitionTool
         WorkspaceQueryService query, CSharpWorkspaceSession session, string? symbolName, string? filePath,
         int? line, int? column, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var hasPosition = filePath is not null && line is not null && column is not null;
         var hasPartialPosition = filePath is not null && (line is null || column is null);
         var hasName = symbolName is not null;
 
         if (hasPartialPosition)
-            return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.");
+            return GotoDefinitionResult.Error("Position-based lookup requires filePath, line, and column.", snapshotVersion);
 
         if (!hasPosition && !hasName)
-            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.");
-
-        var snapshotVersion = session.SnapshotVersion;
+            return GotoDefinitionResult.Error("Provide either symbolName or filePath + line + column.", snapshotVersion);
 
         ISymbol? targetSymbol;
 
         if (hasPosition)
         {
             if (line!.Value < 1 || column!.Value < 1)
-                return GotoDefinitionResult.Error("line and column must be >= 1 (1-based).");
+                return GotoDefinitionResult.Error("line and column must be >= 1 (1-based).", snapshotVersion);
 
             var zeroLine = line.Value - 1;
             var zeroCol = column.Value - 1;
@@ -149,8 +150,9 @@ public sealed record GotoDefinitionResult(
         $"Multiple symbols match '{symbolName}'. Use a fully qualified name to disambiguate.")
     { SnapshotVersion = snapshotVersion };
 
-    public static GotoDefinitionResult Error(string message) => new(
-        "error", null, null, false, null, [], [], message);
+    public static GotoDefinitionResult Error(string message, long snapshotVersion) => new(
+        "error", null, null, false, null, [], [], message)
+    { SnapshotVersion = snapshotVersion };
 
     public static GotoDefinitionResult Found(string symbolName, string kind,
         ImmutableList<DefinitionLocation> locations, long snapshotVersion) => new(

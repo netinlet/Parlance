@@ -1,5 +1,6 @@
 using System.Text.Json;
-using Parlance.Abstractions; // RepoPath + WorkspaceRootAccessor both live here
+using Parlance.Abstractions;
+using Parlance.CSharp.Workspace;
 using Parlance.Mcp.Serialization;
 
 namespace Parlance.Mcp.Tests.Serialization;
@@ -8,10 +9,14 @@ public sealed class RepoPathJsonConverterTests
 {
     private sealed record Holder(RepoPath Path, RepoPath? MaybePath);
 
+    // A fresh holder is NotLoaded, so the converter falls back to the configured solution's
+    // directory — RepoPath.Containing(<root>/Dummy.slnx) == <root>. That exercises the same Write
+    // path without standing up a real workspace session.
     private static JsonSerializerOptions OptionsWithRoot(string root)
     {
-        var accessor = new WorkspaceRootAccessor { Root = root };
-        return ParlanceToolJson.Create(new RepoPathJsonConverter(accessor));
+        var options = new WorkspaceLifecycleOptions(
+            Path.Combine(root, "Dummy.slnx"), new WorkspaceOpenOptions());
+        return ParlanceToolJson.Create(new RepoPathJsonConverter(new WorkspaceSessionHolder(), options));
     }
 
     [Fact]

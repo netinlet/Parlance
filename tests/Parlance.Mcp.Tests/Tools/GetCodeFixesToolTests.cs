@@ -66,6 +66,22 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
     }
 
     [Fact]
+    public async Task GetCodeFixes_UnknownFile_MessageUsesWorkspaceRelativePath()
+    {
+        // A relative input resolves under the workspace root; the not_found message must echo the
+        // workspace-relative path, not re-leak the absolute host path through prose.
+        var result = await GetCodeFixesTool.GetCodeFixes(
+            _holder, _codeActions,
+            filePath: "src/DoesNotExist.cs", line: 1, diagnosticId: null,
+            CancellationToken.None);
+
+        Assert.Equal("not_found", result.Status);
+        Assert.NotNull(result.Message);
+        Assert.DoesNotContain(TestPaths.RepoRoot, result.Message);
+        Assert.Contains("src/DoesNotExist.cs", result.Message!.Replace('\\', '/'));
+    }
+
+    [Fact]
     public async Task GetCodeFixes_InvalidLine_ReturnsError()
     {
         var result = await GetCodeFixesTool.GetCodeFixes(

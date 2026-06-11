@@ -43,14 +43,20 @@ public sealed class ApplyCodeActionTool
     private static async Task<ApplyCodeActionResult> RunAsync(
         CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale):
+        // every loaded outcome below stamps it, so a negative result is distinguishable from the
+        // not-loaded 0 sentinel. The success path stamps edit.SnapshotVersion (the version the edit was
+        // actually computed against) instead.
+        var snapshotVersion = session.SnapshotVersion;
+
         var edit = await codeActions.ApplyAsync(actionId, ct);
         if (edit is null)
-            return ApplyCodeActionResult.NotFound(actionId);
+            return ApplyCodeActionResult.NotFound(actionId, snapshotVersion);
         if (edit.IsExpired)
-            return ApplyCodeActionResult.Stale(session.SnapshotVersion,
+            return ApplyCodeActionResult.Stale(snapshotVersion,
                 StalenessMessage.ActionSuperseded(actionId));
         if (edit.ErrorMessage is not null)
-            return ApplyCodeActionResult.NotApplicable(actionId, edit.ErrorMessage);
+            return ApplyCodeActionResult.NotApplicable(actionId, edit.ErrorMessage, snapshotVersion);
 
         // Map the analysis-layer edit (absolute-string paths) onto the MCP DTO whose paths are
         // workspace-relative RepoPaths — the same path contract every other tool result follows.
@@ -137,18 +143,20 @@ public sealed record ApplyCodeActionResult
         Message = message,
     };
 
-    public static ApplyCodeActionResult NotFound(string actionId) => new()
+    public static ApplyCodeActionResult NotFound(string actionId, long snapshotVersion) => new()
     {
         Status = "not_found",
         ActionId = actionId,
         Message = $"Action '{actionId}' not found. It may have expired or the ID is invalid.",
+        SnapshotVersion = snapshotVersion,
     };
 
-    public static ApplyCodeActionResult NotApplicable(string actionId, string message) => new()
+    public static ApplyCodeActionResult NotApplicable(string actionId, string message, long snapshotVersion) => new()
     {
         Status = "not_applicable",
         ActionId = actionId,
         Message = message,
+        SnapshotVersion = snapshotVersion,
     };
 
     public static ApplyCodeActionResult NotLoaded() => new()

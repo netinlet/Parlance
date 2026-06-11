@@ -30,15 +30,18 @@ public sealed class PreviewCodeActionTool
     private static async Task<PreviewCodeActionResult> RunAsync(
         CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var preview = await codeActions.PreviewAsync(actionId, ct);
         if (preview is null)
-            return PreviewCodeActionResult.NotFound(actionId);
+            return PreviewCodeActionResult.NotFound(actionId, snapshotVersion);
 
         if (preview.ErrorMessage is not null)
-            return PreviewCodeActionResult.Error(actionId, preview.ErrorMessage);
+            return PreviewCodeActionResult.Error(actionId, preview.ErrorMessage, snapshotVersion);
 
         if (preview.IsExpired)
-            return PreviewCodeActionResult.Expired(actionId);
+            return PreviewCodeActionResult.Expired(actionId, snapshotVersion);
 
         // Map the analysis-layer FileChange (absolute-string FilePath, outside Mcp.Tools and thus
         // outside the RepoPath path-field guard) onto an MCP DTO whose FilePath is a workspace-relative
@@ -53,7 +56,7 @@ public sealed class PreviewCodeActionTool
             Title: preview.Title,
             Changes: changes,
             Message: null)
-        { SnapshotVersion = session.SnapshotVersion };
+        { SnapshotVersion = snapshotVersion };
     }
 }
 
@@ -67,17 +70,20 @@ public sealed record PreviewCodeActionResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static PreviewCodeActionResult NotFound(string actionId) => new(
+    public static PreviewCodeActionResult NotFound(string actionId, long snapshotVersion) => new(
         "not_found", actionId, null, [],
-        $"Action '{actionId}' not found. It may have expired or the ID is invalid.");
-    public static PreviewCodeActionResult Expired(string actionId) => new(
+        $"Action '{actionId}' not found. It may have expired or the ID is invalid.")
+    { SnapshotVersion = snapshotVersion };
+    public static PreviewCodeActionResult Expired(string actionId, long snapshotVersion) => new(
         "expired", actionId, null, [],
-        $"Action '{actionId}' has expired because the workspace changed. Re-query fixes or refactorings.");
+        $"Action '{actionId}' has expired because the workspace changed. Re-query fixes or refactorings.")
+    { SnapshotVersion = snapshotVersion };
     public static PreviewCodeActionResult NotLoaded() => new(
         "not_loaded", null, null, [],
         "Workspace is still loading");
     public static PreviewCodeActionResult LoadFailed(string message) => new(
         "load_failed", null, null, [], message);
-    public static PreviewCodeActionResult Error(string actionId, string message) => new(
-        "error", actionId, null, [], message);
+    public static PreviewCodeActionResult Error(string actionId, string message, long snapshotVersion) => new(
+        "error", actionId, null, [], message)
+    { SnapshotVersion = snapshotVersion };
 }

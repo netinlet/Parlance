@@ -36,19 +36,18 @@ public sealed class TypeHierarchyTool
     private static async Task<TypeHierarchyToolResult> RunAsync(
         WorkspaceQueryService query, CSharpWorkspaceSession session, string typeName, int maxDepth, CancellationToken ct)
     {
-        // Workspace is loaded here, so every negative result carries the live snapshot too.
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
-            return TypeHierarchyToolResult.NotFound(typeName) with { SnapshotVersion = session.SnapshotVersion };
+            return TypeHierarchyToolResult.NotFound(typeName, snapshotVersion);
 
         if (symbols.Count > 1 && !typeName.Contains('.'))
-        {
-            var candidates = symbols.Select(s => s.ToCandidate()).ToImmutableList();
-            return TypeHierarchyToolResult.Ambiguous(typeName, candidates) with { SnapshotVersion = session.SnapshotVersion };
-        }
+            return TypeHierarchyToolResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         if (symbols[0].Symbol is not INamedTypeSymbol namedType)
-            return TypeHierarchyToolResult.NotFound(typeName) with { SnapshotVersion = session.SnapshotVersion };
+            return TypeHierarchyToolResult.NotFound(typeName, snapshotVersion);
 
         var hierarchy = await query.GetTypeHierarchyAsync(namedType, maxDepth, ct);
 
@@ -61,7 +60,7 @@ public sealed class TypeHierarchyTool
             Truncated: hierarchy.Truncated,
             Candidates: [],
             Message: null)
-        { SnapshotVersion = session.SnapshotVersion };
+        { SnapshotVersion = snapshotVersion };
     }
 }
 
@@ -75,17 +74,19 @@ public sealed record TypeHierarchyToolResult(
 {
     public long SnapshotVersion { get; init; }
 
-    public static TypeHierarchyToolResult NotFound(string typeName) => new(
+    public static TypeHierarchyToolResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", typeName, null, [], [], false, [],
-        $"Type '{typeName}' not found in the workspace");
+        $"Type '{typeName}' not found in the workspace")
+    { SnapshotVersion = snapshotVersion };
     public static TypeHierarchyToolResult NotLoaded() => new(
         "not_loaded", null, null, [], [], false, [],
         "Workspace is still loading");
     public static TypeHierarchyToolResult LoadFailed(string message) => new(
         "load_failed", null, null, [], [], false, [], message);
-    public static TypeHierarchyToolResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static TypeHierarchyToolResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, null, [], [], false, candidates,
-        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
+    { SnapshotVersion = snapshotVersion };
     public static TypeHierarchyToolResult Error(string message) => new(
         "error", null, null, [], [], false, [], message);
 }

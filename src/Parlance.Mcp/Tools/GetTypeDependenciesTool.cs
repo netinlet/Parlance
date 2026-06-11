@@ -138,7 +138,13 @@ public sealed class GetTypeDependenciesTool
 
             foreach (var location in treeGroup)
             {
-                var node = root.FindNode(location.Location.SourceSpan);
+                // The span comes from the find-references solution; root is re-read from
+                // CurrentSolution and can be a newer version (a concurrent file-watcher edit shifted
+                // the text). A stale span then exceeds the newer tree's bounds — skip that location
+                // rather than faulting the whole call.
+                SyntaxNode node;
+                try { node = root.FindNode(location.Location.SourceSpan); }
+                catch (ArgumentOutOfRangeException) { continue; }
                 var containingTypeDecl = node.Ancestors()
                     .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>()
                     .FirstOrDefault();

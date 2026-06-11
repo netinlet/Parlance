@@ -8,6 +8,7 @@ using Microsoft.CodeAnalysis.MSBuild;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Parlance.Abstractions;
 using Parlance.CSharp.Workspace.Internal;
 
 namespace Parlance.CSharp.Workspace;
@@ -52,6 +53,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         ILoggerFactory loggerFactory)
     {
         WorkspacePath = workspacePath;
+        Root = RepoPath.Containing(workspacePath);
         _workspace = workspace;
         _currentSolution = initialSolution;   // must precede _cache initialisation
         _cache = mode switch
@@ -70,9 +72,11 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
 
     /// <summary>
     /// The directory that owns the solution/project file — the root for repo-relative paths and
-    /// the <c>.parlance/</c> convention directory. Single definition shared by every consumer.
+    /// the <c>.parlance/</c> convention directory. Derived once at construction through
+    /// <see cref="RepoPath.Containing"/> (the single home for that rule); <see cref="WorkspacePath"/>
+    /// is invariant, so there is nothing to recompute per access.
     /// </summary>
-    public string RepoPath => Path.GetDirectoryName(WorkspacePath) ?? WorkspacePath;
+    public RepoPath Root { get; }
 
     /// <summary>
     /// Normalizes a client-supplied file path to the absolute form Roslyn document lookups expect.
@@ -87,7 +91,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
             ? filePath
             : Path.IsPathRooted(filePath)
                 ? Path.GetFullPath(filePath)
-                : Path.GetFullPath(filePath, RepoPath);
+                : Path.GetFullPath(filePath, Root.Absolute);
 
     public long SnapshotVersion => Interlocked.Read(ref _snapshotVersion);
 

@@ -4,6 +4,7 @@ using ModelContextProtocol.Server;
 using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
+using Parlance.Mcp.Serialization;
 
 namespace Parlance.Mcp.Tools;
 
@@ -12,7 +13,7 @@ public sealed class AnalyzeTool
 {
     [McpServerTool(Name = "analyze", ReadOnly = true)]
     [Description("Run diagnostics on C# files. Returns analyzer findings with severity, " +
-                 "fix classification, and rationale. Pass absolute file paths.")]
+                 "fix classification, and rationale. Accepts absolute or workspace-relative file paths.")]
     public static Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
@@ -27,9 +28,15 @@ public sealed class AnalyzeTool
             notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
             loaded: session =>
             {
-                if (holder.IsStale(expectedSnapshotVersion))
-                    return Task.FromResult(AnalyzeToolResult.Stale(holder.CurrentSnapshotVersion(), expectedSnapshotVersion!.Value));
-                return RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct);
+                // Capture the snapshot once: the staleness verdict and the stamp must come from the
+                // same read, or a file-watcher tick between two reads could stamp a "not stale"
+                // result with a newer version than the verdict was computed against. This tool's
+                // stamp is the one round-tripped via expectedSnapshotVersion, so the agreement matters
+                // most here.
+                var snapshotVersion = session.SnapshotVersion;
+                if (expectedSnapshotVersion is { } expected && expected != 0 && expected != snapshotVersion)
+                    return Task.FromResult(AnalyzeToolResult.Stale(snapshotVersion, expected));
+                return RunAsync(analysis, session, snapshotVersion, files, curationSet, maxDiagnostics, ct);
             },
             loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
@@ -38,16 +45,21 @@ public sealed class AnalyzeTool
     private static async Task<AnalyzeToolResult> RunAsync(
         AnalysisService analysis,
         CSharpWorkspaceSession session,
+        long snapshotVersion,
         string[] files,
         string? curationSet,
         int? maxDiagnostics,
         CancellationToken ct)
     {
-        // Resolve workspace-root-relative paths through the one normalization boundary
-        // (NormalizeInputPath collapses .. for both relative and rooted inputs), then reject paths that
-        // escape the workspace root. Trailing separator on the prefix prevents sibling-prefix bypass
-        // (e.g. workspace-tmp/). Normalization is guarded so a malformed path is a clean failure, not a throw.
-        var workspacePrefix = session.RepoPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        // Resolve through the same single boundary every other file-input tool uses (rooted inputs
+        // normalised in place, relative inputs resolved against the root), then reject paths that
+        // escape the workspace root. The prefix carries a trailing separator to block sibling-prefix
+        // bypass (e.g. workspace-tmp/); comparison is case-sensitive except on Windows, matching the
+        // host filesystem so a case-variant sibling dir on Linux isn't treated as in-tree.
+        var workspacePrefix = session.Root.Absolute.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)
         {
@@ -58,11 +70,11 @@ public sealed class AnalyzeTool
             }
             catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                return AnalyzeToolResult.Failed($"Path '{f}' is not a valid file path: {ex.Message}");
+                return AnalyzeToolResult.Failed($"Path '{f}' is not a valid file path: {ex.Message}", snapshotVersion);
             }
 
-            if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
-                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.");
+            if (!resolved.StartsWith(workspacePrefix, pathComparison))
+                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.", snapshotVersion);
             resolvedFiles.Add(resolved);
         }
 
@@ -83,11 +95,11 @@ public sealed class AnalyzeTool
                     d.RuleId, d.Severity, d.Message,
                     d.FilePath.ToRepoPath(), d.Line,
                     d.FixClassification, d.Rationale)).ToImmutableList(),
-                session.SnapshotVersion);
+                snapshotVersion);
         }
         catch (ArgumentException ex)
         {
-            return AnalyzeToolResult.Failed(ex.Message);
+            return AnalyzeToolResult.Failed(ex.Message, snapshotVersion);
         }
     }
 }
@@ -98,6 +110,11 @@ public sealed record AnalyzeToolResult
     public string? Error { get; init; }
     public string? CurationSet { get; init; }
     public AnalyzeSummary? Summary { get; init; }
+
+    // Keep the empty array on a clean analyze: "analyzed, zero diagnostics" is a real signal a
+    // client must be able to tell apart from a never-populated/absent field. WhenWritingNull still
+    // drops it on the not-loaded/error paths where it is genuinely null.
+    [KeepWhenEmpty]
     public ImmutableList<AnalyzeDiagnostic>? Diagnostics { get; init; }
     public long SnapshotVersion { get; init; }
 
@@ -124,10 +141,11 @@ public sealed record AnalyzeToolResult
             SnapshotVersion = snapshotVersion
         };
 
-    public static AnalyzeToolResult Failed(string message) => new()
+    public static AnalyzeToolResult Failed(string message, long snapshotVersion) => new()
     {
         Status = "error",
-        Error = message
+        Error = message,
+        SnapshotVersion = snapshotVersion
     };
 
     public static AnalyzeToolResult Stale(long actual, long expected) => new()

@@ -84,20 +84,20 @@ public sealed record DescribeTypeResult(
 
     public static DescribeTypeResult NotFound(string typeName, long snapshotVersion) => new(
         "not_found", null, null, null, false, false, false,
-        null, default(RepoPath?), null, [], [], [], [], $"Type '{typeName}' not found in the workspace")
+        null, null, null, [], [], [], [], $"Type '{typeName}' not found in the workspace")
     { SnapshotVersion = snapshotVersion };
 
     public static DescribeTypeResult NotLoaded() => new(
         "not_loaded", null, null, null, false, false, false,
-        null, default(RepoPath?), null, [], [], [], [], "Workspace is still loading");
+        null, null, null, [], [], [], [], "Workspace is still loading");
 
     public static DescribeTypeResult LoadFailed(string message) => new(
         "load_failed", null, null, null, false, false, false,
-        null, default(RepoPath?), null, [], [], [], [], message);
+        null, null, null, [], [], [], [], message);
 
     public static DescribeTypeResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", null, null, null, false, false, false,
-        null, default(RepoPath?), null, [], [], [], candidates,
+        null, null, null, [], [], [], candidates,
         $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
     { SnapshotVersion = snapshotVersion };
 
