@@ -3,9 +3,11 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.Analysis.Tests;
 
-// Exercises the document fix-all entry end-to-end (#4) against the real loaded solution. The repo uses `var`
-// pervasively, so IDE0008 ("use explicit type instead of 'var'") fires many times in any non-trivial file —
-// a reliable multi-occurrence, FixAll-capable rule to drive the path deterministically.
+// Exercises the document fix-all entry end-to-end (#4) against the real loaded solution. The repo `.editorconfig`
+// prefers `var`, so IDE0008 ("use explicit type instead of 'var'") does NOT fire on repo source — now that
+// .editorconfig options actually reach the analyzers. Instead this targets a dedicated fixture under
+// Fixtures/, whose sibling `.editorconfig` (root = true) pins prefer-explicit-type, making IDE0008 a reliable
+// multi-occurrence, FixAll-capable rule there regardless of the repo's own style.
 [Trait("Category", "Integration")]
 public sealed class CodeActionServiceFixAllIntegrationTests(WorkspaceFixture fixture)
     : IClassFixture<WorkspaceFixture>
@@ -13,7 +15,7 @@ public sealed class CodeActionServiceFixAllIntegrationTests(WorkspaceFixture fix
     private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
 
     private static string TargetFile => Path.Combine(
-        TestPaths.RepoRoot, "src", "Parlance.Analysis", "CodeActionService.cs");
+        TestPaths.RepoRoot, "tests", "Parlance.Analysis.Tests", "Fixtures", "VarHeavySample.cs");
 
     [Fact]
     public async Task GetCodeFixes_RuleFiresMultipleTimes_OffersASingleDocumentFixAll()

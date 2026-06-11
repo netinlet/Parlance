@@ -91,7 +91,8 @@ public sealed class CodeActionService(
             .Where(d => d.Location.IsInSource && d.Location.SourceTree == tree);
 
         var analyzers = AnalyzerLoader.LoadAll(resolvedDoc.TargetFramework);
-        var treeAnalyzerDiags = (await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync(ct))
+        var treeAnalyzerDiags = (await compilation
+                .WithProjectAnalyzers(analyzers, resolvedDoc.Document.Project).GetAnalyzerDiagnosticsAsync(ct))
             .Where(d => d.Location.IsInSource && d.Location.SourceTree == tree);
 
         var treeDiags = treeCompilerDiags.Concat(treeAnalyzerDiags).ToImmutableList();
@@ -200,7 +201,8 @@ public sealed class CodeActionService(
             if (compilation is null || tree is null) return solution;
 
             var analyzers = AnalyzerLoader.LoadAll(tfm);
-            var diagnostics = (await compilation.WithAnalyzers(analyzers).GetAnalyzerDiagnosticsAsync(cancel))
+            var diagnostics = (await compilation
+                    .WithProjectAnalyzers(analyzers, document.Project).GetAnalyzerDiagnosticsAsync(cancel))
                 .Concat(compilation.GetDiagnostics(cancel))
                 .Where(d => d.Id == candidate.Rule && d.Location.IsInSource && d.Location.SourceTree == tree)
                 .DistinctBy(d => d.Location.SourceSpan)

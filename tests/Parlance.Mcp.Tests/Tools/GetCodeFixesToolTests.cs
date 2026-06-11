@@ -45,7 +45,10 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
                 Assert.NotEmpty(fix.Id);
                 Assert.NotEmpty(fix.Title);
                 Assert.NotEmpty(fix.DiagnosticId);
-                Assert.NotEmpty(fix.DiagnosticMessage);
+                // A fix-all entry collapses many occurrences, so it carries no single diagnostic message;
+                // only per-occurrence fixes have one.
+                if (!fix.IsFixAll)
+                    Assert.NotEmpty(fix.DiagnosticMessage);
                 Assert.True(fix.Scope is "document" or "project" or "solution",
                     $"Unexpected scope '{fix.Scope}'");
             });
