@@ -17,8 +17,17 @@ public sealed record CodeActionEdit(
     ImmutableList<ResourceOperation> ResourceOperations,
     long SnapshotVersion = 0,
     bool IsExpired = false,
-    string? ErrorMessage = null)
+    string? ErrorMessage = null,
+    ImmutableList<RenameHint>? RenameHints = null)
 {
+    /// <summary>
+    /// Identifiers the action introduced with a placeholder name and a "rename me" marker (Roslyn's
+    /// <c>CodeAction_Rename</c> annotation) — e.g. Extract Method's <c>NewMethod</c>. An IDE would drop the
+    /// user straight into an inline rename here; an agent can't, so the placeholder ships as-is unless it acts.
+    /// Surfacing the placeholder lets the agent substitute a real name in the same write — no second round-trip.
+    /// </summary>
+    public ImmutableList<RenameHint> RenameHints { get; init; } = RenameHints ?? [];
+
     /// <summary>The cached action was computed against a superseded snapshot; the edit is no longer valid.</summary>
     public static CodeActionEdit Expired(string actionId, string title) =>
         new(actionId, title, [], [], IsExpired: true);
@@ -27,6 +36,13 @@ public sealed record CodeActionEdit(
     public static CodeActionEdit Failed(string actionId, string title, string errorMessage) =>
         new(actionId, title, [], [], ErrorMessage: errorMessage);
 }
+
+/// <summary>
+/// A placeholder identifier a code action wants renamed. <see cref="FilePath"/> is the document's path,
+/// <see cref="PlaceholderName"/> the generated name (e.g. <c>NewMethod</c>), and <see cref="Range"/> its
+/// location in the post-edit text so an agent can rewrite it to a meaningful name as it applies the edit.
+/// </summary>
+public sealed record RenameHint(string FilePath, string PlaceholderName, TextRange Range);
 
 /// <summary>
 /// Ordered text edits against one existing document. <see cref="FilePath"/> is the document's pre-change

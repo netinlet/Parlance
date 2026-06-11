@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Parlance.Analysis;
@@ -24,6 +25,7 @@ internal static class WorkspaceEditBuilder
     {
         var documentEdits = ImmutableList.CreateBuilder<DocumentEdit>();
         var resourceOps = ImmutableList.CreateBuilder<ResourceOperation>();
+        var renameHints = ImmutableList.CreateBuilder<RenameHint>();
 
         foreach (var projectChange in changedSolution.GetChanges(currentSolution).GetProjectChanges())
         {
@@ -32,6 +34,7 @@ internal static class WorkspaceEditBuilder
             {
                 var newDoc = changedSolution.GetDocument(docId);
                 if (newDoc?.FilePath is null) continue;
+                await CollectRenameHintsAsync(newDoc, renameHints, ct);
                 var text = await newDoc.GetTextAsync(ct);
                 // Materialise the content once; detect the newline from the SourceText line table rather
                 // than a second full ToString().
@@ -56,6 +59,8 @@ internal static class WorkspaceEditBuilder
                 var oldDoc = currentSolution.GetDocument(docId);
                 var newDoc = changedSolution.GetDocument(docId);
                 if (oldDoc is null || newDoc is null) continue;
+
+                await CollectRenameHintsAsync(newDoc, renameHints, ct);
 
                 var oldPath = oldDoc.FilePath;
                 var newPath = newDoc.FilePath;
@@ -89,7 +94,37 @@ internal static class WorkspaceEditBuilder
         }
 
         return new CodeActionEdit(
-            actionId, title, documentEdits.ToImmutable(), resourceOps.ToImmutable(), snapshotVersion);
+            actionId, title, documentEdits.ToImmutable(), resourceOps.ToImmutable(), snapshotVersion,
+            RenameHints: renameHints.ToImmutable());
+    }
+
+    /// <summary>
+    /// Finds identifiers the action tagged with Roslyn's <c>CodeAction_Rename</c> annotation in
+    /// <paramref name="newDoc"/> — the marker that drives inline-rename in an IDE (Extract Method's
+    /// <c>NewMethod</c> is the canonical case). Each becomes a <see cref="RenameHint"/> carrying the
+    /// placeholder name and its 1-based location in the post-edit text, so an agent can rewrite it as it
+    /// applies the edit instead of taking a second rename round-trip.
+    /// </summary>
+    private static async Task CollectRenameHintsAsync(
+        Document newDoc, ImmutableList<RenameHint>.Builder hints, CancellationToken ct)
+    {
+        var root = await newDoc.GetSyntaxRootAsync(ct);
+        if (root is null) return;
+
+        var annotated = root.GetAnnotatedNodesAndTokens(RenameAnnotation.Kind).ToList();
+        if (annotated.Count == 0) return;
+
+        var text = await newDoc.GetTextAsync(ct);
+        foreach (var item in annotated)
+        {
+            var name = item.IsToken ? item.AsToken().ValueText : item.ToString();
+            var start = text.Lines.GetLinePosition(item.Span.Start);
+            var end = text.Lines.GetLinePosition(item.Span.End);
+            hints.Add(new RenameHint(
+                newDoc.FilePath ?? "",
+                name,
+                new TextRange(start.Line + 1, start.Character + 1, end.Line + 1, end.Character + 1)));
+        }
     }
 
     /// <summary>

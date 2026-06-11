@@ -69,10 +69,16 @@ public sealed class ApplyCodeActionTool
             .Select(MapResourceOperation)
             .ToImmutableList();
 
+        // Placeholder identifiers the action wants renamed (e.g. Extract Method's NewMethod): carry the
+        // name + post-edit location so the agent can substitute a real name in the same write.
+        var renameHints = edit.RenameHints
+            .Select(h => new WorkspaceRenameHint(h.FilePath.ToRepoPath(), h.PlaceholderName, h.Range))
+            .ToImmutableList();
+
         // Stamp the version the edit was actually computed against (captured at resolution), not a
         // post-await re-read of the live session, which could have advanced under a concurrent refresh.
         return ApplyCodeActionResult.Success(
-            edit.ActionId, edit.Title, documentEdits, resourceOperations, edit.SnapshotVersion);
+            edit.ActionId, edit.Title, documentEdits, resourceOperations, renameHints, edit.SnapshotVersion);
     }
 
     private static WorkspaceResourceOperation MapResourceOperation(ResourceOperation op) => op switch
@@ -89,6 +95,13 @@ public sealed class ApplyCodeActionTool
 public sealed record WorkspaceDocumentEdit(
     RepoPath? FilePath, long? DocumentVersion, string Newline, string Encoding, bool HasBom,
     ImmutableList<TextEdit> Edits);
+
+/// <summary>
+/// A placeholder identifier the action wants renamed (Extract Method's <c>NewMethod</c> is the canonical
+/// case). <see cref="FilePath"/> is workspace-relative; <see cref="Range"/> locates the placeholder in the
+/// post-edit text so the agent can rewrite it to a meaningful name in the same write — no second round-trip.
+/// </summary>
+public sealed record WorkspaceRenameHint(RepoPath? FilePath, string PlaceholderName, TextRange Range);
 
 /// <summary>An LSP-style file resource operation: <c>kind</c> is "create", "delete", or "rename".</summary>
 public sealed record WorkspaceResourceOperation(
@@ -119,6 +132,7 @@ public sealed record ApplyCodeActionResult
     public string? Title { get; init; }
     public ImmutableList<WorkspaceDocumentEdit> DocumentEdits { get; init; } = [];
     public ImmutableList<WorkspaceResourceOperation> ResourceOperations { get; init; } = [];
+    public ImmutableList<WorkspaceRenameHint> RenameHints { get; init; } = [];
     public long SnapshotVersion { get; init; }
     public string? Message { get; init; }
 
@@ -126,6 +140,7 @@ public sealed record ApplyCodeActionResult
         string actionId, string title,
         ImmutableList<WorkspaceDocumentEdit> documentEdits,
         ImmutableList<WorkspaceResourceOperation> resourceOperations,
+        ImmutableList<WorkspaceRenameHint> renameHints,
         long snapshotVersion) => new()
         {
             Status = "success",
@@ -133,6 +148,7 @@ public sealed record ApplyCodeActionResult
             Title = title,
             DocumentEdits = documentEdits,
             ResourceOperations = resourceOperations,
+            RenameHints = renameHints,
             SnapshotVersion = snapshotVersion,
         };
 

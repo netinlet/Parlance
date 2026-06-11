@@ -1,5 +1,7 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CodeActions;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Parlance.Analysis.Tests;
@@ -239,6 +241,42 @@ public sealed class WorkspaceEditBuilderTests
         var edit = await Build(current, changed);
 
         Assert.Equal("\r\n", edit.DocumentEdits[0].Newline);
+    }
+
+    [Fact]
+    public async Task RenameAnnotatedToken_SurfacesRenameHint_WithPlaceholderNameAndLocation()
+    {
+        // Models Extract Method: the changed document carries a new identifier tagged with Roslyn's
+        // CodeAction_Rename annotation. The builder must surface it so an agent can name it in one write.
+        var (s0, project) = NewProject();
+        var (current, docId) = WithDocument(s0, project, "A.cs", "class A\n{\n    void M() { }\n}\n");
+
+        var root = CSharpSyntaxTree.ParseText("class A\n{\n    void NewMethod() { }\n}\n").GetRoot();
+        var token = root.DescendantTokens().First(t => t.Text == "NewMethod");
+        var annotatedRoot = root.ReplaceToken(token, token.WithAdditionalAnnotations(RenameAnnotation.Create()));
+        var changed = current.WithDocumentSyntaxRoot(docId, annotatedRoot);
+
+        var edit = await Build(current, changed);
+
+        var hint = Assert.Single(edit.RenameHints);
+        Assert.Equal("NewMethod", hint.PlaceholderName);
+        Assert.Equal("/repo/A.cs", hint.FilePath);
+        // "NewMethod" sits on line 3 (1-based); the range points into the post-edit text.
+        Assert.Equal(3, hint.Range.StartLine);
+        Assert.Equal("NewMethod", "class A\n{\n    void NewMethod() { }\n}\n"
+            .Split('\n')[hint.Range.StartLine - 1].Substring(hint.Range.StartColumn - 1, "NewMethod".Length));
+    }
+
+    [Fact]
+    public async Task NoRenameAnnotation_ProducesNoRenameHints()
+    {
+        var (s0, project) = NewProject();
+        var (current, docId) = WithDocument(s0, project, "A.cs", "class A {}");
+        var changed = current.WithDocumentText(docId, SourceText.From("class B {}"));
+
+        var edit = await Build(current, changed);
+
+        Assert.Empty(edit.RenameHints);
     }
 }
 
