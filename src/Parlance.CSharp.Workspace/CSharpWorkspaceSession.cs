@@ -522,6 +522,22 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
         _logger.LogInformation("Workspace session disposed: {Path}", WorkspacePath);
     }
 
+    // Compose the host MSBuildWorkspace.Create() would build by default (its DefaultServices is
+    // MefHostServices.DefaultHost == Create(DefaultAssemblies)) plus this assembly, so our
+    // [ExportWorkspaceService] option services are discovered. DefaultAssemblies already includes
+    // every part the default host loads; we only append our assembly (and the MSBuild assembly for
+    // completeness), making this a strict superset of the default — project loading is unchanged.
+    internal static Microsoft.CodeAnalysis.Host.Mef.MefHostServices CreateHostServices()
+    {
+        var assemblies = Microsoft.CodeAnalysis.Host.Mef.MefHostServices.DefaultAssemblies
+            .Add(typeof(MSBuildWorkspace).Assembly)
+            .Add(typeof(HostServices.ParlancePickMembersService).Assembly);
+        return Microsoft.CodeAnalysis.Host.Mef.MefHostServices.Create(assemblies);
+    }
+
+    internal static Microsoft.CodeAnalysis.Host.Mef.MefHostServices CreateHostServicesForTest() =>
+        CreateHostServices();
+
     private static async Task<WorkspaceLoadResult> LoadAsync(
         string workspacePath,
         Func<MSBuildWorkspace, CancellationToken, Task<Solution>> loadSolution,
@@ -540,7 +556,7 @@ public sealed class CSharpWorkspaceSession : IDisposable, IAsyncDisposable
 
         var workspaceDiagnostics = new List<WorkspaceDiagnostic>();
         var diagnosticsLock = new Lock();
-        var workspace = MSBuildWorkspace.Create();
+        var workspace = MSBuildWorkspace.Create(CreateHostServices());
 
         workspace.RegisterWorkspaceFailedHandler(args =>
         {
