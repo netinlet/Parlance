@@ -28,8 +28,15 @@ internal sealed class ParlanceExtractInterfaceOptionsService : IExtractInterface
         var name = opts?.InterfaceName ?? defaultInterfaceName;
 
         var included = extractableMembers;
-        if (opts?.Members is { } names && names.Count > 0)
+        if (opts?.Members is { } names)
         {
+            // Reject empty explicitly — same contract as ParlancePickMembersService (omit to mean "all").
+            if (names.Count == 0)
+            {
+                CodeActionOptionsScope.Fail("no members selected; omit 'members' to include all");
+                return ExtractInterfaceOptionsResult.Cancelled;
+            }
+
             var byName = extractableMembers.ToLookup(m => m.Name);
             var unknown = names.FirstOrDefault(n => !byName.Contains(n));
             if (unknown is not null)
@@ -38,7 +45,10 @@ internal sealed class ParlanceExtractInterfaceOptionsService : IExtractInterface
                     $"member '{unknown}' not found; available: {string.Join(", ", extractableMembers.Select(m => m.Name))}");
                 return ExtractInterfaceOptionsResult.Cancelled;
             }
-            included = names.SelectMany(n => byName[n]).ToImmutableArray();
+
+            // Filter candidates (preserve declaration order, de-dupe) instead of mapping requested names.
+            var requested = names.ToHashSet();
+            included = extractableMembers.Where(m => requested.Contains(m.Name)).ToImmutableArray();
         }
 
         var location = opts?.NewFile == true

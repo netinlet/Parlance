@@ -46,7 +46,10 @@ internal sealed class ParlancePickMembersService : IPickMembersService
                 return PickMembersResult.Canceled;
             }
 
-            selected = names.SelectMany(n => byName[n]).ToImmutableArray();
+            // Filter the candidate list (not the requested names) so the result keeps declaration
+            // order and never duplicates a member when a name is requested twice or is overloaded.
+            var requested = names.ToHashSet();
+            selected = members.Where(m => requested.Contains(m.Name)).ToImmutableArray();
         }
 
         if (opts.Flags is { } flags)
@@ -54,6 +57,7 @@ internal sealed class ParlancePickMembersService : IPickMembersService
                 if (flags.TryGetValue(option.Id, out var value))
                     option.Value = value;
 
-        return new PickMembersResult(selected, options, selectAll);
+        // Only claim select-all when nothing was filtered out; a strict subset must not report SelectedAll.
+        return new PickMembersResult(selected, options, selected.Length == members.Length);
     }
 }

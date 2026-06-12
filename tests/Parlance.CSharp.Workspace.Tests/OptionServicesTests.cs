@@ -45,6 +45,42 @@ public sealed class OptionServicesTests
     }
 
     [Fact]
+    public void PickMembers_Subset_ReportsNotSelectedAll()
+    {
+        var svc = new ParlancePickMembersService();
+        using (CodeActionOptionsScope.Enter(new RefactoringOptions(Members: ImmutableList.Create("A"))))
+        {
+            var result = svc.PickMembers("t", Members());
+            Assert.False(result.SelectedAll);
+        }
+    }
+
+    [Fact]
+    public void PickMembers_DuplicateAndReorderedNames_DeDupeAndKeepDeclarationOrder()
+    {
+        var svc = new ParlancePickMembersService();
+        using (CodeActionOptionsScope.Enter(new RefactoringOptions(
+            Members: ImmutableList.Create("B", "A", "A"))))
+        {
+            var result = svc.PickMembers("t", Members());
+            Assert.Equal(new[] { "A", "B" }, result.Members.Select(m => m.Name));
+            Assert.True(result.SelectedAll); // both candidates kept
+        }
+    }
+
+    [Fact]
+    public void PickMembers_EmptyMembers_CancelsAndCapturesFailure()
+    {
+        var svc = new ParlancePickMembersService();
+        using (CodeActionOptionsScope.Enter(new RefactoringOptions(Members: ImmutableList<string>.Empty)))
+        {
+            var result = svc.PickMembers("t", Members());
+            Assert.True(result.IsCanceled);
+            Assert.Contains("omit", CodeActionOptionsScope.CapturedFailure);
+        }
+    }
+
+    [Fact]
     public void PickMembers_UnknownMember_CancelsAndCapturesFailure()
     {
         var svc = new ParlancePickMembersService();
@@ -67,6 +103,32 @@ public sealed class OptionServicesTests
         Assert.Equal("ITarget.cs", result.FileName);
         Assert.Equal(ExtractInterfaceOptionsResult.ExtractLocation.SameFile, result.Location);
         Assert.False(result.IsCancelled);
+    }
+
+    [Fact]
+    public void ExtractInterface_EmptyMembers_CancelsAndCapturesFailure()
+    {
+        var svc = new ParlanceExtractInterfaceOptionsService();
+        using (CodeActionOptionsScope.Enter(new RefactoringOptions(Members: ImmutableList<string>.Empty)))
+        {
+            var result = svc.GetExtractInterfaceOptions(
+                document: null!, Members(), "ITarget", ImmutableArray<string>.Empty, "Ns", "");
+            Assert.True(result.IsCancelled);
+            Assert.Contains("omit", CodeActionOptionsScope.CapturedFailure);
+        }
+    }
+
+    [Fact]
+    public void ExtractInterface_DuplicateAndReorderedNames_DeDupeAndKeepDeclarationOrder()
+    {
+        var svc = new ParlanceExtractInterfaceOptionsService();
+        using (CodeActionOptionsScope.Enter(new RefactoringOptions(
+            Members: ImmutableList.Create("B", "A", "A"))))
+        {
+            var result = svc.GetExtractInterfaceOptions(
+                document: null!, Members(), "ITarget", ImmutableArray<string>.Empty, "Ns", "");
+            Assert.Equal(new[] { "A", "B" }, result.IncludedMembers.Select(m => m.Name));
+        }
     }
 
     [Fact]
