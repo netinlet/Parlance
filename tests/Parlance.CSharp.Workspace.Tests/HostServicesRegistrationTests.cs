@@ -1,5 +1,5 @@
-using Microsoft.CodeAnalysis.PickMembers;
 using Microsoft.CodeAnalysis.ExtractInterface;
+using Microsoft.CodeAnalysis.PickMembers;
 using Parlance.CSharp.Workspace.HostServices;
 using Xunit;
 
