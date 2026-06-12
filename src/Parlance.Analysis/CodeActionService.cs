@@ -350,9 +350,10 @@ public sealed class CodeActionService(
         return [.. refactorings];
     }
 
-    public async Task<CodeActionPreview?> PreviewAsync(string actionId, CancellationToken ct = default)
+    public async Task<CodeActionPreview?> PreviewAsync(
+        string actionId, RefactoringOptions? options = null, CancellationToken ct = default)
     {
-        var resolution = await ResolveApplyOperationAsync(actionId, ct);
+        var resolution = await ResolveApplyOperationAsync(actionId, options, ct);
         return resolution switch
         {
             null => null,
@@ -368,9 +369,10 @@ public sealed class CodeActionService(
     /// action — text edits plus create/delete/rename resource operations. Returns <c>null</c> when the
     /// action ID is unknown. Parlance never writes the result to disk; the caller applies and persists it.
     /// </summary>
-    public async Task<CodeActionEdit?> ApplyAsync(string actionId, CancellationToken ct = default)
+    public async Task<CodeActionEdit?> ApplyAsync(
+        string actionId, RefactoringOptions? options = null, CancellationToken ct = default)
     {
-        var resolution = await ResolveApplyOperationAsync(actionId, ct);
+        var resolution = await ResolveApplyOperationAsync(actionId, options, ct);
         return resolution switch
         {
             null => null,
@@ -419,7 +421,8 @@ public sealed class CodeActionService(
 
     // Shared lookup → operation resolution behind both preview and apply: cache hit, snapshot match,
     // GetOperationsAsync, and extraction of the ApplyChangesOperation. Returns null when the ID is unknown.
-    private async Task<ActionResolution?> ResolveApplyOperationAsync(string actionId, CancellationToken ct)
+    private async Task<ActionResolution?> ResolveApplyOperationAsync(
+        string actionId, RefactoringOptions? options, CancellationToken ct)
     {
         if (!_actionCache.TryGetValue(actionId, out var cached))
             return null;
@@ -436,26 +439,35 @@ public sealed class CodeActionService(
             return new ActionResolution.Expired(cached.Action);
 
         ImmutableArray<CodeActionOperation> operations;
-        try
+        string? optionFailure;
+        using (CodeActionOptionsScope.Enter(options))
         {
-            operations = await cached.Action.GetOperationsAsync(ct);
+            try
+            {
+                operations = await cached.Action.GetOperationsAsync(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (ReflectionTypeLoadException ex)
+            {
+                logger.LogError(ex, "Code action '{ActionId}' failed due to missing assembly dependencies", actionId);
+                return new ActionResolution.Failed(cached.Action,
+                    "Code action failed: missing runtime dependency. " +
+                    string.Join("; ", ex.LoaderExceptions?.Select(e => e?.Message).Where(m => m is not null).Distinct() ?? []));
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Code action '{ActionId}' failed during resolution", actionId);
+                return new ActionResolution.Failed(cached.Action, "Code action failed: " + ex.Message);
+            }
+
+            optionFailure = CodeActionOptionsScope.CapturedFailure;
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            logger.LogError(ex, "Code action '{ActionId}' failed due to missing assembly dependencies", actionId);
-            return new ActionResolution.Failed(cached.Action,
-                "Code action failed: missing runtime dependency. " +
-                string.Join("; ", ex.LoaderExceptions?.Select(e => e?.Message).Where(m => m is not null).Distinct() ?? []));
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Code action '{ActionId}' failed during resolution", actionId);
-            return new ActionResolution.Failed(cached.Action, "Code action failed: " + ex.Message);
-        }
+
+        if (optionFailure is not null)
+            return new ActionResolution.Failed(cached.Action, optionFailure);
 
         var applyOp = operations.OfType<ApplyChangesOperation>().FirstOrDefault();
         if (applyOp is null)

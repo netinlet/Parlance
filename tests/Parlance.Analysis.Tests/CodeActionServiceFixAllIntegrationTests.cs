@@ -41,7 +41,7 @@ public sealed class CodeActionServiceFixAllIntegrationTests(WorkspaceFixture fix
         var (_, fixes) = await FindFixesAtFirstVarLineAsync();
         var fixAll = fixes.Single(f => f.IsFixAll);
 
-        var edit = await _codeActions.ApplyAsync(fixAll.Id, CancellationToken.None);
+        var edit = await _codeActions.ApplyAsync(fixAll.Id, ct: CancellationToken.None);
 
         Assert.NotNull(edit);
         Assert.Null(edit!.ErrorMessage);
