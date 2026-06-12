@@ -6,33 +6,18 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-// Proves the MCP apply-code-action `options` param reaches the domain: an extract-interface action
-// applied with InterfaceName/NewFile overrides emits a create op for the renamed file. Loads the
-// scratch/LiveRefactor solution (which holds LineItem.cs); ApplyCodeAction only computes the edit, so
-// nothing is written to disk.
+// Proves the MCP apply-code-action `options` param reaches the domain: an extract-interface action applied
+// with InterfaceName/NewFile overrides emits a create op for the renamed file. Targets the committed
+// LiveRefactor fixture (LineItem.cs), which is part of the loaded solution; ApplyCodeAction only computes
+// the edit, so nothing is written to disk.
 [Trait("Category", "Integration")]
-public sealed class ApplyCodeActionToolOptionsTests : IAsyncLifetime
+public sealed class ApplyCodeActionToolOptionsTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private CSharpWorkspaceSession _session = null!;
-    private WorkspaceSessionHolder _holder = null!;
-    private CodeActionService _codeActions = null!;
-
-    private static string LiveRefactorSolution => Path.Combine(
-        TestPaths.RepoRoot, "scratch", "LiveRefactor", "LiveRefactor.slnx");
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
 
     private static string LineItemFile => Path.Combine(
-        TestPaths.RepoRoot, "scratch", "LiveRefactor", "LineItem.cs");
-
-    public async Task InitializeAsync()
-    {
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(
-            await CSharpWorkspaceSession.TryOpenSolutionAsync(LiveRefactorSolution)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _codeActions = new CodeActionService(_holder, NullLogger<CodeActionService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+        TestPaths.RepoRoot, "tests", "Parlance.Analysis.Tests", "Fixtures", "LiveRefactor", "LineItem.cs");
 
     [Fact]
     public async Task ApplyCodeAction_WithInterfaceNameOption_RenamesExtractedInterface()

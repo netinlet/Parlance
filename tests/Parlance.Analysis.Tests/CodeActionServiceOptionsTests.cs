@@ -5,32 +5,17 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.Analysis.Tests;
 
-// Drives the option-gated refactorings end-to-end over the scratch/LiveRefactor solution: Extract
-// interface previously threw (no IExtractInterfaceOptionsService in the headless host); these prove it
-// now resolves with defaults and honours agent overrides. ApplyAsync only computes the WorkspaceEdit —
-// nothing is written to disk, so the scratch .orig files are undisturbed.
+// Drives the option-gated refactorings end-to-end over the committed LiveRefactor fixture: extract interface
+// previously threw (no IExtractInterfaceOptionsService in the headless host); these prove it now resolves with
+// defaults and honours agent overrides. ApplyAsync only computes the WorkspaceEdit — nothing is written to
+// disk, so the shared read-only session is undisturbed.
 [Trait("Category", "Integration")]
-public sealed class CodeActionServiceOptionsTests : IAsyncLifetime
+public sealed class CodeActionServiceOptionsTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private CSharpWorkspaceSession _session = null!;
-    private CodeActionService _service = null!;
-
-    private static string LiveRefactorSolution => Path.Combine(
-        TestPaths.RepoRoot, "scratch", "LiveRefactor", "LiveRefactor.slnx");
+    private readonly CodeActionService _service = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
 
     private static string LineItemFile => Path.Combine(
-        TestPaths.RepoRoot, "scratch", "LiveRefactor", "LineItem.cs");
-
-    public async Task InitializeAsync()
-    {
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(
-            await CSharpWorkspaceSession.TryOpenSolutionAsync(LiveRefactorSolution)).Session;
-        var holder = new WorkspaceSessionHolder();
-        holder.SetSession(_session);
-        _service = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+        TestPaths.RepoRoot, "tests", "Parlance.Analysis.Tests", "Fixtures", "LiveRefactor", "LineItem.cs");
 
     private async Task<RefactoringEntry> ExtractInterfaceRefactoring()
     {
