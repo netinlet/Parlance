@@ -58,7 +58,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
             ["GetTypeDependenciesTool"] = async () => Stamp(await GetTypeDependenciesTool.GetTypeDependencies(h, q, NoSuchName, ct)),
             ["GotoDefinitionTool"] = async () => Stamp(await GotoDefinitionTool.GotoDefinition(h, q, NoSuchName, null, null, null, ct)),
             ["OutlineFileTool"] = async () => Stamp(await OutlineFileTool.OutlineFile(h, q, "src/Zzz_NoSuchFile.cs", ct)),
-            ["PreviewCodeActionTool"] = async () => Stamp(await PreviewCodeActionTool.PreviewCodeAction(h, _codeActions, "zzz-no-such-action", ct)),
+            ["PreviewCodeActionTool"] = async () => Stamp(await PreviewCodeActionTool.PreviewCodeAction(h, _codeActions, "zzz-no-such-action", ct: ct)),
             ["SafeToDeleteTool"] = async () => Stamp(await SafeToDeleteTool.CheckSafeToDelete(h, q, NoSuchName, ct)),
             ["SearchSymbolsTool"] = async () => Stamp(await SearchSymbolsTool.SearchSymbols(h, q, NoSuchName, ct: ct)),
             ["TypeHierarchyTool"] = async () => Stamp(await TypeHierarchyTool.TypeHierarchy(h, q, NoSuchName, ct: ct)),

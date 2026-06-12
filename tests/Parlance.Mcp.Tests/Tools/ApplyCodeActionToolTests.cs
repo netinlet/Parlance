@@ -16,7 +16,7 @@ public sealed class ApplyCodeActionToolTests(WorkspaceFixture fixture) : IClassF
     public async Task Apply_InvalidActionId_ReturnsNotFound()
     {
         var result = await ApplyCodeActionTool.ApplyCodeAction(
-            _holder, _codeActions, actionId: "fix-99999", expectedSnapshotVersion: null, CancellationToken.None);
+            _holder, _codeActions, actionId: "fix-99999", expectedSnapshotVersion: null, ct: CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
         Assert.Equal("fix-99999", result.ActionId);
@@ -27,7 +27,7 @@ public sealed class ApplyCodeActionToolTests(WorkspaceFixture fixture) : IClassF
     {
         // The fixture loads at snapshot 1; an expectation it has moved past yields a best-effort stale signal.
         var result = await ApplyCodeActionTool.ApplyCodeAction(
-            _holder, _codeActions, actionId: "fix-1", expectedSnapshotVersion: 999_999, CancellationToken.None);
+            _holder, _codeActions, actionId: "fix-1", expectedSnapshotVersion: 999_999, ct: CancellationToken.None);
 
         Assert.Equal("stale", result.Status);
         Assert.Equal(_holder.CurrentSnapshotVersion(), result.SnapshotVersion);
@@ -40,7 +40,7 @@ public sealed class ApplyCodeActionToolTests(WorkspaceFixture fixture) : IClassF
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = ApplyCodeActionTool.ApplyCodeAction(
-            holder, codeActions, actionId: "fix-1", expectedSnapshotVersion: null, CancellationToken.None).Result;
+            holder, codeActions, actionId: "fix-1", expectedSnapshotVersion: null, ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
     }
@@ -53,7 +53,7 @@ public sealed class ApplyCodeActionToolTests(WorkspaceFixture fixture) : IClassF
         var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
 
         var result = ApplyCodeActionTool.ApplyCodeAction(
-            holder, codeActions, actionId: "fix-1", expectedSnapshotVersion: null, CancellationToken.None).Result;
+            holder, codeActions, actionId: "fix-1", expectedSnapshotVersion: null, ct: CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
         Assert.Equal("boom", result.Message);
@@ -83,7 +83,7 @@ public sealed class ApplyCodeActionToolTests(WorkspaceFixture fixture) : IClassF
 
         var actionId = fixResult.Fixes[0].Id;
         var applied = await ApplyCodeActionTool.ApplyCodeAction(
-            _holder, _codeActions, actionId: actionId, expectedSnapshotVersion: null, CancellationToken.None);
+            _holder, _codeActions, actionId: actionId, expectedSnapshotVersion: null, ct: CancellationToken.None);
 
         Assert.Equal("success", applied.Status);
         Assert.Equal(actionId, applied.ActionId);

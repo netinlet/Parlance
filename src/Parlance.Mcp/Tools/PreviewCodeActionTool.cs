@@ -20,20 +20,23 @@ public sealed class PreviewCodeActionTool
         CodeActionService codeActions,
         [Description("Action ID from get-code-fixes or get-refactorings (e.g., 'fix-1', 'refactor-3')")]
         string actionId,
+        [Description("Optional choices for option-gated refactorings (see apply-code-action). Omit for defaults.")]
+        RefactoringOptionsInput? options = null,
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()),
-            loaded: session => RunAsync(codeActions, session, actionId, ct),
+            loaded: session => RunAsync(codeActions, session, actionId, options?.ToDomain(), ct),
             loadFailed: failure => Task.FromResult(PreviewCodeActionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()));
 
     private static async Task<PreviewCodeActionResult> RunAsync(
-        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
+        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId,
+        RefactoringOptions? options, CancellationToken ct)
     {
         // Capture the version the operation begins against (see FindReferencesTool for the rationale).
         var snapshotVersion = session.SnapshotVersion;
 
-        var preview = await codeActions.PreviewAsync(actionId, ct);
+        var preview = await codeActions.PreviewAsync(actionId, options, ct);
         if (preview is null)
             return PreviewCodeActionResult.NotFound(actionId, snapshotVersion);
 

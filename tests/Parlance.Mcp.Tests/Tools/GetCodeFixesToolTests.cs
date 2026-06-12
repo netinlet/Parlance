@@ -158,7 +158,7 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
         var previewResult = await PreviewCodeActionTool.PreviewCodeAction(
             _holder, _codeActions,
             actionId: actionId,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.Equal("found", previewResult.Status);
         Assert.Equal(actionId, previewResult.ActionId);

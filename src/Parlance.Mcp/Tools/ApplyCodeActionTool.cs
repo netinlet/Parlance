@@ -24,6 +24,8 @@ public sealed class ApplyCodeActionTool
         string actionId,
         [Description("If set, returns status 'stale' when the workspace has moved past this snapshot. 0 or omitted = no check.")]
         long? expectedSnapshotVersion = null,
+        [Description("Optional choices for option-gated refactorings: members to include, interface name, new-file toggle, flag values. Omit for defaults.")]
+        RefactoringOptionsInput? options = null,
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(ApplyCodeActionResult.NotLoaded()),
@@ -35,13 +37,14 @@ public sealed class ApplyCodeActionTool
                     return Task.FromResult(ApplyCodeActionResult.Stale(actual,
                         StalenessMessage.ExpectedMismatch(expectedSnapshotVersion!.Value, actual)));
                 }
-                return RunAsync(codeActions, session, actionId, ct);
+                return RunAsync(codeActions, session, actionId, options?.ToDomain(), ct);
             },
             loadFailed: failure => Task.FromResult(ApplyCodeActionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(ApplyCodeActionResult.NotLoaded()));
 
     private static async Task<ApplyCodeActionResult> RunAsync(
-        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
+        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId,
+        RefactoringOptions? options, CancellationToken ct)
     {
         // Capture the version the operation begins against (see FindReferencesTool for the rationale):
         // every loaded outcome below stamps it, so a negative result is distinguishable from the
@@ -49,7 +52,7 @@ public sealed class ApplyCodeActionTool
         // actually computed against) instead.
         var snapshotVersion = session.SnapshotVersion;
 
-        var edit = await codeActions.ApplyAsync(actionId, ct);
+        var edit = await codeActions.ApplyAsync(actionId, options, ct);
         if (edit is null)
             return ApplyCodeActionResult.NotFound(actionId, snapshotVersion);
         if (edit.IsExpired)
@@ -89,6 +92,21 @@ public sealed class ApplyCodeActionTool
         ResourceOperation.RenameFile r => WorkspaceResourceOperation.Rename(r.OldFilePath, r.NewFilePath),
         _ => throw new InvalidOperationException($"Unknown resource operation: {op.GetType().Name}"),
     };
+}
+
+/// <summary>Agent-supplied choices for option-gated refactorings (extract interface, generate overrides, …).
+/// All optional; omit for defaults (all members, Roslyn's default interface name, same file).</summary>
+public sealed record RefactoringOptionsInput(
+    List<string>? Members = null,
+    string? InterfaceName = null,
+    bool? NewFile = null,
+    Dictionary<string, bool>? Flags = null)
+{
+    public RefactoringOptions ToDomain() => new(
+        Members?.ToImmutableList(),
+        InterfaceName,
+        NewFile,
+        Flags?.ToImmutableDictionary());
 }
 
 /// <summary>Ordered text edits against one existing file. <see cref="FilePath"/> is workspace-relative.</summary>

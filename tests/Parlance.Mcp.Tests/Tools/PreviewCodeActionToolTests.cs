@@ -18,7 +18,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
         var result = await PreviewCodeActionTool.PreviewCodeAction(
             _holder, _codeActions,
             actionId: "fix-99999",
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
         Assert.Equal("fix-99999", result.ActionId);
@@ -30,7 +30,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
         var result = await PreviewCodeActionTool.PreviewCodeAction(
             _holder, _codeActions,
             actionId: "garbage",
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
     }
@@ -44,7 +44,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
         var result = PreviewCodeActionTool.PreviewCodeAction(
             holder, codeActions,
             actionId: "fix-1",
-            CancellationToken.None).Result;
+            ct: CancellationToken.None).Result;
 
         Assert.Equal("not_loaded", result.Status);
     }
@@ -59,7 +59,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
         var result = PreviewCodeActionTool.PreviewCodeAction(
             holder, codeActions,
             actionId: "fix-1",
-            CancellationToken.None).Result;
+            ct: CancellationToken.None).Result;
 
         Assert.Equal("load_failed", result.Status);
         Assert.Equal("boom", result.Message);
