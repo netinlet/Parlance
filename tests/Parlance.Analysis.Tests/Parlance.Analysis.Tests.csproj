@@ -35,4 +35,10 @@
     <ProjectReference Include="..\..\src\Parlance.Analysis\Parlance.Analysis.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)..\Parlance.TestAnalyzer\bin\Debug\netstandard2.0\Parlance.TestAnalyzer.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          Link="test-analyzer-dlls/Parlance.TestAnalyzer.dll" />
+  </ItemGroup>
+
 </Project>
