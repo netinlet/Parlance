@@ -1,0 +1,9 @@
+# This test project defines throwaway DiagnosticAnalyzer test-doubles (see AnalyzerProviderTests)
+# purely to exercise AnalyzerProvider's merge/dedup/priority logic. They are not a shipping compiler
+# extension, so the Roslyn analyzer-author rules (RS1025/1026/1036/1038/1041 — "enable concurrent
+# execution", "don't reference Workspaces", "don't target net10.0", etc.) are noise here. Worse,
+# `dotnet format` tries to auto-apply their fixes, which churns the doubles and breaks the format gate.
+# Disable the two analyzer-author categories for this project only; everything else inherits the repo root.
+[*.cs]
+dotnet_analyzer_diagnostic.category-MicrosoftCodeAnalysisDesign.severity = none
+dotnet_analyzer_diagnostic.category-MicrosoftCodeAnalysisCorrectness.severity = none

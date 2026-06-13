@@ -58,22 +58,14 @@ public sealed class AnalyzerProviderTests
     private sealed class AnalyzerAlpha : DiagnosticAnalyzer
     {
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [];
-        public override void Initialize(AnalysisContext context)
-        {
-            context.EnableConcurrentExecution();
-            context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
-        }
+        public override void Initialize(AnalysisContext context) { }
     }
 
     [DiagnosticAnalyzer(LanguageNames.CSharp)]
     private sealed class AnalyzerBeta : DiagnosticAnalyzer
     {
         public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics => [];
-        public override void Initialize(AnalysisContext context)
-        {
-            context.EnableConcurrentExecution();
-            context.ConfigureGeneratedCodeAnalysis(GeneratedCodeAnalysisFlags.Analyze | GeneratedCodeAnalysisFlags.ReportDiagnostics);
-        }
+        public override void Initialize(AnalysisContext context) { }
     }
 
     // ---------------------------------------------------------------------------
