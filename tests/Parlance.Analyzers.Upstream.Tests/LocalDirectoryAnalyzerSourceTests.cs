@@ -135,7 +135,7 @@ public sealed class LocalDirectoryAnalyzerSourceTests
         try
         {
             var notices = new LocalDirectoryAnalyzerSource().GetTrustNotices(repo);
-            Assert.Contains(notices, n => n.Contains("Not trusted") || n.Contains("untrusted"));
+            Assert.Contains(notices, n => n.StartsWith("Not trusted"));
         }
         finally { Directory.Delete(repo, recursive: true); }
     }

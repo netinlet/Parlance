@@ -23,6 +23,7 @@ public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource
 
     public SourceLoadResult Load(string targetFramework, string repoPath)
     {
+        _ = targetFramework; // local DLLs are not TFM-sliced; repoPath determines the directory
         var trust = new AnalyzerTrustFile(AnalyzerTrustFile.ProjectPath(repoPath));
         var key = $"{Canonical(repoPath)}|{trust.Fingerprint()}";
         return _cache.GetOrAdd(key, _ => LoadCore(repoPath, trust));
@@ -51,14 +52,7 @@ public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource
         var notices = ImmutableList.CreateBuilder<string>();
         foreach (var dll in dlls)
         {
-            var notice = trust.Check(dll) switch
-            {
-                TrustCheckResult.NotFound =>
-                    $"Not trusted: '{dll}' — run 'parlance trust \"{dll}\"' to approve",
-                TrustCheckResult.HashMismatch =>
-                    $"Checksum mismatch: '{dll}' has changed since trusted — re-run 'parlance trust \"{dll}\"'",
-                _ => null
-            };
+            var notice = TrustFailureMessage(trust.Check(dll), dll);
             if (notice is not null)
                 notices.Add(notice);
         }
@@ -77,20 +71,12 @@ public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource
             .Where(f => !f.EndsWith(".resources.dll", StringComparison.OrdinalIgnoreCase)))
         {
             var fullPath = Path.GetFullPath(dll);
-            switch (trust.Check(fullPath))
-            {
-                case TrustCheckResult.NotFound:
-                    failures.Add(new DllLoadFailure(fullPath,
-                        $"Not trusted — run 'parlance trust \"{fullPath}\"' to approve"));
-                    break;
-                case TrustCheckResult.HashMismatch:
-                    failures.Add(new DllLoadFailure(fullPath,
-                        $"Checksum mismatch — DLL changed since trusted, re-run 'parlance trust \"{fullPath}\"'"));
-                    break;
-                case TrustCheckResult.Trusted:
-                    trustedPaths.Add(fullPath);
-                    break;
-            }
+            var checkResult = trust.Check(fullPath);
+            var msg = TrustFailureMessage(checkResult, fullPath);
+            if (msg is not null)
+                failures.Add(new DllLoadFailure(fullPath, msg));
+            else
+                trustedPaths.Add(fullPath);
         }
 
         if (trustedPaths.Count == 0)
@@ -113,6 +99,15 @@ public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource
             new AnalyzerComponents(analyzers, fixes, refactorings),
             failures.ToImmutable());
     }
+
+    private static string? TrustFailureMessage(TrustCheckResult result, string dll) => result switch
+    {
+        TrustCheckResult.NotFound =>
+            $"Not trusted — run 'parlance trust \"{dll}\"' to approve",
+        TrustCheckResult.HashMismatch =>
+            $"Checksum mismatch — DLL changed since trusted, re-run 'parlance trust \"{dll}\"'",
+        _ => null
+    };
 
     private static string LocalDirectory(string repoPath) =>
         Path.Combine(repoPath, ".parlance", "analyzers", "local");
