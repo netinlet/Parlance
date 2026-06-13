@@ -12,6 +12,7 @@ public sealed class AnalysisServiceTests(WorkspaceFixture fixture) : IClassFixtu
     private readonly AnalysisService _service = new(
         fixture.Holder, fixture.Query,
         new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        AnalyzerProviderTestFactory.CreateWithBundled(),
         NullLogger<AnalysisService>.Instance);
 
     [Fact]

@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
+using Parlance.Analyzers.Upstream;
 using Parlance.Cli.Commands;
 using Parlance.CSharp.Workspace;
 
@@ -11,6 +12,11 @@ var services = new ServiceCollection()
     .AddSingleton<CurationSetProvider>()
     .AddSingleton<WorkspaceSessionHolder>()
     .AddSingleton<WorkspaceQueryService>()
+    .AddSingleton(_ => new AnalyzerProvider([
+        new BundledAnalyzerSource(),
+        new RoslynFeaturesAnalyzerSource(),
+        new LocalDirectoryAnalyzerSource(),
+        new GlobalDirectoryAnalyzerSource()]))
     .AddSingleton<AnalysisService>();
 
 await using var provider = services.BuildServiceProvider();

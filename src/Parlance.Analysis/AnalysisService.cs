@@ -14,8 +14,11 @@ public sealed class AnalysisService(
     WorkspaceSessionHolder holder,
     WorkspaceQueryService query,
     CurationSetProvider curationProvider,
+    AnalyzerProvider analyzerProvider,
     ILogger<AnalysisService> logger)
 {
+    private readonly HashSet<string> _loggedFailurePaths = new(StringComparer.OrdinalIgnoreCase);
+
     public async Task<FileAnalysisResult> AnalyzeFilesAsync(
         ImmutableList<string> filePaths,
         AnalyzeOptions? options = null,
@@ -76,18 +79,11 @@ public sealed class AnalysisService(
             var projectInfo = session.Projects.FirstOrDefault(p => p.Name == project.Name);
             var targetFramework = projectInfo?.ActiveTargetFramework ?? "net10.0";
 
-            ImmutableArray<DiagnosticAnalyzer> analyzers;
-            try
-            {
-                analyzers = AnalyzerLoader.LoadAll(targetFramework);
-            }
-            catch (ArgumentException)
-            {
-                // Unsupported framework, fall back to net10.0
-                logger.LogWarning("Unsupported framework {Tfm} for project {Name}, falling back to net10.0",
-                    targetFramework, project.Name);
-                analyzers = AnalyzerLoader.LoadAll("net10.0");
-            }
+            var repoPath = session.Root.Absolute;
+            var providerResult = analyzerProvider.GetComponents(targetFramework, repoPath);
+            LogLoadReportOnce(providerResult.Failures, project.Name);
+
+            var analyzers = providerResult.Components.Analyzers;
 
             if (analyzers.IsEmpty)
             {
@@ -127,7 +123,7 @@ public sealed class AnalysisService(
             }
         }
 
-        var collected = allCurated.ToImmutable();
+        var collected = CollapseIdenticalDiagnostics(allCurated.ToImmutable());
 
         // Apply --suppress filter before scoring so totals/score are consistent
         if (options.Suppress is { IsEmpty: false } suppress)
@@ -166,4 +162,30 @@ public sealed class AnalysisService(
         DiagnosticSeverity.Info => Abstractions.DiagnosticSeverity.Suggestion,
         _ => Abstractions.DiagnosticSeverity.Silent
     };
+
+    /// <summary>
+    /// Collapses exact duplicate diagnostics that can arise when multiple analyzer sources
+    /// load the same analyzer DLL. Two diagnostics are considered identical when they share
+    /// the same rule id, severity, message, file path, and source span.
+    /// </summary>
+    private static ImmutableList<CuratedDiagnostic> CollapseIdenticalDiagnostics(
+        ImmutableList<CuratedDiagnostic> diagnostics) =>
+        diagnostics
+            .GroupBy(d => (d.RuleId, d.Severity, d.Message, d.FilePath, d.Line, d.Column, d.EndLine, d.EndColumn))
+            .Select(g => g.First())
+            .ToImmutableList();
+
+    /// <summary>
+    /// Logs each <see cref="DllLoadFailure"/> at Warning level, at most once per DLL path per session.
+    /// </summary>
+    private void LogLoadReportOnce(ImmutableList<DllLoadFailure> failures, string projectName)
+    {
+        foreach (var failure in failures)
+        {
+            if (_loggedFailurePaths.Add(failure.DllPath))
+                logger.LogWarning(
+                    "Analyzer DLL load failure for project {ProjectName}: {DllPath} — {Reason}",
+                    projectName, failure.DllPath, failure.Reason);
+        }
+    }
 }

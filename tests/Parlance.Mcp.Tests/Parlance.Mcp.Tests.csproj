@@ -30,6 +30,9 @@
     <Compile Include="..\Parlance.CSharp.Workspace.Tests\Integration\WorkspaceFixture.cs">
       <Link>WorkspaceFixture.cs</Link>
     </Compile>
+    <Compile Include="..\Parlance.Analysis.Tests\AnalyzerProviderTestFactory.cs">
+      <Link>AnalyzerProviderTestFactory.cs</Link>
+    </Compile>
   </ItemGroup>
 
 </Project>

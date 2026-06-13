@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
+using Parlance.Analysis.Tests;
 using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 using Parlance.Mcp.Tools;
@@ -24,6 +25,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
     private readonly AnalysisService _analysis = new(
         fixture.Holder, fixture.Query,
         new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        AnalyzerProviderTestFactory.CreateWithBundled(),
         NullLogger<AnalysisService>.Instance);
     private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
     private readonly ParlanceMcpConfiguration _config = new("/fake/path.sln", "/tmp");

@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
+using Parlance.Analysis.Tests;
 using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 using Parlance.Mcp.Tools;
@@ -15,6 +16,7 @@ public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<W
     private readonly AnalysisService _service = new(
         fixture.Holder, fixture.Query,
         new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        AnalyzerProviderTestFactory.CreateWithBundled(),
         NullLogger<AnalysisService>.Instance);
 
     [Fact]
@@ -25,6 +27,7 @@ public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<W
         var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
         var service = new AnalysisService(
             holder, query, curationProvider,
+            AnalyzerProviderTestFactory.CreateEmpty(),
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
@@ -42,6 +45,7 @@ public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<W
         var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
         var service = new AnalysisService(
             holder, query, curationProvider,
+            AnalyzerProviderTestFactory.CreateEmpty(),
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
@@ -60,6 +64,7 @@ public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<W
         var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
         var service = new AnalysisService(
             holder, query, curationProvider,
+            AnalyzerProviderTestFactory.CreateEmpty(),
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
@@ -78,6 +83,7 @@ public sealed class AnalyzeToolTests(WorkspaceFixture fixture) : IClassFixture<W
         var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
         var service = new AnalysisService(
             holder, query, curationProvider,
+            AnalyzerProviderTestFactory.CreateEmpty(),
             NullLogger<AnalysisService>.Instance);
 
         var result = AnalyzeTool.Analyze(
