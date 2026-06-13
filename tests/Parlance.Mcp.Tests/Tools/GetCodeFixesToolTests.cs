@@ -45,7 +45,10 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
                 Assert.NotEmpty(fix.Id);
                 Assert.NotEmpty(fix.Title);
                 Assert.NotEmpty(fix.DiagnosticId);
-                Assert.NotEmpty(fix.DiagnosticMessage);
+                // A fix-all entry collapses many occurrences, so it carries no single diagnostic message;
+                // only per-occurrence fixes have one.
+                if (!fix.IsFixAll)
+                    Assert.NotEmpty(fix.DiagnosticMessage);
                 Assert.True(fix.Scope is "document" or "project" or "solution",
                     $"Unexpected scope '{fix.Scope}'");
             });
@@ -155,7 +158,7 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
         var previewResult = await PreviewCodeActionTool.PreviewCodeAction(
             _holder, _codeActions,
             actionId: actionId,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.Equal("found", previewResult.Status);
         Assert.Equal(actionId, previewResult.ActionId);
@@ -165,7 +168,9 @@ public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixt
         {
             Assert.NotNull(change.FilePath);
             Assert.NotEmpty(change.FilePath.Value.Absolute);
-            Assert.NotEmpty(change.Edits);
+            // Preview now returns a unified diff (hunks with context) per file, for judging the change.
+            Assert.NotEmpty(change.Diff);
+            Assert.Contains("@@", change.Diff);
         });
     }
 }

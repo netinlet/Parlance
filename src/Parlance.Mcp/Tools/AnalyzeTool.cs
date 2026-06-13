@@ -63,7 +63,16 @@ public sealed class AnalyzeTool
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)
         {
-            var resolved = session.NormalizeInputPath(f);
+            string resolved;
+            try
+            {
+                resolved = session.NormalizeInputPath(f);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return AnalyzeToolResult.Failed($"Path '{f}' is not a valid file path: {ex.Message}", snapshotVersion);
+            }
+
             if (!resolved.StartsWith(workspacePrefix, pathComparison))
                 return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.", snapshotVersion);
             resolvedFiles.Add(resolved);
@@ -142,7 +151,7 @@ public sealed record AnalyzeToolResult
     public static AnalyzeToolResult Stale(long actual, long expected) => new()
     {
         Status = "stale",
-        Error = $"Workspace moved past the expected snapshot (expected {expected}, now {actual}). Re-query.",
+        Error = StalenessMessage.ExpectedMismatch(expected, actual),
         SnapshotVersion = actual,
     };
 }

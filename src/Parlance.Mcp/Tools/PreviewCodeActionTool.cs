@@ -13,26 +13,30 @@ public sealed class PreviewCodeActionTool
     [McpServerTool(Name = "preview-code-action", ReadOnly = true)]
     [Description("Preview the changes a code fix or refactoring would make before applying. " +
                  "Pass an action ID from get-code-fixes or get-refactorings. " +
-                 "Returns the exact text edits per file.")]
+                 "Returns a unified diff (hunks with surrounding context) per file — read it to judge whether " +
+                 "the result is good before applying. Use apply-code-action to get the applyable edits.")]
     public static Task<PreviewCodeActionResult> PreviewCodeAction(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
         [Description("Action ID from get-code-fixes or get-refactorings (e.g., 'fix-1', 'refactor-3')")]
         string actionId,
+        [Description("Optional choices for option-gated refactorings (see apply-code-action). Omit for defaults.")]
+        RefactoringOptionsInput? options = null,
         CancellationToken ct = default) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()),
-            loaded: session => RunAsync(codeActions, session, actionId, ct),
+            loaded: session => RunAsync(codeActions, session, actionId, options?.ToDomain(), ct),
             loadFailed: failure => Task.FromResult(PreviewCodeActionResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(PreviewCodeActionResult.NotLoaded()));
 
     private static async Task<PreviewCodeActionResult> RunAsync(
-        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId, CancellationToken ct)
+        CodeActionService codeActions, CSharpWorkspaceSession session, string actionId,
+        RefactoringOptions? options, CancellationToken ct)
     {
         // Capture the version the operation begins against (see FindReferencesTool for the rationale).
         var snapshotVersion = session.SnapshotVersion;
 
-        var preview = await codeActions.PreviewAsync(actionId, ct);
+        var preview = await codeActions.PreviewAsync(actionId, options, ct);
         if (preview is null)
             return PreviewCodeActionResult.NotFound(actionId, snapshotVersion);
 
@@ -46,7 +50,7 @@ public sealed class PreviewCodeActionTool
         // outside the RepoPath path-field guard) onto an MCP DTO whose FilePath is a workspace-relative
         // RepoPath, so code-action previews follow the same path contract as every other tool result.
         var changes = preview.Changes
-            .Select(c => new PreviewFileChange(c.FilePath.ToRepoPath(), c.Edits))
+            .Select(c => new PreviewFileChange(c.FilePath.ToRepoPath(), c.Diff))
             .ToImmutableList();
 
         return new PreviewCodeActionResult(
@@ -59,7 +63,8 @@ public sealed class PreviewCodeActionTool
     }
 }
 
-public sealed record PreviewFileChange(RepoPath? FilePath, ImmutableList<TextEdit> Edits);
+/// <summary>One changed file in a preview: its workspace-relative path and a unified diff of the change.</summary>
+public sealed record PreviewFileChange(RepoPath? FilePath, string Diff);
 
 public sealed record PreviewCodeActionResult(
     string Status, string? ActionId, string? Title,

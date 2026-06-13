@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
 using Parlance.CSharp.Workspace;
@@ -67,7 +68,9 @@ public static class ParlanceMcpHost
             .WithTools<SearchSymbolsTool>(toolJson)
             .WithTools<TypeHierarchyTool>(toolJson)
             .WithTools<DecompileTypeTool>(toolJson)
-            .WithTools<AnalyzeTool>(toolJson);
+            .WithTools<AnalyzeTool>(toolJson)
+            .WithTools<SyncBufferTool>(toolJson)
+            .WithTools<ApplyCodeActionTool>(toolJson);
 
         await builder.Build().RunAsync(cancellationToken);
     }

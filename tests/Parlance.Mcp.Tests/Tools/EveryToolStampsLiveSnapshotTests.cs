@@ -45,6 +45,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
         var invocations = new Dictionary<string, Func<Task<long>>>
         {
             ["AnalyzeTool"] = async () => Stamp(await AnalyzeTool.Analyze(h, _analysis, [realFile], ct: ct)),
+            ["ApplyCodeActionTool"] = async () => Stamp(await ApplyCodeActionTool.ApplyCodeAction(h, _codeActions, "zzz-no-such-action", ct: ct)),
             ["CallHierarchyTool"] = async () => Stamp(await CallHierarchyTool.GetCallHierarchy(h, q, NoSuchName, ct)),
             ["DecompileTypeTool"] = async () => Stamp(await DecompileTypeTool.DecompileType(h, q, NullLogger<DecompileTypeTool>.Instance, NoSuchName, ct)),
             ["DescribeTypeTool"] = async () => Stamp(await DescribeTypeTool.DescribeType(h, q, NoSuchName, ct)),
@@ -57,7 +58,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
             ["GetTypeDependenciesTool"] = async () => Stamp(await GetTypeDependenciesTool.GetTypeDependencies(h, q, NoSuchName, ct)),
             ["GotoDefinitionTool"] = async () => Stamp(await GotoDefinitionTool.GotoDefinition(h, q, NoSuchName, null, null, null, ct)),
             ["OutlineFileTool"] = async () => Stamp(await OutlineFileTool.OutlineFile(h, q, "src/Zzz_NoSuchFile.cs", ct)),
-            ["PreviewCodeActionTool"] = async () => Stamp(await PreviewCodeActionTool.PreviewCodeAction(h, _codeActions, "zzz-no-such-action", ct)),
+            ["PreviewCodeActionTool"] = async () => Stamp(await PreviewCodeActionTool.PreviewCodeAction(h, _codeActions, "zzz-no-such-action", ct: ct)),
             ["SafeToDeleteTool"] = async () => Stamp(await SafeToDeleteTool.CheckSafeToDelete(h, q, NoSuchName, ct)),
             ["SearchSymbolsTool"] = async () => Stamp(await SearchSymbolsTool.SearchSymbols(h, q, NoSuchName, ct: ct)),
             ["TypeHierarchyTool"] = async () => Stamp(await TypeHierarchyTool.TypeHierarchy(h, q, NoSuchName, ct: ct)),
@@ -65,13 +66,20 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
                 WorkspaceStatusTool.GetStatus(h, _config, NullLogger<WorkspaceStatusTool>.Instance).SnapshotVersion),
         };
 
+        // The buffer-overlay tool is the one [McpServerToolType] that cannot be exercised here: its
+        // loaded path mutates a Server-mode session and throws in the Report-mode shared fixture (whose
+        // contract is read-only-tests-only). Its live-snapshot stamping is covered against an isolated
+        // Server session in SyncBufferToolTests instead. Exempt by name so the completeness check below
+        // still fails for any *other* newly-added tool that forgets to stamp.
+        var serverOnlyCoveredElsewhere = new HashSet<string> { nameof(SyncBufferTool) };
+
         // Completeness: every [McpServerToolType] must be exercised above, so a newly-added tool that
         // forgets to stamp can't slip through by simply not being covered.
         var declared = typeof(AnalyzeTool).Assembly.GetTypes()
             .Where(t => t.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
             .Select(t => t.Name)
             .ToHashSet();
-        var uncovered = declared.Except(invocations.Keys).ToList();
+        var uncovered = declared.Except(invocations.Keys).Except(serverOnlyCoveredElsewhere).ToList();
         Assert.True(uncovered.Count == 0, "Tool(s) with no stamp coverage here: " + string.Join(", ", uncovered));
 
         var failures = new List<string>();

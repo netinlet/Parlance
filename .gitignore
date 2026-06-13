@@ -516,3 +516,6 @@ src/Parlance.Analyzers.Upstream/analyzer-dlls/
 
 # Local MCP server config (contains machine-specific paths)
 .mcp.json
+
+# Live refactoring test project (throwaway, for dogfooding parlance MCP tools)
+scratch/

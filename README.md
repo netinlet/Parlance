@@ -8,7 +8,7 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 
 ## Features
 
-18 MCP tools across 6 categories:
+21 MCP tools across 7 categories:
 
 **Navigation (7)**
 - `describe-type` — members, signatures, base types, interfaces
@@ -26,13 +26,18 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 - `get-type-at` — resolve what type a `var` actually is
 - `safe-to-delete` — verify a symbol has zero references before removing it
 
-**Code Actions (3)**
+**Code Actions (4)**
 - `get-code-fixes` — available code fixes for a diagnostic
 - `get-refactorings` — available refactorings at a location
 - `preview-code-action` — preview a fix or refactoring before applying
+- `apply-code-action` — return the complete, applyable edit (LSP `WorkspaceEdit`) for a fix or refactoring; the agent persists it (Parlance never writes to disk)
 
 **Analysis (1)**
 - `analyze` — run curated analyzer rules, get enriched diagnostics
+
+**Live Editing (2)**
+- `sync-buffer` — overlay unsaved buffer text so analysis/navigation reflect an edit, without writing to disk
+- `close-buffer` — drop the overlay and revert the file to its on-disk contents
 
 **Workspace (1)**
 - `workspace-status` — health, loaded projects, target frameworks, project graph
@@ -40,13 +45,26 @@ The CLI is a thin client for one-shot analysis and CI reporting.
 **Decompilation (1)**
 - `decompile-type` — inspect types from NuGet packages
 
-### Versioning & payloads
+### Live editing & versioning
 
-Every tool result is version-stamped so an agent can tell when the workspace has
-moved underneath it:
+Parlance steals the *concepts* of a language server without the LSP wire. Agents
+push unsaved buffers and read back version-stamped results, so an edit can be
+analyzed before it ever touches disk:
 
-- **Version stamping.** Every tool result carries a `snapshotVersion`, which the
-  workspace advances as on-disk files change. Pass `expectedSnapshotVersion` to
+- **Buffer overlay.** `sync-buffer` applies full-text buffer replacement in
+  memory; the overlay wins over disk until `close-buffer` reverts it. Disk is
+  never written. `sync-buffer` / `close-buffer` are the only non–read-only tools.
+- **Compute edits, never write them.** `apply-code-action` is the LSP
+  `workspace/applyEdit` half of the preview/apply split: it returns a complete,
+  machine-applyable `WorkspaceEdit` — ordered per-file text edits plus
+  create/delete/rename resource operations — stamped with the snapshot it was
+  computed against (pass `expectedSnapshotVersion` to get `stale` instead of an
+  outdated edit). The loop is `get-code-fixes`/`get-refactorings` →
+  `preview-code-action` (look) → `apply-code-action` (get the edit) → **the agent
+  applies and saves it with its own tools** → the file watcher (or a
+  `sync-buffer`) re-syncs Parlance. Parlance never writes to disk.
+- **Version stamping.** Every tool result carries a `snapshotVersion`; open
+  buffers also get a per-document version. Pass `expectedSnapshotVersion` to
   `analyze` for a best-effort staleness check — a mismatch yields status `stale`
   (never a hard error), with the actual version always stamped.
 - **Pull-based diagnostics.** After an edit, call `analyze`; there are no push

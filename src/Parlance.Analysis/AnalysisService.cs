@@ -95,7 +95,7 @@ public sealed class AnalysisService(
                 continue;
             }
 
-            var compilationWithAnalyzers = compilation.WithAnalyzers(analyzers);
+            var compilationWithAnalyzers = compilation.WithProjectAnalyzers(analyzers, project);
             var roslynDiagnostics = await compilationWithAnalyzers.GetAnalyzerDiagnosticsAsync(ct);
 
             // Filter to requested files and exclude AD0001 (analyzer infrastructure errors)
