@@ -16,13 +16,13 @@ public sealed class RoslynFeaturesAnalyzerSource : IAnalyzerSource
     private static readonly string[] FeatureAssemblies =
         ["Microsoft.CodeAnalysis.CSharp.Features", "Microsoft.CodeAnalysis.Features"];
 
-    private readonly Lazy<SourceLoadResult> _cached = new(LoadFeatures);
+    private static readonly Lazy<SourceLoadResult> Cached = new(LoadFeatures);
 
     public string Name => "roslyn-features";
     public SourceTrust Trust => SourceTrust.FirstParty;
     public int Priority => 10;
 
-    public SourceLoadResult Load(string targetFramework, string repoPath) => _cached.Value;
+    public SourceLoadResult Load(string targetFramework, string repoPath) => Cached.Value;
 
     public ImmutableArray<string> Probe(string repoPath) => [];
 
