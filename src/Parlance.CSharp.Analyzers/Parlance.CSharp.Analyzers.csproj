@@ -21,9 +21,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.8" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="5.3.0" PrivateAssets="all" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="5.3.0" PrivateAssets="all" />
+    <!-- Analyzers must reference a Roslyn version no newer than the host compiler
+         (the .NET SDK's csc), or they are silently disabled with CS9057. The .NET 10
+         SDK ships Roslyn 5.0, so this stays at 4.12.0 for broad host compatibility —
+         do not let dependabot bump it above the lowest supported Roslyn. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
