@@ -2,18 +2,21 @@
 
 // src/hooks/stop.ts
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname as dirname2 } from "node:path";
+import { basename, dirname as dirname2 } from "node:path";
 
 // ../Core/src/storage/session-state.ts
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 // ../Core/src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-var ledgerFile = (root) => join(parlanceDir(root), "ledger.jsonl");
-var sessionLogFile = (root) => join(parlanceDir(root), "session-log.md");
+var ledgerFile = () => join(telemetryDir(), "ledger.jsonl");
+var sessionLogFile = () => join(telemetryDir(), "session-log.md");
 
 // ../Core/src/storage/session-state.ts
 function readSessionState(root) {
@@ -25,11 +28,19 @@ function readSessionState(root) {
     return null;
   }
 }
-function persistSessionSummary(root, summary) {
-  mkdirSync(dirname(ledgerFile(root)), { recursive: true });
-  appendFileSync(ledgerFile(root), `${JSON.stringify(summary)}
+function persistSessionSummary(summary) {
+  const path = ledgerFile();
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `${JSON.stringify(summary)}
 `);
   return summary;
+}
+function toolBreakdown(records) {
+  const breakdown = {};
+  for (const record of records) {
+    breakdown[record.tool_name] = (breakdown[record.tool_name] ?? 0) + 1;
+  }
+  return breakdown;
 }
 
 // src/transcript.ts
@@ -137,7 +148,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 
@@ -242,10 +253,12 @@ async function main() {
     }
     const endedAt = /* @__PURE__ */ new Date();
     const startedAt = new Date(state.started_at);
-    const summary = persistSessionSummary(translated.context.project_root, {
+    const project = translated.context.project_root;
+    const summary = persistSessionSummary({
       session_id: state.session_id,
       date: endedAt.toISOString().slice(0, 10),
       adapter: state.adapter,
+      project,
       started_at: state.started_at,
       ended_at: endedAt.toISOString(),
       duration_s: Math.round((endedAt.getTime() - startedAt.getTime()) / 1e3),
@@ -253,13 +266,14 @@ async function main() {
       parlance_calls: state.parlance_calls,
       native_fallbacks: state.native_fallbacks,
       tool_call_count: state.tool_calls.length,
+      tool_breakdown: toolBreakdown(state.tool_calls),
       read_tokens: state.read_tokens,
       write_tokens: state.write_tokens,
       usage
     });
-    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) \u2014 ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
+    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` [${basename(project)}] (${summary.adapter}) \u2014 ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
 `;
-    const logPath = sessionLogFile(translated.context.project_root);
+    const logPath = sessionLogFile();
     mkdirSync2(dirname2(logPath), { recursive: true });
     appendFileSync2(logPath, line);
   } catch {

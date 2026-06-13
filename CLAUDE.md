@@ -244,6 +244,6 @@ snippets are opt-in via `includeSnippets` (default off — verbose on hot symbol
 
 You **must**:
 1. Note in your response which native tool you used, what you needed, and why Parlance didn't cover it
-2. Dispatch the `dogfooding-feedback` agent in the background to log the gap to `kibble/`
+2. Invoke the `dogfooding-feedback` skill to log the gap as a note in the Obsidian dogfooding vault folder
 
 This applies to all agents — main session and subagents alike.

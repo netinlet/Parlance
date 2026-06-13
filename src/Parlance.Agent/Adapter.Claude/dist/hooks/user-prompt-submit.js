@@ -5,11 +5,14 @@ import { appendFileSync as appendFileSync2, existsSync as existsSync3, mkdirSync
 import { dirname as dirname2 } from "node:path";
 
 // ../Core/src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 var benchStateFile = (root) => join(parlanceDir(root), "bench", "_active.json");
-var benchResultsFile = (root) => join(parlanceDir(root), "bench", "results.jsonl");
+var benchResultsFile = () => join(telemetryDir(), "bench", "results.jsonl");
 
 // ../Core/src/storage/session-state.ts
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -134,7 +137,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 
@@ -276,7 +279,7 @@ function endBench(root, transcriptPath) {
     adapter: state.adapter,
     usage
   };
-  const resultsPath = benchResultsFile(root);
+  const resultsPath = benchResultsFile();
   mkdirSync2(dirname2(resultsPath), { recursive: true });
   appendFileSync2(resultsPath, `${JSON.stringify(record)}
 `);

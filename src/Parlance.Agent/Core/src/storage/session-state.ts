@@ -32,8 +32,18 @@ export function appendToolUsageRecord(root: string, record: ToolUsageRecord): vo
   writeSessionState(root, state);
 }
 
-export function persistSessionSummary(root: string, summary: SessionSummary): SessionSummary {
-  mkdirSync(dirname(ledgerFile(root)), { recursive: true });
-  appendFileSync(ledgerFile(root), `${JSON.stringify(summary)}\n`);
+export function persistSessionSummary(summary: SessionSummary): SessionSummary {
+  const path = ledgerFile();
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `${JSON.stringify(summary)}\n`);
   return summary;
+}
+
+/** Tally calls per tool_name for a session's recorded usage (powers the ledger's per-tool breakdown). */
+export function toolBreakdown(records: ToolUsageRecord[]): Record<string, number> {
+  const breakdown: Record<string, number> = {};
+  for (const record of records) {
+    breakdown[record.tool_name] = (breakdown[record.tool_name] ?? 0) + 1;
+  }
+  return breakdown;
 }

@@ -1,10 +1,16 @@
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateRoutingDoc } from '@parlance/agent-core';
-import { hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
+import { findSolution, generateRoutingDoc } from '@parlance/agent-core';
+import { globalHooksDir, hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
 
 const HOOK_MARKER = '.parlance/hooks/';
+const GLOBAL_NUDGE_MARKER = 'hooks/nudge.js';
+
+function codexConfigDir(): string {
+  return process.env.CODEX_CONFIG_DIR?.trim() || join(homedir(), '.codex');
+}
 
 interface InstallArgs {
   project: string;
@@ -18,6 +24,8 @@ interface HookMatcher {
 }
 
 export async function runInstall(argv: string[]): Promise<number> {
+  if (argv.includes('--global')) return runInstallGlobal();
+
   const args = parseArgs(argv);
   if (!args) return 2;
 
@@ -85,10 +93,77 @@ function findHookBundleDir(): string {
   throw new Error('hook bundle directory not found');
 }
 
+function readJsonOrEmpty<T extends Record<string, unknown>>(path: string): T {
+  if (!existsSync(path)) return {} as T;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as T;
+  } catch (err) {
+    throw new Error(`could not parse ${path}: ${(err as Error).message}`);
+  }
+}
+
+function mergeJsonFile<T extends Record<string, unknown>>(path: string, update: (data: T) => void): void {
+  const data = readJsonOrEmpty<T>(path);
+  update(data);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(data, null, 2));
+}
+
+function runInstallGlobal(): number {
+  const hooksTarget = globalHooksDir();
+  mkdirSync(hooksTarget, { recursive: true });
+
+  const nudgeSource = join(findHookBundleDir(), 'nudge.js');
+  if (!existsSync(nudgeSource)) {
+    process.stderr.write(`nudge bundle missing at ${nudgeSource}\n`);
+    return 1;
+  }
+  const nudgeTarget = join(hooksTarget, 'nudge.js');
+  copyFileSync(nudgeSource, nudgeTarget);
+
+  const hooksPath = join(codexConfigDir(), 'hooks.json');
+  writeGlobalHooksJson(hooksPath, nudgeTarget);
+  writeConfigToml(join(codexConfigDir(), 'config.toml'));
+
+  process.stderr.write(
+    `parlance global nudge installed:\n  bundle: ${nudgeTarget}\n  wired into: ${hooksPath} (SessionStart, nudge-only)\n`,
+  );
+
+  const cwd = process.cwd();
+  const hooksInstalled = existsSync(join(cwd, '.codex', 'hooks.json'));
+  if (!hooksInstalled) {
+    const sln = findSolution(cwd) ?? '<YourSolution.sln>';
+    process.stderr.write(
+      `\nNote: per-project hooks are not installed in the current directory.\n`
+      + `      Run: parlance agent install --for codex --solution ${sln}\n`,
+    );
+  }
+
+  return 0;
+}
+
+function writeGlobalHooksJson(path: string, nudgePath: string): void {
+  mergeJsonFile<{ hooks?: Record<string, HookMatcher[]> }>(path, (existing) => {
+    const hooks = existing.hooks ?? {};
+
+    // Replace any prior global-nudge entry (idempotent); preserve foreign SessionStart hooks.
+    const bucket = hooks.SessionStart ?? [];
+    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
+    hooks.SessionStart = [...preserved, {
+      hooks: [{
+        type: 'command',
+        command: `node "${nudgePath}"`,
+        timeout: 5,
+        statusMessage: 'Checking Parlance setup',
+      }],
+    }];
+
+    existing.hooks = hooks;
+  });
+}
+
 function writeHooksJson(path: string): void {
-  const existing = existsSync(path)
-    ? JSON.parse(readFileSync(path, 'utf8')) as { hooks?: Record<string, HookMatcher[]> }
-    : {};
+  const existing = readJsonOrEmpty<{ hooks?: Record<string, HookMatcher[]> }>(path);
   existing.hooks ??= {};
 
   const ours: Record<string, HookMatcher[]> = {
@@ -123,7 +198,7 @@ function matcher(matcherValue: string | undefined, script: string, timeout: numb
 
 function writeConfigToml(path: string): void {
   const existing = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  const next = withCodexHooksFeature(existing);
+  const next = withHooksFeature(existing);
   writeFileSync(path, next);
 }
 
@@ -151,22 +226,28 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-export function withCodexHooksFeature(existing: string): string {
+export function withHooksFeature(existing: string): string {
   const normalized = existing.replace(/\r\n/g, '\n');
   if (/^\s*\[features]\s*$/m.test(normalized)) {
+    if (/^\s*hooks\s*=/m.test(normalized)) {
+      return ensureTrailingNewline(normalized.replace(/^\s*hooks\s*=.*$/m, 'hooks = true'));
+    }
+
     if (/^\s*codex_hooks\s*=/m.test(normalized)) {
-      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, 'codex_hooks = true'));
+      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, 'hooks = true'));
     }
 
     const lines = normalized.split('\n');
     const index = lines.findIndex((line) => /^\s*\[features]\s*$/.test(line));
-    lines.splice(index + 1, 0, 'codex_hooks = true');
+    lines.splice(index + 1, 0, 'hooks = true');
     return ensureTrailingNewline(lines.join('\n'));
   }
 
   const prefix = normalized.trim().length === 0 ? '' : `${ensureTrailingNewline(normalized)}\n`;
-  return `${prefix}[features]\ncodex_hooks = true\n`;
+  return `${prefix}[features]\nhooks = true\n`;
 }
+
+export const withCodexHooksFeature = withHooksFeature;
 
 function ensureTrailingNewline(value: string): string {
   return value.endsWith('\n') ? value : `${value}\n`;

@@ -21,15 +21,15 @@ describe('render', () => {
     const evaluation: EventEvaluation = {
       guidance: [],
       effects: [{
-        kind: 'persist-feedback',
-        feedback: {
-          date: '2026-04-22',
-          adapter: 'claude-code',
-          native_tool: 'read',
-          intent: 'x',
-          why: 'y',
-          suggested: 'z',
-          session_id: 's',
+        kind: 'persist-tool-usage',
+        record: {
+          at: '2026-04-22T00:00:00.000Z',
+          event_kind: 'post-read',
+          tool_name: 'Read',
+          target: 'Foo.cs',
+          is_mcp_parlance: false,
+          is_native_fallback: true,
+          output_tokens: 100,
         },
       }],
       next_state: null,

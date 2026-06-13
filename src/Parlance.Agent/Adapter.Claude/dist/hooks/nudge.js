@@ -106,28 +106,6 @@ function matchRoutingRule(event) {
   return null;
 }
 
-// ../Core/src/policy/evaluate.ts
-function emptySessionState(ctx, transcript_ref) {
-  return {
-    session_id: ctx.session_id,
-    adapter: ctx.adapter,
-    started_at: (/* @__PURE__ */ new Date()).toISOString(),
-    cwd: ctx.cwd,
-    transcript_ref,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null
-  };
-}
-
-// ../Core/src/storage/paths.ts
-import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
 // ../Core/src/commands/routing-doc.ts
 function generateRoutingDoc() {
   const samples = [
@@ -167,7 +145,7 @@ function describe(event) {
 
 // ../Core/src/discovery.ts
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { join } from "node:path";
 function findSolution(root) {
   let entries;
   try {
@@ -194,7 +172,7 @@ function looksLikeCsharp(root) {
     return true;
   }
   try {
-    const result = readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join(root, "src")).some((e) => /\.csproj$/i.test(e));
     csharpCache.set(root, result);
     return result;
   } catch {
@@ -204,14 +182,14 @@ function looksLikeCsharp(root) {
 }
 function parlanceMcpWired(root) {
   try {
-    const config = JSON.parse(readFileSync(join2(root, ".mcp.json"), "utf8"));
+    const config = JSON.parse(readFileSync(join(root, ".mcp.json"), "utf8"));
     return Boolean(config.mcpServers && "parlance" in config.mcpServers);
   } catch {
     return false;
   }
 }
 function parlanceAgentInstalled(root) {
-  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
+  return parlanceMcpWired(root) || existsSync(join(root, ".parlance", "hooks", "session-start.js"));
 }
 function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
   if (wiredFn(root)) {
@@ -230,14 +208,10 @@ function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
   }
   return { kind: "idle" };
 }
-
-// ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-function writeSessionState(root, state) {
-  const path = sessionFile(root);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(state, null, 2));
+function runNudge(plan, canInjectContext, emit) {
+  if (plan.kind === "suggest-install" && canInjectContext) {
+    emit(plan.context);
+  }
 }
 
 // src/capabilities.ts
@@ -351,7 +325,7 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-// src/hooks/session-start.ts
+// src/hooks/nudge.ts
 async function main() {
   try {
     const raw = await readStdin();
@@ -359,15 +333,7 @@ async function main() {
     const translated = translate(env);
     if (!translated || translated.event.kind !== "session-started") return;
     const plan = planSessionStart(translated.context.project_root);
-    if (plan.kind === "wired") {
-      writeSessionState(
-        translated.context.project_root,
-        emptySessionState(translated.context, translated.transcript_path)
-      );
-    }
-    if (plan.kind !== "idle" && capabilities.outputs.can_inject_context) {
-      writeContextOutput(plan.context);
-    }
+    runNudge(plan, capabilities.outputs.can_inject_context, writeContextOutput);
   } catch {
   }
 }

@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url';
 const hook = fileURLToPath(new URL('../../dist/hooks/user-prompt-submit.js', import.meta.url));
 
 let root: string;
+let central: string;
 let transcript: string;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'ac-ups-'));
+  central = join(root, 'central');
   transcript = join(root, 'transcript.jsonl');
   writeFileSync(transcript, '');
   mkdirSync(join(root, '.parlance'), { recursive: true });
@@ -44,6 +46,7 @@ function run(prompt: string): void {
       transcript_path: transcript,
     }),
     stdio: ['pipe', 'pipe', 'pipe'],
+    env: { ...process.env, PARLANCE_HOME: central },
   });
 }
 
@@ -76,7 +79,7 @@ describe('user-prompt-submit hook', () => {
     appendUsageRecord();
     run('/parlance bench end');
 
-    const lines = readFileSync(join(root, '.parlance/bench/results.jsonl'), 'utf8').trim().split('\n');
+    const lines = readFileSync(join(central, 'telemetry/bench/results.jsonl'), 'utf8').trim().split('\n');
     expect(lines).toHaveLength(1);
     const record = JSON.parse(lines[0]);
     expect(record.task_id).toBe('taskA');
@@ -93,6 +96,6 @@ describe('user-prompt-submit hook', () => {
 
     const state = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
     expect(state.active_bench).toBeNull();
-    expect(existsSync(join(root, '.parlance/bench/results.jsonl'))).toBe(false);
+    expect(existsSync(join(central, 'telemetry/bench/results.jsonl'))).toBe(false);
   });
 });

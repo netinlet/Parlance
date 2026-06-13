@@ -1,13 +1,34 @@
 #!/usr/bin/env node
 
 // src/commands/install.ts
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, readdirSync as readdirSync2, writeFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
 import { dirname, join as join2, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // ../Core/src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
 var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
+}
 function matchRoutingRule(event) {
   if (event.kind === "pre-read") {
     if (!CS_FILE_PATTERN.test(event.path)) return null;
@@ -29,12 +50,19 @@ function matchRoutingRule(event) {
       reason: `pre-search for C# intent (${event.pattern})`
     };
   }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
+  }
   return null;
 }
 
 // ../Core/src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var globalHooksDir = () => join(parlanceHome(), "hooks");
 var hooksDir = (root) => join(parlanceDir(root), "hooks");
 var routingFile = (root) => join(parlanceDir(root), "tool-routing.md");
 
@@ -44,7 +72,8 @@ function generateRoutingDoc() {
     { kind: "pre-read", at: "", path: "Foo.cs" },
     { kind: "pre-search", at: "", pattern: "x", file_type: "cs" },
     { kind: "pre-search", at: "", pattern: "x", glob: "**/*.cs" },
-    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" }
+    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" },
+    { kind: "pre-native-tool", at: "", tool_name: "Bash", input: { command: "grep -rn Foo --include=*.cs" } }
   ];
   const lines = ["# Parlance Tool Routing", "", "Generated from agent-core routing rules.", ""];
   for (const event of samples) {
@@ -62,16 +91,34 @@ function describe(event) {
   if (event.kind === "pre-search" && event.file_type === "cs") return "Searching with type=cs";
   if (event.kind === "pre-search" && event.glob?.includes(".cs")) return "Searching with C# glob";
   if (event.kind === "pre-search") return "Searching under /src/ (no filter)";
+  if (event.kind === "pre-native-tool") return "grep/find/cat over C# in bash";
   return event.kind;
+}
+
+// ../Core/src/discovery.ts
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+function findSolution(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return null;
+  }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
 
 // src/commands/install.ts
 var HOOK_MARKER = ".parlance/hooks/";
+var GLOBAL_NUDGE_MARKER = "hooks/nudge.js";
+function claudeConfigDir() {
+  return process.env.CLAUDE_CONFIG_DIR?.trim() || join2(homedir2(), ".claude");
+}
 async function runInstall(argv) {
+  if (argv.includes("--global")) return runInstallGlobal();
   const args = parseArgs(argv);
   if (!args) return 2;
   const root = resolve(args.project);
-  if (!existsSync(root)) {
+  if (!existsSync2(root)) {
     process.stderr.write(`project missing: ${root}
 `);
     return 1;
@@ -86,6 +133,64 @@ async function runInstall(argv) {
   process.stderr.write(`parlance agent (claude) installed at ${root}
 `);
   return 0;
+}
+function runInstallGlobal() {
+  const hooksTarget = globalHooksDir();
+  mkdirSync(hooksTarget, { recursive: true });
+  const nudgeSource = join2(findHookBundleDir(), "nudge.js");
+  if (!existsSync2(nudgeSource)) {
+    process.stderr.write(`nudge bundle missing at ${nudgeSource}
+`);
+    return 1;
+  }
+  const nudgeTarget = join2(hooksTarget, "nudge.js");
+  copyFileSync(nudgeSource, nudgeTarget);
+  const settingsPath = join2(claudeConfigDir(), "settings.json");
+  writeGlobalSettings(settingsPath, nudgeTarget);
+  process.stderr.write(
+    `parlance global nudge installed:
+  bundle: ${nudgeTarget}
+  wired into: ${settingsPath} (SessionStart, nudge-only)
+`
+  );
+  const cwd = process.cwd();
+  const hooksInstalled = existsSync2(join2(cwd, ".claude", "settings.local.json"));
+  if (!hooksInstalled) {
+    const sln = findSolution(cwd) ?? "<YourSolution.sln>";
+    process.stderr.write(
+      `
+Note: per-project hooks are not installed in the current directory.
+      Run: parlance agent install --for claude --solution ${sln}
+`
+    );
+  }
+  return 0;
+}
+function readJsonOrEmpty(path) {
+  if (!existsSync2(path)) return {};
+  try {
+    return JSON.parse(readFileSync2(path, "utf8"));
+  } catch (err) {
+    throw new Error(`could not parse ${path}: ${err.message}`);
+  }
+}
+function mergeJsonFile(path, update) {
+  const data = readJsonOrEmpty(path);
+  update(data);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(data, null, 2));
+}
+function writeGlobalSettings(path, nudgePath) {
+  mergeJsonFile(path, (existing) => {
+    const hooks = existing.hooks ?? {};
+    const bucket = hooks.SessionStart ?? [];
+    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
+    hooks.SessionStart = [...preserved, {
+      matcher: "",
+      hooks: [{ type: "command", command: `node "${nudgePath}"`, timeout: 5 }]
+    }];
+    existing.hooks = hooks;
+  });
 }
 function parseArgs(argv) {
   const args = { project: process.cwd() };
@@ -102,7 +207,7 @@ function parseArgs(argv) {
 }
 function copyHookBundles(target) {
   const source = findHookBundleDir();
-  for (const entry of readdirSync(source)) {
+  for (const entry of readdirSync2(source)) {
     if (entry.endsWith(".js")) copyFileSync(join2(source, entry), join2(target, entry));
   }
 }
@@ -113,38 +218,38 @@ function findHookBundleDir() {
     join2(here, "..", "..", "dist", "hooks")
   ];
   for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+    if (existsSync2(candidate)) return candidate;
   }
   throw new Error("hook bundle directory not found");
 }
 function writeMcpJson(root, solutionAbs, mcpCommand) {
   const path = join2(root, ".mcp.json");
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  existing.mcpServers ??= {};
-  existing.mcpServers.parlance = {
-    type: "stdio",
-    command: mcpCommand ?? "parlance",
-    args: ["mcp", "--solution-path", solutionAbs]
-  };
-  writeFileSync(path, JSON.stringify(existing, null, 2));
+  mergeJsonFile(path, (existing) => {
+    existing.mcpServers ??= {};
+    existing.mcpServers.parlance = {
+      type: "stdio",
+      command: mcpCommand ?? "parlance",
+      args: ["mcp", "--solution-path", solutionAbs]
+    };
+  });
 }
 function writeSettingsJson(path) {
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  const hooks = existing.hooks ?? {};
-  const ours = {
-    SessionStart: [matcher("", "session-start.js", 5)],
-    PreToolUse: [matcher("Read|Grep|Glob|Write|Edit|MultiEdit", "pre-tool.js", 5)],
-    PostToolUse: [matcher("", "post-tool.js", 5)],
-    UserPromptSubmit: [matcher("", "user-prompt-submit.js", 3)],
-    Stop: [matcher("", "stop.js", 10)]
-  };
-  for (const [event, nextMatchers] of Object.entries(ours)) {
-    const bucket = hooks[event] ?? [];
-    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
-    hooks[event] = [...preserved, ...nextMatchers];
-  }
-  existing.hooks = hooks;
-  writeFileSync(path, JSON.stringify(existing, null, 2));
+  mergeJsonFile(path, (existing) => {
+    const hooks = existing.hooks ?? {};
+    const ours = {
+      SessionStart: [matcher("", "session-start.js", 5)],
+      PreToolUse: [matcher("Read|Grep|Glob|Write|Edit|MultiEdit|Bash", "pre-tool.js", 5)],
+      PostToolUse: [matcher("", "post-tool.js", 5)],
+      UserPromptSubmit: [matcher("", "user-prompt-submit.js", 3)],
+      Stop: [matcher("", "stop.js", 10)]
+    };
+    for (const [event, nextMatchers] of Object.entries(ours)) {
+      const bucket = hooks[event] ?? [];
+      const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
+      hooks[event] = [...preserved, ...nextMatchers];
+    }
+    existing.hooks = hooks;
+  });
 }
 function matcher(matcherValue, script, timeout) {
   return {
@@ -158,7 +263,7 @@ function matcher(matcherValue, script, timeout) {
 }
 
 // src/commands/uninstall.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join3, resolve as resolve2 } from "node:path";
 var MARKER_BEGIN = "<!-- parlance-agent:begin -->";
 var MARKER_END = "<!-- parlance-agent:end -->";
@@ -172,8 +277,8 @@ async function runUninstall(argv) {
   }
   const root = resolve2(project);
   const settingsPath = join3(root, ".claude/settings.local.json");
-  if (existsSync2(settingsPath)) {
-    const settings = JSON.parse(readFileSync2(settingsPath, "utf8"));
+  if (existsSync3(settingsPath)) {
+    const settings = JSON.parse(readFileSync3(settingsPath, "utf8"));
     const hooks = settings.hooks;
     if (hooks) {
       for (const key of Object.keys(hooks)) {
@@ -184,14 +289,14 @@ async function runUninstall(argv) {
     writeFileSync2(settingsPath, JSON.stringify(settings, null, 2));
   }
   const claudeMdPath = join3(root, "CLAUDE.md");
-  if (existsSync2(claudeMdPath)) {
-    const body = readFileSync2(claudeMdPath, "utf8");
+  if (existsSync3(claudeMdPath)) {
+    const body = readFileSync3(claudeMdPath, "utf8");
     const pattern = new RegExp(`${escapeRegex(MARKER_BEGIN)}[\\s\\S]*?${escapeRegex(MARKER_END)}\\n?`, "g");
     writeFileSync2(claudeMdPath, body.replace(pattern, "").replace(/\n{3,}/g, "\n\n"));
   }
   const mcpPath = join3(root, ".mcp.json");
-  if (existsSync2(mcpPath)) {
-    const mcp = JSON.parse(readFileSync2(mcpPath, "utf8"));
+  if (existsSync3(mcpPath)) {
+    const mcp = JSON.parse(readFileSync3(mcpPath, "utf8"));
     if (mcp.mcpServers) {
       delete mcp.mcpServers.parlance;
       if (Object.keys(mcp.mcpServers).length === 0) delete mcp.mcpServers;
@@ -199,7 +304,7 @@ async function runUninstall(argv) {
     if (Object.keys(mcp).length === 0) rmSync(mcpPath, { force: true });
     else writeFileSync2(mcpPath, JSON.stringify(mcp, null, 2));
   }
-  if (purge && existsSync2(parlanceDir(root))) {
+  if (purge && existsSync3(parlanceDir(root))) {
     rmSync(parlanceDir(root), { recursive: true, force: true });
   }
   process.stderr.write("parlance agent (claude) uninstalled\n");
@@ -232,7 +337,8 @@ async function main() {
 function help() {
   process.stderr.write([
     "usage: parlance-agent-claude <install|uninstall> [args]",
-    "  install --solution <path> [--project <dir>]",
+    "  install --solution <path> [--project <dir>]   per-project: hooks + MCP + telemetry",
+    "  install --global                              once: wire the nudge-only reminder into ~/.claude/settings.json",
     "  uninstall [--project <dir>] [--purge]",
     ""
   ].join("\n"));

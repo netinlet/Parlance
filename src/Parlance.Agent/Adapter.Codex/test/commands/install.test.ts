@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { runInstall, withCodexHooksFeature } from '../../src/commands/install.js';
+import { dirname, join } from 'node:path';
+import { runInstall, withHooksFeature } from '../../src/commands/install.js';
 
 let root: string;
 
@@ -79,7 +79,7 @@ describe('install command', () => {
     expect(body).toContain('codex mcp add parlance -- /opt/parlance/bin/parlance mcp --solution-path');
   });
 
-  it('enables codex_hooks without clobbering existing config', async () => {
+  it('enables hooks without clobbering existing config', async () => {
     mkdirSync(join(root, '.codex'), { recursive: true });
     writeFileSync(join(root, '.codex/config.toml'), 'model = "gpt-5.4"\n\n[features]\nfoo = true\n');
 
@@ -87,7 +87,7 @@ describe('install command', () => {
 
     const body = readFileSync(join(root, '.codex/config.toml'), 'utf8');
     expect(body).toContain('model = "gpt-5.4"');
-    expect(body).toContain('[features]\ncodex_hooks = true\nfoo = true');
+    expect(body).toContain('[features]\nhooks = true\nfoo = true');
   });
 
   it('fails if .codex exists as a file', async () => {
@@ -98,12 +98,76 @@ describe('install command', () => {
   });
 });
 
-describe('withCodexHooksFeature', () => {
-  it('adds features section when missing', () => {
-    expect(withCodexHooksFeature('model = "x"\n')).toBe('model = "x"\n\n[features]\ncodex_hooks = true\n');
+describe('install --global', () => {
+  const orig = { home: process.env.PARLANCE_HOME, codex: process.env.CODEX_CONFIG_DIR };
+
+  afterEach(() => {
+    for (const [key, value] of [['PARLANCE_HOME', orig.home], ['CODEX_CONFIG_DIR', orig.codex]] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
   });
 
-  it('replaces existing codex_hooks value', () => {
-    expect(withCodexHooksFeature('[features]\ncodex_hooks = false\n')).toBe('[features]\ncodex_hooks = true\n');
+  function withDirs(): { configToml: string; hooksJson: string; nudge: string } {
+    process.env.PARLANCE_HOME = join(root, 'home');
+    process.env.CODEX_CONFIG_DIR = join(root, 'codex');
+    return {
+      configToml: join(root, 'codex/config.toml'),
+      hooksJson: join(root, 'codex/hooks.json'),
+      nudge: join(root, 'home/hooks/nudge.js'),
+    };
+  }
+
+  it('copies the nudge bundle and wires a nudge-only SessionStart hook', async () => {
+    const { hooksJson, nudge } = withDirs();
+
+    expect(await runInstall(['--global'])).toBe(0);
+    expect(existsSync(nudge)).toBe(true);
+
+    const parsed = JSON.parse(readFileSync(hooksJson, 'utf8'));
+    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string; statusMessage?: string }[] }[];
+    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toBe(true);
+    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.statusMessage === 'Checking Parlance setup'))).toBe(true);
+    // global never wires the per-project tracking hooks
+    expect(JSON.stringify(parsed)).not.toContain('pre-tool.js');
+    expect(JSON.stringify(parsed)).not.toContain('stop.js');
+  });
+
+  it('enables Codex hooks in the global config', async () => {
+    const { configToml } = withDirs();
+
+    expect(await runInstall(['--global'])).toBe(0);
+
+    expect(readFileSync(configToml, 'utf8')).toContain('[features]\nhooks = true');
+  });
+
+  it('is idempotent and preserves foreign SessionStart hooks', async () => {
+    const { hooksJson } = withDirs();
+    mkdirSync(dirname(hooksJson), { recursive: true });
+    writeFileSync(hooksJson, JSON.stringify({
+      hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo foreign' }] }] },
+    }));
+
+    await runInstall(['--global']);
+    await runInstall(['--global']);
+
+    const parsed = JSON.parse(readFileSync(hooksJson, 'utf8'));
+    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string }[] }[];
+    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command === 'echo foreign'))).toBe(true);
+    expect(sessionStart.filter((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toHaveLength(1);
+  });
+});
+
+describe('withHooksFeature', () => {
+  it('adds features section when missing', () => {
+    expect(withHooksFeature('model = "x"\n')).toBe('model = "x"\n\n[features]\nhooks = true\n');
+  });
+
+  it('replaces existing hooks value', () => {
+    expect(withHooksFeature('[features]\nhooks = false\n')).toBe('[features]\nhooks = true\n');
+  });
+
+  it('migrates existing codex_hooks alias to hooks', () => {
+    expect(withHooksFeature('[features]\ncodex_hooks = false\n')).toBe('[features]\nhooks = true\n');
   });
 });

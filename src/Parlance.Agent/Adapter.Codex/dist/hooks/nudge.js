@@ -49,17 +49,6 @@ var responseCompleted = (usage) => ({
   usage
 });
 
-// ../Core/src/telemetry/estimate.ts
-var RATIOS = {
-  code: 3.5,
-  prose: 4,
-  mixed: 3.75
-};
-function estimateTokensFromLength(length, kind) {
-  if (length <= 0) return 0;
-  return Math.round(length / RATIOS[kind]);
-}
-
 // ../Core/src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
 var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
@@ -67,9 +56,6 @@ var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
 var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
 var BASH_FIND_UTIL = /\bfind\b/;
 var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
-function isParlanceTool(toolName) {
-  return toolName.startsWith("mcp__parlance__");
-}
 function matchBashCodeIntel(command) {
   const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
   const reads = BASH_READ_UTIL.test(command);
@@ -114,106 +100,125 @@ function matchRoutingRule(event) {
   return null;
 }
 
-// ../Core/src/policy/evaluate.ts
-function evaluateEvent(event, ctx, state) {
-  const guidance = [];
-  const effects = [];
-  let next = null;
-  if (event.kind.startsWith("pre-")) {
-    const match = matchRoutingRule(event);
-    if (match) {
-      guidance.push({
-        severity: "warn",
-        message: match.message,
-        suggested_tool: match.suggested_tool,
-        reason: match.reason
-      });
-    }
+// ../Core/src/commands/routing-doc.ts
+function generateRoutingDoc() {
+  const samples = [
+    { kind: "pre-read", at: "", path: "Foo.cs" },
+    { kind: "pre-search", at: "", pattern: "x", file_type: "cs" },
+    { kind: "pre-search", at: "", pattern: "x", glob: "**/*.cs" },
+    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" },
+    { kind: "pre-native-tool", at: "", tool_name: "Bash", input: { command: "grep -rn Foo --include=*.cs" } }
+  ];
+  const lines = ["# Parlance Tool Routing", "", "Generated from agent-core routing rules.", ""];
+  for (const event of samples) {
+    const hit = matchRoutingRule(event);
+    if (!hit) continue;
+    lines.push(`## ${describe(event)}`);
+    lines.push(`- **Suggested:** \`${hit.suggested_tool}\``);
+    lines.push(`- ${hit.message}`);
+    lines.push("");
   }
-  if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
-    const record = toUsageRecord(event);
-    effects.push({ kind: "persist-tool-usage", record });
-    next = {
-      ...state,
-      parlance_calls: state.parlance_calls + (record.is_mcp_parlance ? 1 : 0),
-      native_fallbacks: state.native_fallbacks + (record.is_native_fallback ? 1 : 0),
-      read_tokens: state.read_tokens + (event.kind === "post-read" ? record.output_tokens : 0),
-      write_tokens: state.write_tokens + (event.kind === "post-write" ? record.output_tokens : 0),
-      tool_calls: [...state.tool_calls, record]
-    };
-  }
-  return { guidance, effects, next_state: next };
+  return lines.join("\n");
 }
-function toUsageRecord(event) {
-  const is_native_fallback = matchRoutingRule(flipToPre(event)) !== null;
-  if (event.kind === "post-read" || event.kind === "post-write") {
-    return {
-      at: event.at,
-      event_kind: event.kind,
-      tool_name: event.kind === "post-read" ? "Read" : "Write",
-      target: event.path,
-      is_mcp_parlance: false,
-      is_native_fallback,
-      output_tokens: estimateTokensFromLength(event.content_bytes ?? 0, "code")
-    };
-  }
-  if (event.kind === "post-search") {
-    return {
-      at: event.at,
-      event_kind: event.kind,
-      tool_name: "Search",
-      target: `${event.pattern} (glob=${event.glob ?? ""} type=${event.file_type ?? ""})`,
-      is_mcp_parlance: false,
-      is_native_fallback,
-      output_tokens: estimateTokensFromLength(event.result_bytes ?? 0, "code")
-    };
-  }
-  const toolEvent = event;
-  return {
-    at: event.at,
-    event_kind: event.kind,
-    tool_name: toolEvent.tool_name,
-    target: JSON.stringify(toolEvent.input).slice(0, 80),
-    is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
-    is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, "code")
-  };
+function generateSessionContext() {
+  return [
+    "Parlance MCP code-intelligence tools are available in this workspace.",
+    "Prefer them over native Read/Grep/Glob when working with C# code.",
+    "",
+    generateRoutingDoc()
+  ].join("\n");
 }
-function flipToPre(event) {
-  if (event.kind === "post-read") return { ...event, kind: "pre-read" };
-  if (event.kind === "post-write") return { ...event, kind: "pre-write" };
-  if (event.kind === "post-search") return { ...event, kind: "pre-search" };
-  if (event.kind === "post-native-tool") return { ...event, kind: "pre-native-tool" };
-  if (event.kind === "post-mcp-tool") return { ...event, kind: "pre-mcp-tool" };
-  return event;
+function describe(event) {
+  if (event.kind === "pre-read") return "Reading a C# file";
+  if (event.kind === "pre-search" && event.file_type === "cs") return "Searching with type=cs";
+  if (event.kind === "pre-search" && event.glob?.includes(".cs")) return "Searching with C# glob";
+  if (event.kind === "pre-search") return "Searching under /src/ (no filter)";
+  if (event.kind === "pre-native-tool") return "grep/find/cat over C# in bash";
+  return event.kind;
 }
 
-// ../Core/src/storage/paths.ts
+// ../Core/src/discovery.ts
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
-// ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-function readSessionState(root) {
-  const path = sessionFile(root);
-  if (!existsSync(path)) return null;
+function findSolution(root) {
+  let entries;
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    entries = readdirSync(root);
   } catch {
     return null;
   }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
-function writeSessionState(root, state) {
-  const path = sessionFile(root);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(state, null, 2));
+var csharpCache = /* @__PURE__ */ new Map();
+function looksLikeCsharp(root) {
+  const cached = csharpCache.get(root);
+  if (cached !== void 0) return cached;
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    csharpCache.set(root, false);
+    return false;
+  }
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "Directory.Build.props");
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
+  try {
+    const result = readdirSync(join(root, "src")).some((e) => /\.csproj$/i.test(e));
+    csharpCache.set(root, result);
+    return result;
+  } catch {
+    csharpCache.set(root, false);
+    return false;
+  }
 }
-
-// src/bash-events.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname as dirname2, join as join2 } from "node:path";
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(readFileSync(join(root, ".mcp.json"), "utf8"));
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join(root, ".parlance", "hooks", "session-start.js"));
+}
+function parlanceCodexWired(root) {
+  return existsSync(join(root, ".parlance", "hooks", "session-start.js")) && codexHooksJsonReferencesSessionStart(root);
+}
+function codexHooksJsonReferencesSessionStart(root) {
+  try {
+    const config = JSON.parse(readFileSync(join(root, ".codex", "hooks.json"), "utf8"));
+    const sessionStart = config.hooks?.SessionStart ?? [];
+    return sessionStart.some((entry) => entry.hooks?.some((hook) => typeof hook.command === "string" && hook.command.includes(".parlance/hooks/session-start.js")) ?? false);
+  } catch {
+    return false;
+  }
+}
+function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
+  if (wiredFn(root)) {
+    return { kind: "wired", context: generateSessionContext() };
+  }
+  if (looksLikeCsharp(root)) {
+    const target = findSolution(root) ?? "<YourSolution.slnx>";
+    return {
+      kind: "suggest-install",
+      context: [
+        "This looks like a C# project, but the Parlance MCP server is not wired here \u2014",
+        "so there is no Parlance code intelligence and this session is not being tracked.",
+        `To enable it, run:  parlance agent install --solution ${target}`
+      ].join("\n")
+    };
+  }
+  return { kind: "idle" };
+}
+function runNudge(plan, canInjectContext, emit) {
+  if (plan.kind === "suggest-install" && canInjectContext) {
+    emit(plan.context);
+  }
+}
 
 // src/capabilities.ts
 var capabilities = {
@@ -239,6 +244,13 @@ var capabilities = {
     can_inject_context: true
   }
 };
+
+// src/render.ts
+function writeCodexOutput(output, write = (s) => process.stdout.write(s)) {
+  if (!output) return;
+  write(`${JSON.stringify(output)}
+`);
+}
 
 // src/translate.ts
 function translate(env) {
@@ -427,120 +439,6 @@ function shellWords(command) {
   return words;
 }
 
-// src/bash-events.ts
-var MAX_PREVIEW_CHARS = 1e3;
-function bashEventsFile(root) {
-  return join2(parlanceDir(root), "codex", "events", "bash.jsonl");
-}
-function appendBashEvent(root, record) {
-  const path = bashEventsFile(root);
-  mkdirSync2(dirname2(path), { recursive: true });
-  appendFileSync2(path, `${JSON.stringify(record)}
-`);
-}
-function bashEventFromEnvelope(env, phase, now2 = /* @__PURE__ */ new Date()) {
-  if (env.tool_name !== "Bash") return null;
-  const input = env.tool_input ?? {};
-  const commandRedaction = redact(commandFromInput(input));
-  const record = {
-    schema: 1,
-    at: now2.toISOString(),
-    adapter: "codex",
-    phase,
-    session_id: env.session_id,
-    turn_id: env.turn_id,
-    tool_use_id: env.tool_use_id,
-    cwd: env.cwd,
-    command: commandRedaction.value,
-    redacted: commandRedaction.redacted,
-    classification: classifyBashCommand(commandFromInput(input))
-  };
-  if (phase === "post") {
-    const output = extractOutput(env.tool_response);
-    if (typeof output.exit_code === "number") record.exit_code = output.exit_code;
-    if (typeof output.output_bytes === "number") record.output_bytes = output.output_bytes;
-    if (output.preview) {
-      const previewRedaction = redact(truncate(output.preview, MAX_PREVIEW_CHARS));
-      record.output_preview = previewRedaction.value;
-      record.redacted ||= previewRedaction.redacted;
-    }
-  }
-  return record;
-}
-function redact(value) {
-  let redacted = false;
-  let next = value;
-  next = next.replace(
-    /\b([A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS|AUTH|CONNECTION)[A-Z0-9_]*)=([^\s"'`]+)/gi,
-    (_match, name) => {
-      redacted = true;
-      return `${name}=[REDACTED]`;
-    }
-  );
-  next = next.replace(/Authorization:\s*Bearer\s+[A-Za-z0-9._~+/=-]+/gi, () => {
-    redacted = true;
-    return "Authorization: Bearer [REDACTED]";
-  });
-  next = next.replace(/\b[A-Za-z0-9+/=_-]{40,}\b/g, () => {
-    redacted = true;
-    return "[REDACTED]";
-  });
-  return { value: next, redacted };
-}
-function extractOutput(output) {
-  if (typeof output === "string") {
-    return { output_bytes: output.length, preview: output };
-  }
-  if (!output || typeof output !== "object") return {};
-  const record = output;
-  const stdout = typeof record.stdout === "string" ? record.stdout : "";
-  const stderr = typeof record.stderr === "string" ? record.stderr : "";
-  const content = typeof record.content === "string" ? record.content : "";
-  const outputText = stdout || stderr ? `${stdout}${stderr}` : content;
-  const exit_code = typeof record.exit_code === "number" ? record.exit_code : typeof record.exitCode === "number" ? record.exitCode : void 0;
-  return {
-    exit_code,
-    output_bytes: outputText ? outputText.length : void 0,
-    preview: outputText || void 0
-  };
-}
-function truncate(value, max) {
-  return value.length > max ? `${value.slice(0, max)}...` : value;
-}
-
-// src/render.ts
-function renderForCodex(eventName, evaluation) {
-  const message = guidanceMessage(evaluation.guidance);
-  if (!message) return null;
-  if (eventName === "SessionStart" || eventName === "UserPromptSubmit") {
-    return {
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: message
-      }
-    };
-  }
-  if (eventName === "PreToolUse") {
-    return { systemMessage: message };
-  }
-  if (eventName === "PostToolUse") {
-    return { systemMessage: message };
-  }
-  return null;
-}
-function writeCodexOutput(output, write = (s) => process.stdout.write(s)) {
-  if (!output) return;
-  write(`${JSON.stringify(output)}
-`);
-}
-function guidanceMessage(guidance) {
-  if (guidance.length === 0) return null;
-  return guidance.map((entry) => {
-    const suffix = entry.suggested_tool ? ` Suggested: ${entry.suggested_tool}.` : "";
-    return `parlance: ${entry.message}${suffix}`;
-  }).join("\n");
-}
-
 // src/hooks/_shared.ts
 async function readStdin() {
   const chunks = [];
@@ -552,26 +450,21 @@ async function readStdin() {
 async function readEnvelope() {
   return JSON.parse(await readStdin());
 }
-function handleEvaluatedEvent(env, bashPhase) {
-  const translated = translate(env);
-  if (!translated) return;
-  const current = readSessionState(translated.context.project_root);
-  if (!current) return;
-  const evaluation = evaluateEvent(translated.event, translated.context, current);
-  if (evaluation.next_state) {
-    writeSessionState(translated.context.project_root, evaluation.next_state);
-  }
-  if (bashPhase) {
-    const bashEvent = bashEventFromEnvelope(env, bashPhase);
-    if (bashEvent) appendBashEvent(translated.context.project_root, bashEvent);
-  }
-  writeCodexOutput(renderForCodex(env.hook_event_name, evaluation));
-}
 
-// src/hooks/user-prompt-submit.ts
+// src/hooks/nudge.ts
 async function main() {
   try {
-    handleEvaluatedEvent(await readEnvelope());
+    const env = await readEnvelope();
+    const translated = translate(env);
+    if (!translated || translated.event.kind !== "session-started") return;
+    const plan = planSessionStart(translated.context.project_root, parlanceCodexWired);
+    runNudge(
+      plan,
+      capabilities.outputs.can_inject_context,
+      (ctx) => writeCodexOutput({
+        hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: ctx }
+      })
+    );
   } catch {
   }
 }
