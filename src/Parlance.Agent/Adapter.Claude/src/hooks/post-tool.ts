@@ -1,4 +1,4 @@
-import { emptySessionState, evaluateEvent } from '@parlance/agent-core';
+import { evaluateEvent } from '@parlance/agent-core';
 import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
@@ -10,8 +10,10 @@ async function main(): Promise<void> {
     const translated = translate(env);
     if (!translated) return;
 
-    const current = readSessionState(translated.context.project_root)
-      ?? emptySessionState(translated.context, translated.transcript_path);
+    // Only track sessions Parlance is wired into — session-start creates the
+    // state file only for wired projects, so its absence means "don't track".
+    const current = readSessionState(translated.context.project_root);
+    if (!current) return;
     const evaluation = evaluateEvent(translated.event, translated.context, current);
 
     if (evaluation.next_state) {

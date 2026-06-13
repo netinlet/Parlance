@@ -476,6 +476,59 @@ function describe(event) {
   if (event.kind === "pre-native-tool") return "grep/find/cat over C# in bash";
   return event.kind;
 }
+
+// src/discovery.ts
+import { readFileSync as readFileSync4, readdirSync } from "node:fs";
+import { join as join2 } from "node:path";
+function findSolution(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return null;
+  }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
+}
+function looksLikeCsharp(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return false;
+  }
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "global.json" || e === "Directory.Build.props");
+  if (csAtRoot) return true;
+  try {
+    return readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+  } catch {
+    return false;
+  }
+}
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(readFileSync4(join2(root, ".mcp.json"), "utf8"));
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function planSessionStart(root) {
+  if (parlanceMcpWired(root)) {
+    return { kind: "wired", context: generateSessionContext() };
+  }
+  if (looksLikeCsharp(root)) {
+    const target = findSolution(root) ?? "<YourSolution.slnx>";
+    return {
+      kind: "suggest-install",
+      context: [
+        "This looks like a C# project, but the Parlance MCP server is not wired here \u2014",
+        "so there is no Parlance code intelligence and this session is not being tracked.",
+        `To enable it, run:  parlance agent install --solution ${target}`
+      ].join("\n")
+    };
+  }
+  return { kind: "idle" };
+}
 export {
   classifyPath,
   emptySessionState,
@@ -483,9 +536,13 @@ export {
   estimateTokens,
   estimateTokensFromLength,
   evaluateEvent,
+  findSolution,
   generateRoutingDoc,
   generateSessionContext,
+  looksLikeCsharp,
   now,
+  parlanceMcpWired,
+  planSessionStart,
   postRead,
   postSearch,
   postTool,

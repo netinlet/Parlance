@@ -115,21 +115,6 @@ function matchRoutingRule(event) {
 }
 
 // ../Core/src/policy/evaluate.ts
-function emptySessionState(ctx, transcript_ref) {
-  return {
-    session_id: ctx.session_id,
-    adapter: ctx.adapter,
-    started_at: (/* @__PURE__ */ new Date()).toISOString(),
-    cwd: ctx.cwd,
-    transcript_ref,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null
-  };
-}
 function evaluateEvent(event, ctx, state) {
   const guidance = [];
   const effects = [];
@@ -570,7 +555,8 @@ async function readEnvelope() {
 function handleEvaluatedEvent(env, bashPhase) {
   const translated = translate(env);
   if (!translated) return;
-  const current = readSessionState(translated.context.project_root) ?? emptySessionState(translated.context, translated.transcript_path);
+  const current = readSessionState(translated.context.project_root);
+  if (!current) return;
   const evaluation = evaluateEvent(translated.event, translated.context, current);
   if (evaluation.next_state) {
     writeSessionState(translated.context.project_root, evaluation.next_state);

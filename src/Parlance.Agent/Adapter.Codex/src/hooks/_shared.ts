@@ -1,4 +1,4 @@
-import { emptySessionState, evaluateEvent } from '@parlance/agent-core';
+import { evaluateEvent } from '@parlance/agent-core';
 import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { appendBashEvent, bashEventFromEnvelope } from '../bash-events.js';
 import { renderForCodex, writeCodexOutput } from '../render.js';
@@ -22,8 +22,10 @@ export function handleEvaluatedEvent(env: CodexHookEnvelope, bashPhase?: BashEve
   const translated = translate(env);
   if (!translated) return;
 
-  const current = readSessionState(translated.context.project_root)
-    ?? emptySessionState(translated.context, translated.transcript_path);
+  // Only act on sessions Parlance is wired into (session-start creates the state
+  // file only there) — keeps unrelated repos untouched when hooks run globally.
+  const current = readSessionState(translated.context.project_root);
+  if (!current) return;
   const evaluation = evaluateEvent(translated.event, translated.context, current);
 
   if (evaluation.next_state) {

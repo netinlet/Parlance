@@ -165,8 +165,61 @@ function describe(event) {
   return event.kind;
 }
 
+// ../Core/src/discovery.ts
+import { readFileSync, readdirSync } from "node:fs";
+import { join as join2 } from "node:path";
+function findSolution(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return null;
+  }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
+}
+function looksLikeCsharp(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return false;
+  }
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "global.json" || e === "Directory.Build.props");
+  if (csAtRoot) return true;
+  try {
+    return readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+  } catch {
+    return false;
+  }
+}
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(readFileSync(join2(root, ".mcp.json"), "utf8"));
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function planSessionStart(root) {
+  if (parlanceMcpWired(root)) {
+    return { kind: "wired", context: generateSessionContext() };
+  }
+  if (looksLikeCsharp(root)) {
+    const target = findSolution(root) ?? "<YourSolution.slnx>";
+    return {
+      kind: "suggest-install",
+      context: [
+        "This looks like a C# project, but the Parlance MCP server is not wired here \u2014",
+        "so there is no Parlance code intelligence and this session is not being tracked.",
+        `To enable it, run:  parlance agent install --solution ${target}`
+      ].join("\n")
+    };
+  }
+  return { kind: "idle" };
+}
+
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function writeSessionState(root, state) {
   const path = sessionFile(root);
@@ -281,15 +334,18 @@ async function main() {
     const env = JSON.parse(raw);
     const translated = translate(env);
     if (!translated || translated.event.kind !== "session-started") return;
-    writeSessionState(
-      translated.context.project_root,
-      emptySessionState(translated.context, translated.transcript_path)
-    );
-    if (capabilities.outputs.can_inject_context) {
+    const plan = planSessionStart(translated.context.project_root);
+    if (plan.kind === "wired") {
+      writeSessionState(
+        translated.context.project_root,
+        emptySessionState(translated.context, translated.transcript_path)
+      );
+    }
+    if (plan.kind !== "idle" && capabilities.outputs.can_inject_context) {
       process.stdout.write(`${JSON.stringify({
         hookSpecificOutput: {
           hookEventName: "SessionStart",
-          additionalContext: generateSessionContext()
+          additionalContext: plan.context
         }
       })}
 `);

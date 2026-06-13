@@ -1,4 +1,4 @@
-import { emptySessionState, evaluateEvent } from '@parlance/agent-core';
+import { evaluateEvent } from '@parlance/agent-core';
 import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { renderToStderr } from '../render.js';
 import { translate } from '../translate.js';
@@ -11,8 +11,9 @@ async function main(): Promise<void> {
     const translated = translate(env);
     if (!translated) return;
 
-    const current = readSessionState(translated.context.project_root)
-      ?? emptySessionState(translated.context, translated.transcript_path);
+    // No tracked session (project not wired) -> no nudge, no write.
+    const current = readSessionState(translated.context.project_root);
+    if (!current) return;
 
     const evaluation = evaluateEvent(translated.event, translated.context, current);
     renderToStderr(evaluation);
