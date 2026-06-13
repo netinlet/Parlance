@@ -128,7 +128,10 @@ agent-typecheck: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" typecheck; done
 
-agent-test: agent-install-deps
+# Depends on agent-build, not just agent-install-deps: the adapter hook tests exec the compiled
+# dist/hooks/*.js and scan for the bundled hook dir, so dist/ must exist first. On a clean tree
+# (make clean-all) `make test` would otherwise run before anything builds dist/ and fail.
+agent-test: agent-build
 	$(MAKE) -C "$(AGENT_CORE_DIR)" test
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" test; done
 
@@ -157,7 +160,11 @@ test-results-dir:
 	rm -rf "$(TEST_RESULTS_DIR)"
 	mkdir -p "$(TEST_RESULTS_DIR)"
 
-test: agent-test test-results-dir
+# Depends on build (not just agent-test): the recipe runs `dotnet test --no-build`, so the
+# Release output must exist first. Without it, `make test` on a clean tree (make clean-all)
+# fails as the .NET 10 runner rejects the missing assemblies. `build` is a shared prerequisite
+# with `ci`, so it runs once there — no redundant build.
+test: agent-test build test-results-dir
 	$(DOTNET) test Parlance.slnx \
 		--configuration "$(CONFIGURATION)" \
 		--no-build \
