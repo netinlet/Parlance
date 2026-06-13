@@ -1,5 +1,6 @@
-import { planSessionStart } from '@parlance/agent-core';
+import { planSessionStart, runNudge } from '@parlance/agent-core';
 import { capabilities } from '../capabilities.js';
+import { writeContextOutput } from '../render.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
 
@@ -19,14 +20,7 @@ async function main(): Promise<void> {
     if (!translated || translated.event.kind !== 'session-started') return;
 
     const plan = planSessionStart(translated.context.project_root);
-    if (plan.kind === 'suggest-install' && capabilities.outputs.can_inject_context) {
-      process.stdout.write(`${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: plan.context,
-        },
-      })}\n`);
-    }
+    runNudge(plan, capabilities.outputs.can_inject_context, writeContextOutput);
   } catch {
     // never block the host
   }

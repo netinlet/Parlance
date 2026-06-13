@@ -16,3 +16,12 @@ export function renderToStderr(evaluation: EventEvaluation, write: Writer = (s) 
 export function exitCodeForEvaluation(_evaluation: EventEvaluation): number {
   return 0;
 }
+
+export function writeContextOutput(additionalContext: string, write: Writer = (s) => process.stdout.write(s)): void {
+  write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: 'SessionStart',
+      additionalContext,
+    },
+  })}\n`);
+}

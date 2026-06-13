@@ -144,7 +144,7 @@ function describe(event) {
 }
 
 // ../Core/src/discovery.ts
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 function findSolution(root) {
   let entries;
@@ -155,18 +155,28 @@ function findSolution(root) {
   }
   return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
+var csharpCache = /* @__PURE__ */ new Map();
 function looksLikeCsharp(root) {
+  const cached = csharpCache.get(root);
+  if (cached !== void 0) return cached;
   let entries;
   try {
     entries = readdirSync(root);
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
-  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "global.json" || e === "Directory.Build.props");
-  if (csAtRoot) return true;
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "Directory.Build.props");
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
   try {
-    return readdirSync(join(root, "src")).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join(root, "src")).some((e) => /\.csproj$/i.test(e));
+    csharpCache.set(root, result);
+    return result;
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
 }
@@ -178,8 +188,11 @@ function parlanceMcpWired(root) {
     return false;
   }
 }
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join(root, ".parlance", "hooks", "session-start.js"));
+}
 function planSessionStart(root) {
-  if (parlanceMcpWired(root)) {
+  if (parlanceAgentInstalled(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {
@@ -194,6 +207,11 @@ function planSessionStart(root) {
     };
   }
   return { kind: "idle" };
+}
+function runNudge(plan, canInjectContext, emit) {
+  if (plan.kind === "suggest-install" && canInjectContext) {
+    emit(plan.context);
+  }
 }
 
 // src/capabilities.ts
@@ -220,6 +238,17 @@ var capabilities = {
     can_inject_context: true
   }
 };
+
+// src/render.ts
+function writeContextOutput(additionalContext, write = (s) => process.stdout.write(s)) {
+  write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext
+    }
+  })}
+`);
+}
 
 // src/translate.ts
 function translate(env) {
@@ -304,15 +333,7 @@ async function main() {
     const translated = translate(env);
     if (!translated || translated.event.kind !== "session-started") return;
     const plan = planSessionStart(translated.context.project_root);
-    if (plan.kind === "suggest-install" && capabilities.outputs.can_inject_context) {
-      process.stdout.write(`${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "SessionStart",
-          additionalContext: plan.context
-        }
-      })}
-`);
-    }
+    runNudge(plan, capabilities.outputs.can_inject_context, writeContextOutput);
   } catch {
   }
 }

@@ -259,7 +259,7 @@ function flipToPre(event) {
 
 // src/commands/report.ts
 import { existsSync, readFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join as join2 } from "node:path";
 
 // src/storage/paths.ts
 import { homedir } from "node:os";
@@ -275,14 +275,25 @@ var benchResultsFile = () => join(telemetryDir(), "bench", "results.jsonl");
 async function runReport(argv) {
   const args = parseArgs(argv);
   const path = ledgerFile();
-  if (!existsSync(path)) {
+  const rows = [];
+  if (existsSync(path)) {
+    rows.push(
+      ...readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+    );
+  }
+  const legacyPath = join2(parlanceDir(process.cwd()), "ledger.jsonl");
+  if (existsSync(legacyPath)) {
+    rows.push(
+      ...readFileSync(legacyPath, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+    );
+  }
+  if (rows.length === 0) {
     process.stdout.write(`no ledger at ${path}
 `);
     return 0;
   }
-  const rows = readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
   const range = resolveRange(args);
-  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || (row.project ?? "").includes(args.project)));
+  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || basename(row.project ?? "") === args.project));
   const totals = filtered.reduce((acc, row) => ({
     parlance: acc.parlance + row.parlance_calls,
     fallback: acc.fallback + row.native_fallbacks,
@@ -478,8 +489,8 @@ function describe(event) {
 }
 
 // src/discovery.ts
-import { readFileSync as readFileSync4, readdirSync } from "node:fs";
-import { join as join2 } from "node:path";
+import { existsSync as existsSync4, readFileSync as readFileSync4, readdirSync } from "node:fs";
+import { join as join3 } from "node:path";
 function findSolution(root) {
   let entries;
   try {
@@ -489,31 +500,44 @@ function findSolution(root) {
   }
   return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
+var csharpCache = /* @__PURE__ */ new Map();
 function looksLikeCsharp(root) {
+  const cached = csharpCache.get(root);
+  if (cached !== void 0) return cached;
   let entries;
   try {
     entries = readdirSync(root);
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
-  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "global.json" || e === "Directory.Build.props");
-  if (csAtRoot) return true;
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "Directory.Build.props");
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
   try {
-    return readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join3(root, "src")).some((e) => /\.csproj$/i.test(e));
+    csharpCache.set(root, result);
+    return result;
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
 }
 function parlanceMcpWired(root) {
   try {
-    const config = JSON.parse(readFileSync4(join2(root, ".mcp.json"), "utf8"));
+    const config = JSON.parse(readFileSync4(join3(root, ".mcp.json"), "utf8"));
     return Boolean(config.mcpServers && "parlance" in config.mcpServers);
   } catch {
     return false;
   }
 }
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync4(join3(root, ".parlance", "hooks", "session-start.js"));
+}
 function planSessionStart(root) {
-  if (parlanceMcpWired(root)) {
+  if (parlanceAgentInstalled(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {
@@ -529,6 +553,11 @@ function planSessionStart(root) {
   }
   return { kind: "idle" };
 }
+function runNudge(plan, canInjectContext, emit) {
+  if (plan.kind === "suggest-install" && canInjectContext) {
+    emit(plan.context);
+  }
+}
 export {
   classifyPath,
   emptySessionState,
@@ -541,6 +570,7 @@ export {
   generateSessionContext,
   looksLikeCsharp,
   now,
+  parlanceAgentInstalled,
   parlanceMcpWired,
   planSessionStart,
   postRead,
@@ -553,6 +583,7 @@ export {
   preWrite,
   responseCompleted,
   runBench,
+  runNudge,
   runReport,
   runStatus,
   sessionStarted,

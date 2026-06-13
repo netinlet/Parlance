@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { basename } from 'node:path';
-import { ledgerFile } from '../storage/paths.js';
+import { basename, join } from 'node:path';
+import { ledgerFile, parlanceDir } from '../storage/paths.js';
 import type { SessionSummary } from '../types.js';
 
 interface ReportArgs {
@@ -13,19 +13,39 @@ interface ReportArgs {
 export async function runReport(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
   const path = ledgerFile();
-  if (!existsSync(path)) {
+
+  const rows: SessionSummary[] = [];
+
+  // Central ledger (new layout).
+  if (existsSync(path)) {
+    rows.push(
+      ...readFileSync(path, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as SessionSummary),
+    );
+  }
+
+  // Legacy per-project ledger (old layout: .parlance/ledger.jsonl in cwd).
+  const legacyPath = join(parlanceDir(process.cwd()), 'ledger.jsonl');
+  if (existsSync(legacyPath)) {
+    rows.push(
+      ...readFileSync(legacyPath, 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line) as SessionSummary),
+    );
+  }
+
+  if (rows.length === 0) {
     process.stdout.write(`no ledger at ${path}\n`);
     return 0;
   }
 
-  const rows = readFileSync(path, 'utf8')
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => JSON.parse(line) as SessionSummary);
   const range = resolveRange(args);
   const filtered = rows.filter((row) =>
     row.date >= range.start && row.date <= range.end
-    && (!args.project || (row.project ?? '').includes(args.project)));
+    && (!args.project || basename(row.project ?? '') === args.project));
 
   const totals = filtered.reduce((acc, row) => ({
     parlance: acc.parlance + row.parlance_calls,

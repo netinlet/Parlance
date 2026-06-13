@@ -143,18 +143,31 @@ function runInstallGlobal() {
   );
   return 0;
 }
-function writeGlobalSettings(path, nudgePath) {
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  const hooks = existing.hooks ?? {};
-  const bucket = hooks.SessionStart ?? [];
-  const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
-  hooks.SessionStart = [...preserved, {
-    matcher: "",
-    hooks: [{ type: "command", command: `node "${nudgePath}"`, timeout: 5 }]
-  }];
-  existing.hooks = hooks;
+function readJsonOrEmpty(path) {
+  if (!existsSync(path)) return {};
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`could not parse ${path}: ${err.message}`);
+  }
+}
+function mergeJsonFile(path, update) {
+  const data = readJsonOrEmpty(path);
+  update(data);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(existing, null, 2));
+  writeFileSync(path, JSON.stringify(data, null, 2));
+}
+function writeGlobalSettings(path, nudgePath) {
+  mergeJsonFile(path, (existing) => {
+    const hooks = existing.hooks ?? {};
+    const bucket = hooks.SessionStart ?? [];
+    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
+    hooks.SessionStart = [...preserved, {
+      matcher: "",
+      hooks: [{ type: "command", command: `node "${nudgePath}"`, timeout: 5 }]
+    }];
+    existing.hooks = hooks;
+  });
 }
 function parseArgs(argv) {
   const args = { project: process.cwd() };
@@ -188,32 +201,32 @@ function findHookBundleDir() {
 }
 function writeMcpJson(root, solutionAbs, mcpCommand) {
   const path = join2(root, ".mcp.json");
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  existing.mcpServers ??= {};
-  existing.mcpServers.parlance = {
-    type: "stdio",
-    command: mcpCommand ?? "parlance",
-    args: ["mcp", "--solution-path", solutionAbs]
-  };
-  writeFileSync(path, JSON.stringify(existing, null, 2));
+  mergeJsonFile(path, (existing) => {
+    existing.mcpServers ??= {};
+    existing.mcpServers.parlance = {
+      type: "stdio",
+      command: mcpCommand ?? "parlance",
+      args: ["mcp", "--solution-path", solutionAbs]
+    };
+  });
 }
 function writeSettingsJson(path) {
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  const hooks = existing.hooks ?? {};
-  const ours = {
-    SessionStart: [matcher("", "session-start.js", 5)],
-    PreToolUse: [matcher("Read|Grep|Glob|Write|Edit|MultiEdit|Bash", "pre-tool.js", 5)],
-    PostToolUse: [matcher("", "post-tool.js", 5)],
-    UserPromptSubmit: [matcher("", "user-prompt-submit.js", 3)],
-    Stop: [matcher("", "stop.js", 10)]
-  };
-  for (const [event, nextMatchers] of Object.entries(ours)) {
-    const bucket = hooks[event] ?? [];
-    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
-    hooks[event] = [...preserved, ...nextMatchers];
-  }
-  existing.hooks = hooks;
-  writeFileSync(path, JSON.stringify(existing, null, 2));
+  mergeJsonFile(path, (existing) => {
+    const hooks = existing.hooks ?? {};
+    const ours = {
+      SessionStart: [matcher("", "session-start.js", 5)],
+      PreToolUse: [matcher("Read|Grep|Glob|Write|Edit|MultiEdit|Bash", "pre-tool.js", 5)],
+      PostToolUse: [matcher("", "post-tool.js", 5)],
+      UserPromptSubmit: [matcher("", "user-prompt-submit.js", 3)],
+      Stop: [matcher("", "stop.js", 10)]
+    };
+    for (const [event, nextMatchers] of Object.entries(ours)) {
+      const bucket = hooks[event] ?? [];
+      const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
+      hooks[event] = [...preserved, ...nextMatchers];
+    }
+    existing.hooks = hooks;
+  });
 }
 function matcher(matcherValue, script, timeout) {
   return {

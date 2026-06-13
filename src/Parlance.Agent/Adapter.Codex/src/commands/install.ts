@@ -85,10 +85,17 @@ function findHookBundleDir(): string {
   throw new Error('hook bundle directory not found');
 }
 
+function readJsonOrEmpty<T extends Record<string, unknown>>(path: string): T {
+  if (!existsSync(path)) return {} as T;
+  try {
+    return JSON.parse(readFileSync(path, 'utf8')) as T;
+  } catch (err) {
+    throw new Error(`could not parse ${path}: ${(err as Error).message}`);
+  }
+}
+
 function writeHooksJson(path: string): void {
-  const existing = existsSync(path)
-    ? JSON.parse(readFileSync(path, 'utf8')) as { hooks?: Record<string, HookMatcher[]> }
-    : {};
+  const existing = readJsonOrEmpty<{ hooks?: Record<string, HookMatcher[]> }>(path);
   existing.hooks ??= {};
 
   const ours: Record<string, HookMatcher[]> = {

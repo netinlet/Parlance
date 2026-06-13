@@ -6,5 +6,5 @@ export { runReport } from './commands/report.js';
 export { runStatus } from './commands/status.js';
 export { runBench } from './commands/bench.js';
 export { generateRoutingDoc, generateSessionContext } from './commands/routing-doc.js';
-export { findSolution, looksLikeCsharp, parlanceMcpWired, planSessionStart } from './discovery.js';
+export { findSolution, looksLikeCsharp, parlanceMcpWired, parlanceAgentInstalled, planSessionStart, runNudge } from './discovery.js';
 export type { SessionStartPlan } from './discovery.js';

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findSolution, looksLikeCsharp, parlanceMcpWired, planSessionStart } from '../src/discovery.js';
+import { findSolution, looksLikeCsharp, parlanceAgentInstalled, parlanceMcpWired, planSessionStart } from '../src/discovery.js';
 
 let root: string;
 
@@ -22,9 +22,9 @@ describe('looksLikeCsharp', () => {
     expect(looksLikeCsharp(root)).toBe(true);
   });
 
-  it('true for global.json', () => {
+  it('false for global.json alone (Volta uses this file too)', () => {
     writeFileSync(join(root, 'global.json'), '{}');
-    expect(looksLikeCsharp(root)).toBe(true);
+    expect(looksLikeCsharp(root)).toBe(false);
   });
 
   it('true for a .csproj under src/', () => {
@@ -67,12 +67,36 @@ describe('parlanceMcpWired', () => {
   });
 });
 
+describe('parlanceAgentInstalled', () => {
+  it('true when .mcp.json has a parlance server', () => {
+    wireMcp();
+    expect(parlanceAgentInstalled(root)).toBe(true);
+  });
+
+  it('true when hook bundle is present (Codex install path)', () => {
+    mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
+    writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
+    expect(parlanceAgentInstalled(root)).toBe(true);
+  });
+
+  it('false when neither .mcp.json nor hooks are present', () => {
+    expect(parlanceAgentInstalled(root)).toBe(false);
+  });
+});
+
 describe('planSessionStart', () => {
-  it('wired -> routing context', () => {
+  it('wired (Claude) -> routing context', () => {
     wireMcp();
     const plan = planSessionStart(root);
     expect(plan.kind).toBe('wired');
     expect(plan.kind === 'wired' && plan.context).toContain('mcp__parlance__describe-type');
+  });
+
+  it('wired (Codex hook bundle) -> routing context', () => {
+    mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
+    writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
+    const plan = planSessionStart(root);
+    expect(plan.kind).toBe('wired');
   });
 
   it('C# but unwired -> install suggestion naming the solution', () => {

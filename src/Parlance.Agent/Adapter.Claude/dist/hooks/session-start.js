@@ -166,7 +166,7 @@ function describe(event) {
 }
 
 // ../Core/src/discovery.ts
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join as join2 } from "node:path";
 function findSolution(root) {
   let entries;
@@ -177,18 +177,28 @@ function findSolution(root) {
   }
   return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
+var csharpCache = /* @__PURE__ */ new Map();
 function looksLikeCsharp(root) {
+  const cached = csharpCache.get(root);
+  if (cached !== void 0) return cached;
   let entries;
   try {
     entries = readdirSync(root);
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
-  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "global.json" || e === "Directory.Build.props");
-  if (csAtRoot) return true;
+  const csAtRoot = entries.some((e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "Directory.Build.props");
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
   try {
-    return readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join2(root, "src")).some((e) => /\.csproj$/i.test(e));
+    csharpCache.set(root, result);
+    return result;
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
 }
@@ -200,8 +210,11 @@ function parlanceMcpWired(root) {
     return false;
   }
 }
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
+}
 function planSessionStart(root) {
-  if (parlanceMcpWired(root)) {
+  if (parlanceAgentInstalled(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {
@@ -219,7 +232,7 @@ function planSessionStart(root) {
 }
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function writeSessionState(root, state) {
   const path = sessionFile(root);
@@ -251,6 +264,17 @@ var capabilities = {
     can_inject_context: true
   }
 };
+
+// src/render.ts
+function writeContextOutput(additionalContext, write = (s) => process.stdout.write(s)) {
+  write(`${JSON.stringify({
+    hookSpecificOutput: {
+      hookEventName: "SessionStart",
+      additionalContext
+    }
+  })}
+`);
+}
 
 // src/translate.ts
 function translate(env) {
@@ -342,13 +366,7 @@ async function main() {
       );
     }
     if (plan.kind !== "idle" && capabilities.outputs.can_inject_context) {
-      process.stdout.write(`${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: "SessionStart",
-          additionalContext: plan.context
-        }
-      })}
-`);
+      writeContextOutput(plan.context);
     }
   } catch {
   }

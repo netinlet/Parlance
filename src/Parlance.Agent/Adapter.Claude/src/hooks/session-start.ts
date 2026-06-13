@@ -1,6 +1,7 @@
 import { emptySessionState, planSessionStart } from '@parlance/agent-core';
 import { writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { capabilities } from '../capabilities.js';
+import { writeContextOutput } from '../render.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
 
@@ -23,12 +24,7 @@ async function main(): Promise<void> {
 
     // Inject routing guidance (wired) or an install reminder (C# but unwired).
     if (plan.kind !== 'idle' && capabilities.outputs.can_inject_context) {
-      process.stdout.write(`${JSON.stringify({
-        hookSpecificOutput: {
-          hookEventName: 'SessionStart',
-          additionalContext: plan.context,
-        },
-      })}\n`);
+      writeContextOutput(plan.context);
     }
   } catch {
     // never block the host

@@ -61,18 +61,29 @@ async function runBench(argv) {
 
 // src/commands/report.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { basename } from "node:path";
+import { basename, join as join2 } from "node:path";
 async function runReport(argv) {
   const args = parseArgs(argv);
   const path = ledgerFile();
-  if (!existsSync2(path)) {
+  const rows = [];
+  if (existsSync2(path)) {
+    rows.push(
+      ...readFileSync2(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+    );
+  }
+  const legacyPath = join2(parlanceDir(process.cwd()), "ledger.jsonl");
+  if (existsSync2(legacyPath)) {
+    rows.push(
+      ...readFileSync2(legacyPath, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line))
+    );
+  }
+  if (rows.length === 0) {
     process.stdout.write(`no ledger at ${path}
 `);
     return 0;
   }
-  const rows = readFileSync2(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
   const range = resolveRange(args);
-  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || (row.project ?? "").includes(args.project)));
+  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || basename(row.project ?? "") === args.project));
   const totals = filtered.reduce((acc, row) => ({
     parlance: acc.parlance + row.parlance_calls,
     fallback: acc.fallback + row.native_fallbacks,

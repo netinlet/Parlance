@@ -151,8 +151,16 @@ function findHookBundleDir() {
   }
   throw new Error("hook bundle directory not found");
 }
+function readJsonOrEmpty(path) {
+  if (!existsSync(path)) return {};
+  try {
+    return JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`could not parse ${path}: ${err.message}`);
+  }
+}
 function writeHooksJson(path) {
-  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  const existing = readJsonOrEmpty(path);
   existing.hooks ??= {};
   const ours = {
     SessionStart: [matcher("startup|resume|clear", "session-start.js", 5, "Loading Parlance session state")],

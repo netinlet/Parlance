@@ -199,14 +199,29 @@ import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
+// ../Core/src/discovery.ts
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join as join2 } from "node:path";
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(readFileSync(join2(root, ".mcp.json"), "utf8"));
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
+}
+
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
-  if (!existsSync(path)) return null;
+  if (!existsSync2(path)) return null;
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFileSync2(path, "utf8"));
   } catch {
     return null;
   }
@@ -335,6 +350,7 @@ async function main() {
     if (!translated) return;
     const current = readSessionState(translated.context.project_root);
     if (!current) return;
+    if (!parlanceAgentInstalled(translated.context.project_root)) return;
     const evaluation = evaluateEvent(translated.event, translated.context, current);
     renderToStderr(evaluation);
     if (evaluation.next_state) {

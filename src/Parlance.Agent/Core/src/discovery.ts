@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateSessionContext } from './commands/routing-doc.js';
 
@@ -13,26 +13,38 @@ export function findSolution(root: string): string | null {
   return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
 }
 
+const csharpCache = new Map<string, boolean>();
+
 /**
  * Cheap heuristic for "is this a C# project?", run at session start so it must
- * stay fast: solution/global.json/Directory.Build.props/.csproj at the root, or
- * a `.csproj` one level down in `src/`.
+ * stay fast: solution/Directory.Build.props/.csproj at the root, or a `.csproj`
+ * one level down in `src/`. Result is cached per root for the process lifetime.
  */
 export function looksLikeCsharp(root: string): boolean {
+  const cached = csharpCache.get(root);
+  if (cached !== undefined) return cached;
+
   let entries: string[];
   try {
     entries = readdirSync(root);
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
 
   const csAtRoot = entries.some((e) =>
-    /\.(slnx|sln|csproj)$/i.test(e) || e === 'global.json' || e === 'Directory.Build.props');
-  if (csAtRoot) return true;
+    /\.(slnx|sln|csproj)$/i.test(e) || e === 'Directory.Build.props');
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
 
   try {
-    return readdirSync(join(root, 'src')).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join(root, 'src')).some((e) => /\.csproj$/i.test(e));
+    csharpCache.set(root, result);
+    return result;
   } catch {
+    csharpCache.set(root, false);
     return false;
   }
 }
@@ -47,6 +59,16 @@ export function parlanceMcpWired(root: string): boolean {
   }
 }
 
+/**
+ * True when `parlance agent install` has been run: either the MCP server is in
+ * `.mcp.json` (Claude path) or hook bundles are present (Codex path, where the
+ * user separately runs `codex mcp add parlance`).
+ */
+export function parlanceAgentInstalled(root: string): boolean {
+  return parlanceMcpWired(root)
+    || existsSync(join(root, '.parlance', 'hooks', 'session-start.js'));
+}
+
 export type SessionStartPlan =
   | { kind: 'wired'; context: string }
   | { kind: 'suggest-install'; context: string }
@@ -59,7 +81,7 @@ export type SessionStartPlan =
  * everywhere else so unrelated repos aren't littered.
  */
 export function planSessionStart(root: string): SessionStartPlan {
-  if (parlanceMcpWired(root)) {
+  if (parlanceAgentInstalled(root)) {
     return { kind: 'wired', context: generateSessionContext() };
   }
 
@@ -76,4 +98,19 @@ export function planSessionStart(root: string): SessionStartPlan {
   }
 
   return { kind: 'idle' };
+}
+
+/**
+ * Emit a nudge context string when the plan is `suggest-install` and the adapter
+ * supports context injection. Centralises the guard so adapter `nudge.ts` files
+ * don't each duplicate the if-condition.
+ */
+export function runNudge(
+  plan: SessionStartPlan,
+  canInjectContext: boolean,
+  emit: (context: string) => void,
+): void {
+  if (plan.kind === 'suggest-install' && canInjectContext) {
+    emit(plan.context);
+  }
 }
