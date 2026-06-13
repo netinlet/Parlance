@@ -67,7 +67,7 @@ function runInstallGlobal(): number {
   );
 
   const cwd = process.cwd();
-  const hooksInstalled = existsSync(join(parlanceDir(cwd), 'hooks', 'session-start.js'));
+  const hooksInstalled = existsSync(join(cwd, '.claude', 'settings.local.json'));
   if (!hooksInstalled) {
     const sln = findSolution(cwd) ?? '<YourSolution.sln>';
     process.stderr.write(
