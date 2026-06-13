@@ -13,7 +13,7 @@ namespace Parlance.Analyzers.Upstream;
 /// is never executed. Results are cached per trust-fingerprint so an out-of-band
 /// <c>parlance trust</c> grant takes effect on the next call without restart.
 /// </summary>
-public sealed class GlobalDirectoryAnalyzerSource : IAnalyzerSource
+public sealed class GlobalDirectoryAnalyzerSource : IAnalyzerSource, ITrustNoticeSource
 {
     private readonly string _globalDir;
     private readonly string _trustFilePath;

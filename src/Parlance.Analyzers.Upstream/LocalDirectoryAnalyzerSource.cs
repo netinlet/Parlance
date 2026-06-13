@@ -13,7 +13,7 @@ namespace Parlance.Analyzers.Upstream;
 /// is never executed. Results are cached per <c>(canonical-repo-path, trust-fingerprint)</c> so
 /// an out-of-band <c>parlance trust</c> grant takes effect on the next call without restart.
 /// </summary>
-public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource
+public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource, ITrustNoticeSource
 {
     private readonly ConcurrentDictionary<string, SourceLoadResult> _cache = new(StringComparer.Ordinal);
 
