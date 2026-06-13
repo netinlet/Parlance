@@ -1,10 +1,28 @@
 <Project>
   <PropertyGroup>
-    <Version>0.2.0</Version>
+    <MinVerTagPrefix>v</MinVerTagPrefix>
     <Authors>Doug Bryant</Authors>
     <Company>Netinlet</Company>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RepositoryUrl>https://github.com/netinlet/Parlance</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+
+    <!-- Microsoft.Build.Locator 1.11+ raises MSBL001 when MSBuild assemblies
+         (e.g. Microsoft.Build.Framework, pulled transitively by
+         Microsoft.CodeAnalysis.Workspaces.MSBuild) are copied to output. We host
+         MSBuildWorkspace via MSBuildLocator.RegisterDefaults(), which loads MSBuild
+         from the installed .NET SDK at runtime and never distributes the toolset,
+         so the copied assemblies are inert. The recommended ExcludeAssets="runtime"
+         fix would require pinning the transitive Microsoft.Build.* versions across
+         every project in the workspace dependency cone, version-coupling them to the
+         Roslyn release train. Disabling the copy check is the proportionate fix. -->
+    <DisableMSBuildAssemblyCopyCheck>true</DisableMSBuildAssemblyCopyCheck>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MinVer" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
 </Project>

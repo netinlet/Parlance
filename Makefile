@@ -13,8 +13,8 @@ ARTIFACTS_DIR ?= $(CURDIR)/artifacts
 TOOL_ARTIFACTS_DIR ?= $(ARTIFACTS_DIR)/tool
 TARGET_PROJECT ?= /absolute/path/to/target-repo
 SOLUTION ?= YourSolution.sln
-# Single-sourced from Directory.Build.props so a version bump never desyncs the tool install/reinstall.
-TOOL_VERSION ?= $(shell sed -n 's/.*<Version>\(.*\)<\/Version>.*/\1/p' $(CURDIR)/Directory.Build.props)
+# Derived from the packed nupkg filename so it always matches what MinVer stamped at pack time.
+TOOL_VERSION ?= $(shell ls "$(TOOL_ARTIFACTS_DIR)"/$(TOOL_PACKAGE_ID).*.nupkg 2>/dev/null | head -1 | sed 's|.*/$(TOOL_PACKAGE_ID)\.||;s/\.nupkg$$//')
 TOOL_PACKAGE_ID ?= Parlance.Cli
 TOOL_COMMAND_NAME ?= parlance
 

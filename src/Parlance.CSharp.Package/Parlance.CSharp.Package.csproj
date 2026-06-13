@@ -13,16 +13,16 @@
   <!-- Dependencies that consumers will get.
        Parlance.CSharp.Analyzers is a sibling project in this solution, so we use
        a ProjectReference (not PackageReference) to avoid NU1101 during solution
-       restore — the 0.1.0 package isn't published to any feed. SDK Pack emits
-       the ProjectReference as a `<dependency>` in the nuspec using the target
-       project's PackageId, so the published metapackage is byte-identical to
-       what a PackageReference would produce. PrivateAssets="none" is required
-       to override the analyzer project's DevelopmentDependency default
+       restore — the package is only published to nuget.org on release, not to any
+       local feed. SDK Pack emits the ProjectReference as a `<dependency>` in the
+       nuspec using the target project's PackageId, so the published metapackage is
+       byte-identical to what a PackageReference would produce. PrivateAssets="none"
+       is required to override the analyzer project's DevelopmentDependency default
        (PrivateAssets=all) and let the analyzer flow transitively to consumers. -->
   <ItemGroup>
     <ProjectReference Include="..\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj"
                       PrivateAssets="none" />
-    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.202">
+    <PackageReference Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="10.0.300">
       <PrivateAssets>none</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Roslynator.Analyzers" Version="4.15.0">
