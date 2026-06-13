@@ -1,5 +1,13 @@
 <Project>
   <PropertyGroup>
+    <!-- Single source of truth for the Roslyn package set (Microsoft.CodeAnalysis.CSharp,
+         .CSharp.Workspaces, .CSharp.Features, .Features, .CSharp.CodeStyle, .Workspaces.MSBuild).
+         These ship in lockstep and must match across every project — a mismatch is a hard
+         NU1107 restore failure. Referenced as Version="$(RoslynVersion)" in each csproj.
+         NOTE: the netstandard2.0 analyzer projects pin Microsoft.CodeAnalysis.CSharp at a lower
+         version on purpose (built against the host Roslyn) — they do NOT use this property. -->
+    <RoslynVersion>5.3.0</RoslynVersion>
+
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <Authors>Doug Bryant</Authors>
     <Company>Netinlet</Company>
