@@ -2,6 +2,7 @@
 
 // src/commands/install.ts
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
 import { dirname, join as join2, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -57,8 +58,11 @@ function matchRoutingRule(event) {
 }
 
 // ../Core/src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var globalHooksDir = () => join(parlanceHome(), "hooks");
 var hooksDir = (root) => join(parlanceDir(root), "hooks");
 var routingFile = (root) => join(parlanceDir(root), "tool-routing.md");
 
@@ -93,7 +97,12 @@ function describe(event) {
 
 // src/commands/install.ts
 var HOOK_MARKER = ".parlance/hooks/";
+var GLOBAL_NUDGE_MARKER = "hooks/nudge.js";
+function claudeConfigDir() {
+  return process.env.CLAUDE_CONFIG_DIR?.trim() || join2(homedir2(), ".claude");
+}
 async function runInstall(argv) {
+  if (argv.includes("--global")) return runInstallGlobal();
   const args = parseArgs(argv);
   if (!args) return 2;
   const root = resolve(args.project);
@@ -112,6 +121,40 @@ async function runInstall(argv) {
   process.stderr.write(`parlance agent (claude) installed at ${root}
 `);
   return 0;
+}
+function runInstallGlobal() {
+  const hooksTarget = globalHooksDir();
+  mkdirSync(hooksTarget, { recursive: true });
+  const nudgeSource = join2(findHookBundleDir(), "nudge.js");
+  if (!existsSync(nudgeSource)) {
+    process.stderr.write(`nudge bundle missing at ${nudgeSource}
+`);
+    return 1;
+  }
+  const nudgeTarget = join2(hooksTarget, "nudge.js");
+  copyFileSync(nudgeSource, nudgeTarget);
+  const settingsPath = join2(claudeConfigDir(), "settings.json");
+  writeGlobalSettings(settingsPath, nudgeTarget);
+  process.stderr.write(
+    `parlance global nudge installed:
+  bundle: ${nudgeTarget}
+  wired into: ${settingsPath} (SessionStart, nudge-only)
+`
+  );
+  return 0;
+}
+function writeGlobalSettings(path, nudgePath) {
+  const existing = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
+  const hooks = existing.hooks ?? {};
+  const bucket = hooks.SessionStart ?? [];
+  const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
+  hooks.SessionStart = [...preserved, {
+    matcher: "",
+    hooks: [{ type: "command", command: `node "${nudgePath}"`, timeout: 5 }]
+  }];
+  existing.hooks = hooks;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(existing, null, 2));
 }
 function parseArgs(argv) {
   const args = { project: process.cwd() };
@@ -258,7 +301,8 @@ async function main() {
 function help() {
   process.stderr.write([
     "usage: parlance-agent-claude <install|uninstall> [args]",
-    "  install --solution <path> [--project <dir>]",
+    "  install --solution <path> [--project <dir>]   per-project: hooks + MCP + telemetry",
+    "  install --global                              once: wire the nudge-only reminder into ~/.claude/settings.json",
     "  uninstall [--project <dir>] [--purge]",
     ""
   ].join("\n"));

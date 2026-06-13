@@ -15,6 +15,9 @@ export const parlanceHome = (): string => process.env.PARLANCE_HOME?.trim() || j
 /** Durable, cross-worktree telemetry — its own subtree under the home root. */
 export const telemetryDir = (): string => join(parlanceHome(), 'telemetry');
 
+/** Central bundle for the global (user-level) nudge hook — sibling of telemetry/. */
+export const globalHooksDir = (): string => join(parlanceHome(), 'hooks');
+
 // --- Project-local: install artifacts + the ephemeral active-session state.
 // These stay per-worktree (the hooks are wired into that worktree's settings,
 // and concurrent sessions in different worktrees must not clobber each other).

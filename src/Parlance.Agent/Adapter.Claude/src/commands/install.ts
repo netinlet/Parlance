@@ -1,10 +1,16 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { generateRoutingDoc } from '@parlance/agent-core';
-import { hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
+import { globalHooksDir, hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
 
 const HOOK_MARKER = '.parlance/hooks/';
+const GLOBAL_NUDGE_MARKER = 'hooks/nudge.js';
+
+function claudeConfigDir(): string {
+  return process.env.CLAUDE_CONFIG_DIR?.trim() || join(homedir(), '.claude');
+}
 
 interface InstallArgs {
   project: string;
@@ -18,6 +24,8 @@ interface HookMatcher {
 }
 
 export async function runInstall(argv: string[]): Promise<number> {
+  if (argv.includes('--global')) return runInstallGlobal();
+
   const args = parseArgs(argv);
   if (!args) return 2;
 
@@ -37,6 +45,44 @@ export async function runInstall(argv: string[]): Promise<number> {
   writeSettingsJson(join(root, '.claude/settings.local.json'));
   process.stderr.write(`parlance agent (claude) installed at ${root}\n`);
   return 0;
+}
+
+function runInstallGlobal(): number {
+  const hooksTarget = globalHooksDir();
+  mkdirSync(hooksTarget, { recursive: true });
+
+  const nudgeSource = join(findHookBundleDir(), 'nudge.js');
+  if (!existsSync(nudgeSource)) {
+    process.stderr.write(`nudge bundle missing at ${nudgeSource}\n`);
+    return 1;
+  }
+  const nudgeTarget = join(hooksTarget, 'nudge.js');
+  copyFileSync(nudgeSource, nudgeTarget);
+
+  const settingsPath = join(claudeConfigDir(), 'settings.json');
+  writeGlobalSettings(settingsPath, nudgeTarget);
+
+  process.stderr.write(
+    `parlance global nudge installed:\n  bundle: ${nudgeTarget}\n  wired into: ${settingsPath} (SessionStart, nudge-only)\n`,
+  );
+  return 0;
+}
+
+function writeGlobalSettings(path: string, nudgePath: string): void {
+  const existing = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown> : {};
+  const hooks = (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
+
+  // Replace any prior global-nudge entry (idempotent); preserve foreign SessionStart hooks.
+  const bucket = hooks.SessionStart ?? [];
+  const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
+  hooks.SessionStart = [...preserved, {
+    matcher: '',
+    hooks: [{ type: 'command', command: `node "${nudgePath}"`, timeout: 5 }],
+  }];
+
+  existing.hooks = hooks;
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(existing, null, 2));
 }
 
 function parseArgs(argv: string[]): InstallArgs | null {
