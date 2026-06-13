@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Xml.Linq;
 
 namespace Parlance.Package.Tests;
 
@@ -9,13 +10,20 @@ public sealed class PackageTestFixture : IAsyncLifetime
     public string ArtifactsDir { get; private set; } = null!;
     public string TempDir { get; private set; } = null!;
     public string NugetConfigPath { get; private set; } = null!;
+    public string PackageVersion { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
-        // Sweep stale temp dirs left by interrupted prior runs
+        // Sweep only dirs old enough that no live test run could own them
+        var staleThreshold = TimeSpan.FromHours(1);
         foreach (var staleDir in Directory.GetDirectories(Path.GetTempPath(), "parlance-pkg-tests-*"))
         {
-            try { Directory.Delete(staleDir, recursive: true); } catch { }
+            try
+            {
+                if (DateTime.UtcNow - Directory.GetCreationTimeUtc(staleDir) > staleThreshold)
+                    Directory.Delete(staleDir, recursive: true);
+            }
+            catch { }
         }
 
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -24,6 +32,10 @@ public sealed class PackageTestFixture : IAsyncLifetime
 
         RepoRoot = dir?.FullName ?? throw new InvalidOperationException("Could not find repo root containing Parlance.slnx");
         ArtifactsDir = Path.Combine(RepoRoot, "artifacts", "test-packages");
+
+        var buildProps = Path.Combine(RepoRoot, "Directory.Build.props");
+        PackageVersion = XDocument.Load(buildProps).Descendants("Version").FirstOrDefault()?.Value
+            ?? throw new InvalidOperationException("Could not read Version from Directory.Build.props");
         TempDir = Path.Combine(Path.GetTempPath(), $"parlance-pkg-tests-{Guid.NewGuid():N}");
 
         Directory.CreateDirectory(ArtifactsDir);
@@ -116,7 +128,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
     [Fact]
     public async Task AnalyzerPackage_ReportsParl9003_WhenDefaultExpressionUsed()
     {
-        var projectDir = CreateTestProject("AnalyzerTest", "Parlance.CSharp.Analyzers", "0.1.0");
+        var projectDir = CreateTestProject("AnalyzerTest", "Parlance.CSharp.Analyzers");
         WriteViolationCode(projectDir);
 
         var output = await fixture.RunDotnet(
@@ -130,7 +142,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
     [Fact]
     public async Task BundlePackage_RestoresUpstreamDependencies()
     {
-        var projectDir = CreateTestProject("BundleTest", "Parlance.CSharp", "0.1.0");
+        var projectDir = CreateTestProject("BundleTest", "Parlance.CSharp");
         WriteViolationCode(projectDir);
 
         var output = await fixture.RunDotnet(
@@ -144,7 +156,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
     [Fact]
     public async Task AnalyzerPackage_ReportsParl3001_WhenCognitiveComplexityExceedsThreshold()
     {
-        var projectDir = CreateTestProject("Parl3001AnalyzerTest", "Parlance.CSharp.Analyzers", "0.1.0");
+        var projectDir = CreateTestProject("Parl3001AnalyzerTest", "Parlance.CSharp.Analyzers");
         WriteComplexCode(projectDir);
 
         var output = await fixture.RunDotnet(
@@ -158,7 +170,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
     [Fact]
     public async Task BundlePackage_ReportsParl3001_WhenCognitiveComplexityExceedsThreshold()
     {
-        var projectDir = CreateTestProject("Parl3001BundleTest", "Parlance.CSharp", "0.1.0");
+        var projectDir = CreateTestProject("Parl3001BundleTest", "Parlance.CSharp");
         WriteComplexCode(projectDir);
 
         var output = await fixture.RunDotnet(
@@ -199,7 +211,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
         Assert.Contains(entries, e => e.StartsWith("content/", StringComparison.Ordinal) && e.EndsWith(".editorconfig", StringComparison.Ordinal));
     }
 
-    private string CreateTestProject(string name, string packageId, string version)
+    private string CreateTestProject(string name, string packageId)
     {
         var projectDir = Path.Combine(fixture.TempDir, name);
         Directory.CreateDirectory(projectDir);
@@ -211,7 +223,7 @@ public sealed class AnalyzerPackageIntegrationTests(PackageTestFixture fixture) 
                 <Nullable>enable</Nullable>
               </PropertyGroup>
               <ItemGroup>
-                <PackageReference Include="{packageId}" Version="{version}" />
+                <PackageReference Include="{packageId}" Version="{fixture.PackageVersion}" />
               </ItemGroup>
             </Project>
             """;
