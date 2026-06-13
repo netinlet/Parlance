@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Xml.Linq;
 
 namespace Parlance.Package.Tests;
 
@@ -33,10 +32,12 @@ public sealed class PackageTestFixture : IAsyncLifetime
         RepoRoot = dir?.FullName ?? throw new InvalidOperationException("Could not find repo root containing Parlance.slnx");
         ArtifactsDir = Path.Combine(RepoRoot, "artifacts", "test-packages");
 
-        var buildProps = Path.Combine(RepoRoot, "Directory.Build.props");
-        PackageVersion = XDocument.Load(buildProps).Descendants("Version").FirstOrDefault()?.Value
-            ?? throw new InvalidOperationException("Could not read Version from Directory.Build.props");
         TempDir = Path.Combine(Path.GetTempPath(), $"parlance-pkg-tests-{Guid.NewGuid():N}");
+
+        // Clear stale nupkgs so .Single() below always finds exactly one version.
+        if (Directory.Exists(ArtifactsDir))
+            foreach (var stale in Directory.GetFiles(ArtifactsDir, "*.nupkg"))
+                File.Delete(stale);
 
         Directory.CreateDirectory(ArtifactsDir);
         Directory.CreateDirectory(TempDir);
@@ -75,6 +76,12 @@ public sealed class PackageTestFixture : IAsyncLifetime
         // ambient NuGet config so src/**/obj is written with real ~/.nuget/packages
         // paths only, never the temp path that DisposeAsync will delete.
         await RunDotnet($"pack \"{analyzersCsproj}\" -c Release --output \"{ArtifactsDir}\"");
+
+        // Version comes from the nupkg filename MinVer stamped — no separate lookup needed.
+        const string analyzerPrefix = "Parlance.CSharp.Analyzers.";
+        var analyzerNupkg = Directory.GetFiles(ArtifactsDir, $"{analyzerPrefix}*.nupkg").Single();
+        PackageVersion = Path.GetFileNameWithoutExtension(analyzerNupkg)[analyzerPrefix.Length..];
+
         await RunDotnet($"pack \"{bundleCsproj}\" -c Release --output \"{ArtifactsDir}\"");
     }
 
