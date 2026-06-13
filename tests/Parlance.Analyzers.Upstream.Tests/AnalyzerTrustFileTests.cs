@@ -87,6 +87,47 @@ public sealed class AnalyzerTrustFileTests
     }
 
     [Fact]
+    public void TrustDirectory_SkipsResourcesDlls()
+    {
+        var dir = Directory.CreateTempSubdirectory("parlance-res-").FullName;
+        var real = Path.Combine(dir, "Analyzer.dll");
+        var satellite = Path.Combine(dir, "Analyzer.resources.dll");
+        File.WriteAllBytes(real, new byte[] { 0x4D, 0x5A, 0x01 });
+        File.WriteAllBytes(satellite, new byte[] { 0x4D, 0x5A, 0x02 });
+        var store = new AnalyzerTrustFile(TempStorePath());
+
+        store.TrustDirectory(dir);
+
+        var paths = store.List().Select(e => e.DllPath).ToHashSet();
+        Assert.Contains(Path.GetFullPath(real), paths);
+        Assert.DoesNotContain(Path.GetFullPath(satellite), paths);
+    }
+
+    [Fact]
+    public void Check_CorruptFile_FailsClosedAsNotFound()
+    {
+        var dll = WriteTempDll();
+        var storePath = TempStorePath();
+        File.WriteAllText(storePath, "{ this is not valid json");
+        var store = new AnalyzerTrustFile(storePath);
+
+        Assert.Equal(TrustCheckResult.NotFound, store.Check(dll));
+    }
+
+    [Fact]
+    public void Trust_CorruptFile_ThrowsRatherThanDiscardingGrants()
+    {
+        var dll = WriteTempDll();
+        var storePath = TempStorePath();
+        File.WriteAllText(storePath, "{ corrupt");
+        var store = new AnalyzerTrustFile(storePath);
+
+        Assert.Throws<InvalidOperationException>(() => store.Trust(dll));
+        // The corrupt file must be left intact, not overwritten with a fresh {}.
+        Assert.Equal("{ corrupt", File.ReadAllText(storePath));
+    }
+
+    [Fact]
     public void ProjectPath_ReturnsCorrectRelativeLocation()
     {
         var path = AnalyzerTrustFile.ProjectPath("/repo/root");

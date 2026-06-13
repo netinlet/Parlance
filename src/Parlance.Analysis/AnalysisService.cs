@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -17,7 +18,9 @@ public sealed class AnalysisService(
     AnalyzerProvider analyzerProvider,
     ILogger<AnalysisService> logger)
 {
-    private readonly HashSet<string> _loggedFailurePaths = new(StringComparer.OrdinalIgnoreCase);
+    // Singleton service; MCP dispatches tool calls concurrently, so the once-per-path guard must
+    // be a concurrent set (a plain HashSet can corrupt during a concurrent Add/resize).
+    private readonly ConcurrentDictionary<string, byte> _loggedFailurePaths = new(StringComparer.OrdinalIgnoreCase);
 
     public async Task<FileAnalysisResult> AnalyzeFilesAsync(
         ImmutableList<string> filePaths,
@@ -164,9 +167,10 @@ public sealed class AnalysisService(
     };
 
     /// <summary>
-    /// Collapses exact duplicate diagnostics that can arise when multiple analyzer sources
-    /// load the same analyzer DLL. Two diagnostics are considered identical when they share
-    /// the same rule id, severity, message, file path, and source span.
+    /// Collapses byte-identical diagnostics — same rule id, severity, message, file path, and source
+    /// span. <see cref="AnalyzerProvider"/> already dedups analyzers by type FullName, so the same
+    /// analyzer type never runs twice; this is the residual guard against a single analyzer (or Roslyn
+    /// across multiple syntax trees) emitting the exact same diagnostic more than once.
     /// </summary>
     private static ImmutableList<CuratedDiagnostic> CollapseIdenticalDiagnostics(
         ImmutableList<CuratedDiagnostic> diagnostics) =>
@@ -182,7 +186,7 @@ public sealed class AnalysisService(
     {
         foreach (var failure in failures)
         {
-            if (_loggedFailurePaths.Add(failure.DllPath))
+            if (_loggedFailurePaths.TryAdd(failure.DllPath, 0))
                 logger.LogWarning(
                     "Analyzer DLL load failure for project {ProjectName}: {DllPath} — {Reason}",
                     projectName, failure.DllPath, failure.Reason);

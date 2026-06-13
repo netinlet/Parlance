@@ -71,7 +71,7 @@ internal static class TrustCommand
     {
         if (Directory.Exists(path))
         {
-            var dlls = Directory.EnumerateFiles(path, "*.dll").ToList();
+            var dlls = AnalyzerTrustFile.EnumerateAnalyzerDlls(path).ToList();
             if (dlls.Count == 0)
             {
                 await Console.Error.WriteLineAsync($"No .dll files found in {path}");
@@ -139,7 +139,7 @@ internal static class TrustCommand
     {
         if (Directory.Exists(path))
         {
-            var dlls = Directory.EnumerateFiles(path, "*.dll").ToList();
+            var dlls = AnalyzerTrustFile.EnumerateAnalyzerDlls(path).ToList();
             if (dlls.Count == 0)
             {
                 await Console.Error.WriteLineAsync($"No .dll files found in {path}");

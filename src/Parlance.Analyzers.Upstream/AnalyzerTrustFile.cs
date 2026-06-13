@@ -25,6 +25,12 @@ public sealed class AnalyzerTrustFile(string path)
     private static readonly JsonSerializerOptions JsonOptions =
         new() { WriteIndented = true };
 
+    // Trust keys are canonical file paths. The filesystem is case-sensitive on Linux but
+    // case-insensitive on Windows/macOS, where MSBuild/Roslyn can surface a DLL path with
+    // different casing than what was trusted — so the comparer must follow the platform.
+    private static readonly StringComparer PathComparer =
+        OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+
     public static string ProjectPath(string repoRoot) =>
         Path.Combine(repoRoot, ".parlance", "trusted_analyzers.json");
 
@@ -36,7 +42,7 @@ public sealed class AnalyzerTrustFile(string path)
     /// <summary>Checks whether a DLL is trusted and its hash matches the stored value.</summary>
     public TrustCheckResult Check(string absoluteDllPath)
     {
-        var data = Read();
+        var data = ReadSafe();
         var key = Canonical(absoluteDllPath);
         if (!data.TryGetValue(key, out var storedHash)) return TrustCheckResult.NotFound;
         if (!File.Exists(absoluteDllPath)) return TrustCheckResult.NotFound;
@@ -57,49 +63,100 @@ public sealed class AnalyzerTrustFile(string path)
     }
 
     /// <summary>Hashes <paramref name="absoluteDllPath"/> and records the grant.</summary>
-    public void Trust(string absoluteDllPath)
-    {
-        var data = Read();
-        data[Canonical(absoluteDllPath)] = Hash(absoluteDllPath);
-        Write(data);
-    }
+    public void Trust(string absoluteDllPath) => TrustMany([absoluteDllPath]);
 
-    /// <summary>Calls <see cref="Trust"/> for every <c>*.dll</c> in <paramref name="dir"/>.</summary>
-    public void TrustDirectory(string dir)
+    /// <summary>Trusts every analyzer <c>*.dll</c> in <paramref name="dir"/> (skips <c>*.resources.dll</c>).</summary>
+    public void TrustDirectory(string dir) => TrustMany(EnumerateAnalyzerDlls(dir));
+
+    /// <summary>
+    /// Hashes and records a grant for each DLL in one read-modify-write cycle. Trusting a whole
+    /// directory is O(1) file rewrites rather than O(n) deserialize/serialize of an ever-growing file.
+    /// </summary>
+    public void TrustMany(IEnumerable<string> absoluteDllPaths)
     {
-        foreach (var dll in Directory.EnumerateFiles(dir, "*.dll"))
-            Trust(dll);
+        var data = ReadForWrite();
+        var changed = false;
+        foreach (var dll in absoluteDllPaths)
+        {
+            var key = Canonical(dll);
+            var hash = Hash(dll);
+            if (!data.TryGetValue(key, out var existing) || existing != hash)
+            {
+                data[key] = hash;
+                changed = true;
+            }
+        }
+        if (changed) Write(data);
     }
 
     /// <summary>Removes the trust grant for <paramref name="absoluteDllPath"/>.</summary>
-    public void Revoke(string absoluteDllPath)
-    {
-        var data = Read();
-        if (data.Remove(Canonical(absoluteDllPath)))
-            Write(data);
-    }
+    public void Revoke(string absoluteDllPath) => RevokeMany([absoluteDllPath]);
 
-    /// <summary>Calls <see cref="Revoke"/> for every <c>*.dll</c> in <paramref name="dir"/>.</summary>
-    public void RevokeDirectory(string dir)
+    /// <summary>Revokes every analyzer <c>*.dll</c> in <paramref name="dir"/> (skips <c>*.resources.dll</c>).</summary>
+    public void RevokeDirectory(string dir) => RevokeMany(EnumerateAnalyzerDlls(dir));
+
+    /// <summary>Removes the trust grant for each DLL in one read-modify-write cycle.</summary>
+    public void RevokeMany(IEnumerable<string> absoluteDllPaths)
     {
-        foreach (var dll in Directory.EnumerateFiles(dir, "*.dll"))
-            Revoke(dll);
+        var data = ReadForWrite();
+        var changed = false;
+        foreach (var dll in absoluteDllPaths)
+            changed |= data.Remove(Canonical(dll));
+        if (changed) Write(data);
     }
 
     /// <summary>Returns all stored trust entries.</summary>
     public ImmutableList<TrustedDllEntry> List() =>
-        Read().Select(kv => new TrustedDllEntry(kv.Key, kv.Value)).ToImmutableList();
+        ReadSafe().Select(kv => new TrustedDllEntry(kv.Key, kv.Value)).ToImmutableList();
 
-    private Dictionary<string, string> Read()
+    /// <summary>
+    /// Enumerates analyzer DLLs in <paramref name="dir"/>, skipping satellite <c>*.resources.dll</c>
+    /// assemblies — the same filter every loader applies, so what is trusted matches what loads.
+    /// </summary>
+    public static IEnumerable<string> EnumerateAnalyzerDlls(string dir) =>
+        Directory.EnumerateFiles(dir, "*.dll")
+            .Where(f => !f.EndsWith(".resources.dll", StringComparison.OrdinalIgnoreCase));
+
+    // Read path (Check/List): fail-closed. A missing, unreadable, or corrupt file is treated as
+    // "nothing trusted" rather than crashing a routine analyze/workspace-status.
+    private Dictionary<string, string> ReadSafe()
     {
-        if (!File.Exists(path)) return new(StringComparer.Ordinal);
+        if (!File.Exists(path)) return Empty();
         try
         {
-            var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path));
-            return parsed is null ? new(StringComparer.Ordinal) : new(parsed, StringComparer.Ordinal);
+            return Parse(File.ReadAllText(path));
         }
-        catch (JsonException) { return new(StringComparer.Ordinal); }
+        catch (Exception e) when (e is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return Empty();
+        }
     }
+
+    // Mutating path (Trust/Revoke): never clobber. A present-but-corrupt file throws instead of
+    // silently resetting to {} and discarding every prior grant on the next Write.
+    private Dictionary<string, string> ReadForWrite()
+    {
+        if (!File.Exists(path)) return Empty();
+        var text = File.ReadAllText(path); // IO/permission errors propagate — do not overwrite blindly
+        try
+        {
+            return Parse(text);
+        }
+        catch (JsonException e)
+        {
+            throw new InvalidOperationException(
+                $"Trust file '{path}' is not valid JSON; refusing to overwrite it and discard existing grants. Fix or delete it, then retry.",
+                e);
+        }
+    }
+
+    private static Dictionary<string, string> Parse(string json)
+    {
+        var parsed = JsonSerializer.Deserialize<Dictionary<string, string>>(json);
+        return parsed is null ? Empty() : new(parsed, PathComparer);
+    }
+
+    private static Dictionary<string, string> Empty() => new(PathComparer);
 
     private void Write(Dictionary<string, string> data)
     {

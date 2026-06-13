@@ -22,27 +22,30 @@ public sealed class AnalyzerProvider(IEnumerable<IAnalyzerSource> sources)
     private readonly IReadOnlyList<IAnalyzerSource> _sources = [.. sources];
     private readonly ConcurrentDictionary<string, AnalyzerProviderResult> _cache =
         new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, ImmutableList<string>> _noticesCache =
+        new(StringComparer.Ordinal);
 
     public AnalyzerProviderResult GetComponents(string targetFramework, string repoPath)
     {
-        var key = CacheKey(targetFramework, repoPath);
+        var key = $"{targetFramework}|{repoPath}|{TrustFingerprints(repoPath)}";
         return _cache.GetOrAdd(key, _ => Merge(targetFramework, repoPath));
     }
 
     // Fold every trust source's fingerprint into the key so a grant/revoke (which changes the
     // fingerprint) lands in a fresh entry instead of returning the previously-merged result. The
     // source list is fixed, so OfType preserves a stable order across calls.
-    private string CacheKey(string targetFramework, string repoPath)
-    {
-        var trustFingerprints = string.Join(
-            '|', _sources.OfType<ITrustNoticeSource>().Select(s => s.TrustFingerprint(repoPath)));
-        return $"{targetFramework}|{repoPath}|{trustFingerprints}";
-    }
+    private string TrustFingerprints(string repoPath) =>
+        string.Join('|', _sources.OfType<ITrustNoticeSource>().Select(s => s.TrustFingerprint(repoPath)));
 
+    // Cached by (repoPath, trust fingerprints): workspace-status is polled frequently, and each
+    // uncached call SHA-256-rehashes every external DLL. The fingerprint changes on any trust edit,
+    // so a grant/revoke still takes effect on the next poll.
     public ImmutableList<string> GetExternalSourceNotices(string repoPath) =>
-        _sources.OfType<ITrustNoticeSource>()
-                .SelectMany(s => s.GetTrustNotices(repoPath))
-                .ToImmutableList();
+        _noticesCache.GetOrAdd(
+            $"{repoPath}|{TrustFingerprints(repoPath)}",
+            _ => _sources.OfType<ITrustNoticeSource>()
+                         .SelectMany(s => s.GetTrustNotices(repoPath))
+                         .ToImmutableList());
 
     private AnalyzerProviderResult Merge(string targetFramework, string repoPath)
     {

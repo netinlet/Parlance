@@ -42,24 +42,11 @@ public sealed class RoslynFeaturesAnalyzerSource : IAnalyzerSource
             []);
     }
 
+    // Reflection discovery (type enumeration, ReflectionTypeLoadException handling, instantiation)
+    // lives once in AssemblyExtensions.DiscoverInstances; here we only resolve the assembly by name.
     private static IEnumerable<T> Discover<T>(string assemblyName) where T : class
     {
-        Assembly assembly;
-        try { assembly = Assembly.Load(assemblyName); }
-        catch { yield break; }
-
-        Type[] types;
-        try { types = assembly.GetTypes(); }
-        catch (ReflectionTypeLoadException ex) { types = ex.Types.Where(t => t is not null).ToArray()!; }
-        catch { yield break; }
-
-        foreach (var type in types)
-        {
-            if (type.IsAbstract || !typeof(T).IsAssignableFrom(type)) continue;
-            T? instance = null;
-            try { instance = Activator.CreateInstance(type) as T; }
-            catch { /* skip types that can't be instantiated */ }
-            if (instance is not null) yield return instance;
-        }
+        try { return Assembly.Load(assemblyName).DiscoverInstances<T>(); }
+        catch { return []; }
     }
 }

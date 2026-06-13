@@ -18,12 +18,4 @@ public static class RefactoringProviderLoader
             .SelectMany(a => a.DiscoverInstances<CodeRefactoringProvider>())
             .ToImmutableArray();
     }
-
-    // Enumerates refactoring providers from explicit DLL files or directories, bypassing the
-    // bundled analyzer set. Point at the directory (not just the analyzer DLL) so split
-    // CodeRefactorings assemblies are included.
-    public static ImmutableArray<CodeRefactoringProvider> LoadFromPaths(IEnumerable<string> paths) =>
-        AnalyzerDllScanner.ScanAssembliesFromPaths(paths)
-            .SelectMany(a => a.DiscoverInstances<CodeRefactoringProvider>())
-            .ToImmutableArray();
 }
