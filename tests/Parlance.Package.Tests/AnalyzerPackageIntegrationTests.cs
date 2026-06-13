@@ -79,7 +79,12 @@ public sealed class PackageTestFixture : IAsyncLifetime
 
         // Version comes from the nupkg filename MinVer stamped — no separate lookup needed.
         const string analyzerPrefix = "Parlance.CSharp.Analyzers.";
-        var analyzerNupkg = Directory.GetFiles(ArtifactsDir, $"{analyzerPrefix}*.nupkg").Single();
+        var candidates = Directory.GetFiles(ArtifactsDir, $"{analyzerPrefix}*.nupkg");
+        var analyzerNupkg = candidates.Length == 1
+            ? candidates[0]
+            : throw new InvalidOperationException(
+                $"Expected exactly one {analyzerPrefix}*.nupkg in {ArtifactsDir}, found {candidates.Length}: " +
+                string.Join(", ", candidates.Select(Path.GetFileName)));
         PackageVersion = Path.GetFileNameWithoutExtension(analyzerNupkg)[analyzerPrefix.Length..];
 
         await RunDotnet($"pack \"{bundleCsproj}\" -c Release --output \"{ArtifactsDir}\"");
