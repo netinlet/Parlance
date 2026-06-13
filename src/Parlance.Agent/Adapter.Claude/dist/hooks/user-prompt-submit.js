@@ -8,10 +8,11 @@ import { dirname as dirname2 } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
-var telemetryHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 var benchStateFile = (root) => join(parlanceDir(root), "bench", "_active.json");
-var benchResultsFile = () => join(telemetryHome(), "bench", "results.jsonl");
+var benchResultsFile = () => join(telemetryDir(), "bench", "results.jsonl");
 
 // ../Core/src/storage/session-state.ts
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

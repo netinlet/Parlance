@@ -61,7 +61,7 @@ describe('stop hook', () => {
       transcript_path: transcript,
     }));
 
-    const lines = readFileSync(join(central, 'ledger.jsonl'), 'utf8').trim().split('\n');
+    const lines = readFileSync(join(central, 'telemetry/ledger.jsonl'), 'utf8').trim().split('\n');
     expect(lines).toHaveLength(1);
     const summary = JSON.parse(lines[0]);
     expect(summary.branch).toBe('main');
@@ -78,7 +78,7 @@ describe('stop hook', () => {
       transcript_path: transcript,
     }));
 
-    const body = readFileSync(join(central, 'session-log.md'), 'utf8');
+    const body = readFileSync(join(central, 'telemetry/session-log.md'), 'utf8');
     expect(body).toContain('claude-code');
     expect(body).toContain('3 Parlance');
   });

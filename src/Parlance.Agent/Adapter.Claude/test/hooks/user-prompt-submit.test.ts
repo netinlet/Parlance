@@ -79,7 +79,7 @@ describe('user-prompt-submit hook', () => {
     appendUsageRecord();
     run('/parlance bench end');
 
-    const lines = readFileSync(join(central, 'bench/results.jsonl'), 'utf8').trim().split('\n');
+    const lines = readFileSync(join(central, 'telemetry/bench/results.jsonl'), 'utf8').trim().split('\n');
     expect(lines).toHaveLength(1);
     const record = JSON.parse(lines[0]);
     expect(record.task_id).toBe('taskA');
@@ -96,6 +96,6 @@ describe('user-prompt-submit hook', () => {
 
     const state = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
     expect(state.active_bench).toBeNull();
-    expect(existsSync(join(central, 'bench/results.jsonl'))).toBe(false);
+    expect(existsSync(join(central, 'telemetry/bench/results.jsonl'))).toBe(false);
   });
 });

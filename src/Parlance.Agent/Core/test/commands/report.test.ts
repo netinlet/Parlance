@@ -11,8 +11,8 @@ const originalHome = process.env.PARLANCE_HOME;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'core-report-'));
   process.env.PARLANCE_HOME = root;
-  mkdirSync(root, { recursive: true });
-  writeFileSync(join(root, 'ledger.jsonl'), [
+  mkdirSync(join(root, 'telemetry'), { recursive: true });
+  writeFileSync(join(root, 'telemetry/ledger.jsonl'), [
     JSON.stringify({
       session_id: 'aaa11111bb',
       date: '2026-04-20',

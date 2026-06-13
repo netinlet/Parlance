@@ -4,12 +4,16 @@ import { join } from 'node:path';
 export const parlanceDir = (root: string): string => join(root, '.parlance');
 
 /**
- * Centralized telemetry home, shared across every worktree so usage accrues in
- * one place instead of a per-worktree `.parlance/`. Override with PARLANCE_HOME
- * (an OS env var — not a repo `.env`, since it spans repos); defaults to
- * `~/.parlance`.
+ * Umbrella root for all Parlance global state, shared across every worktree.
+ * Override with PARLANCE_HOME (an OS env var — not a repo `.env`, since it spans
+ * repos); defaults to `~/.parlance`. Kept deliberately empty at the top level so
+ * distinct concerns (telemetry, and later config/cache/logs) each get their own
+ * subdirectory rather than colliding at the root.
  */
-export const telemetryHome = (): string => process.env.PARLANCE_HOME?.trim() || join(homedir(), '.parlance');
+export const parlanceHome = (): string => process.env.PARLANCE_HOME?.trim() || join(homedir(), '.parlance');
+
+/** Durable, cross-worktree telemetry — its own subtree under the home root. */
+export const telemetryDir = (): string => join(parlanceHome(), 'telemetry');
 
 // --- Project-local: install artifacts + the ephemeral active-session state.
 // These stay per-worktree (the hooks are wired into that worktree's settings,
@@ -21,6 +25,6 @@ export const routingFile = (root: string): string => join(parlanceDir(root), 'to
 export const benchStateFile = (root: string): string => join(parlanceDir(root), 'bench', '_active.json');
 
 // --- Centralized: the durable, append-only records you track over time.
-export const ledgerFile = (): string => join(telemetryHome(), 'ledger.jsonl');
-export const sessionLogFile = (): string => join(telemetryHome(), 'session-log.md');
-export const benchResultsFile = (): string => join(telemetryHome(), 'bench', 'results.jsonl');
+export const ledgerFile = (): string => join(telemetryDir(), 'ledger.jsonl');
+export const sessionLogFile = (): string => join(telemetryDir(), 'session-log.md');
+export const benchResultsFile = (): string => join(telemetryDir(), 'bench', 'results.jsonl');

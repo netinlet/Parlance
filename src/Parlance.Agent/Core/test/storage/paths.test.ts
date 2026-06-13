@@ -19,16 +19,18 @@ describe('paths — project-local install + ephemeral state', () => {
 });
 
 describe('paths — centralized telemetry', () => {
-  it('telemetryHome honors PARLANCE_HOME', () => {
+  it('parlanceHome honors PARLANCE_HOME and telemetry nests under it', () => {
     process.env.PARLANCE_HOME = '/central/store';
-    expect(paths.telemetryHome()).toBe('/central/store');
-    expect(paths.ledgerFile()).toBe('/central/store/ledger.jsonl');
-    expect(paths.sessionLogFile()).toBe('/central/store/session-log.md');
-    expect(paths.benchResultsFile()).toBe('/central/store/bench/results.jsonl');
+    expect(paths.parlanceHome()).toBe('/central/store');
+    expect(paths.telemetryDir()).toBe('/central/store/telemetry');
+    expect(paths.ledgerFile()).toBe('/central/store/telemetry/ledger.jsonl');
+    expect(paths.sessionLogFile()).toBe('/central/store/telemetry/session-log.md');
+    expect(paths.benchResultsFile()).toBe('/central/store/telemetry/bench/results.jsonl');
   });
 
-  it('telemetryHome defaults to ~/.parlance', () => {
+  it('parlanceHome defaults to ~/.parlance', () => {
     delete process.env.PARLANCE_HOME;
-    expect(paths.telemetryHome()).toBe(join(homedir(), '.parlance'));
+    expect(paths.parlanceHome()).toBe(join(homedir(), '.parlance'));
+    expect(paths.telemetryDir()).toBe(join(homedir(), '.parlance', 'telemetry'));
   });
 });

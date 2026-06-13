@@ -11,8 +11,8 @@ const originalHome = process.env.PARLANCE_HOME;
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'core-bench-'));
   process.env.PARLANCE_HOME = root;
-  mkdirSync(join(root, 'bench'), { recursive: true });
-  writeFileSync(join(root, 'bench/results.jsonl'), [
+  mkdirSync(join(root, 'telemetry/bench'), { recursive: true });
+  writeFileSync(join(root, 'telemetry/bench/results.jsonl'), [
     JSON.stringify({
       task_id: 'find-callers',
       variant: 'grep',

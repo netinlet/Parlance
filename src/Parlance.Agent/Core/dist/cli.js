@@ -7,10 +7,11 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
-var telemetryHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
-var ledgerFile = () => join(telemetryHome(), "ledger.jsonl");
-var sessionLogFile = () => join(telemetryHome(), "session-log.md");
-var benchResultsFile = () => join(telemetryHome(), "bench", "results.jsonl");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
+var ledgerFile = () => join(telemetryDir(), "ledger.jsonl");
+var sessionLogFile = () => join(telemetryDir(), "session-log.md");
+var benchResultsFile = () => join(telemetryDir(), "bench", "results.jsonl");
 
 // src/commands/bench.ts
 async function runBench(argv) {

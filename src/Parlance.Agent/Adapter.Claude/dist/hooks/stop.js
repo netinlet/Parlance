@@ -12,10 +12,11 @@ import { dirname } from "node:path";
 import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
-var telemetryHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-var ledgerFile = () => join(telemetryHome(), "ledger.jsonl");
-var sessionLogFile = () => join(telemetryHome(), "session-log.md");
+var ledgerFile = () => join(telemetryDir(), "ledger.jsonl");
+var sessionLogFile = () => join(telemetryDir(), "session-log.md");
 
 // ../Core/src/storage/session-state.ts
 function readSessionState(root) {
