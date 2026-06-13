@@ -134,7 +134,7 @@ public sealed class ExternalAnalyzerIntegrationTests
             Assert.DoesNotContain(result.Diagnostics, d => d.RuleId == "PARLTEST01");
 
             // Load failure surfaced by the provider
-            var providerResult = provider.GetComponents("net10.0", tempDir);
+            var providerResult = provider.GetComponents("net10.0", Path.GetFullPath(tempDir));
             Assert.Contains(providerResult.Failures,
                 f => f.DllPath.Contains("Parlance.TestAnalyzer.dll") && f.Reason.Contains("Not trusted"));
         }
@@ -178,7 +178,7 @@ public sealed class ExternalAnalyzerIntegrationTests
             Assert.DoesNotContain(result.Diagnostics, d => d.RuleId == "PARLTEST01");
 
             // Load failure with checksum mismatch
-            var providerResult = provider.GetComponents("net10.0", tempDir);
+            var providerResult = provider.GetComponents("net10.0", Path.GetFullPath(tempDir));
             Assert.Contains(providerResult.Failures,
                 f => f.Reason.Contains("Checksum mismatch"));
         }
