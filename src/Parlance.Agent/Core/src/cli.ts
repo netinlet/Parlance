@@ -26,14 +26,16 @@ async function main(): Promise<void> {
 }
 
 function help(): void {
-  process.stderr.write([
-    'usage: parlance-agent-core <command> [args]',
-    '',
-    '  status                       install state + recent ledger summary',
-    '  report [--days N]            session analysis',
-    '  bench report --task <id>     variant comparison',
-    '',
-  ].join('\n'));
+  process.stderr.write(
+    [
+      'usage: parlance-agent-core <command> [args]',
+      '',
+      '  status                       install state + recent ledger summary',
+      '  report [--days N]            session analysis',
+      '  bench report --task <id>     variant comparison',
+      '',
+    ].join('\n'),
+  );
 }
 
 void main();

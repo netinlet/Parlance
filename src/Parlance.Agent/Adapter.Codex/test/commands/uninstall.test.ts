@@ -1,7 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runInstall } from '../../src/commands/install.js';
 import { runUninstall } from '../../src/commands/uninstall.js';
 
@@ -33,10 +39,19 @@ describe('uninstall command', () => {
     const settings = JSON.parse(readFileSync(hooksPath, 'utf8'));
     for (const event of Object.keys(settings.hooks ?? {})) {
       for (const matcher of settings.hooks[event]) {
-        expect(matcher.hooks.some((hook: { command?: string }) => hook.command?.includes('.parlance/hooks/'))).toBe(false);
+        expect(
+          matcher.hooks.some((hook: { command?: string }) =>
+            hook.command?.includes('.parlance/hooks/'),
+          ),
+        ).toBe(false);
       }
     }
-    expect(settings.hooks.PreToolUse.some((entry: { hooks: { command?: string }[] }) => entry.hooks.some((hook) => hook.command === 'echo hi'))).toBe(true);
+    expect(
+      settings.hooks.PreToolUse.some(
+        (entry: { hooks: { command?: string }[] }) =>
+          entry.hooks.some((hook) => hook.command === 'echo hi'),
+      ),
+    ).toBe(true);
     expect(existsSync(join(root, '.parlance/codex/events'))).toBe(true);
   });
 
@@ -45,20 +60,28 @@ describe('uninstall command', () => {
 
     const hooksPath = join(root, '.codex/hooks.json');
     const settings = JSON.parse(readFileSync(hooksPath, 'utf8'));
-    settings.hooks.PreToolUse = [{
-      matcher: 'Bash',
-      hooks: [
-        { type: 'command', command: 'node "$(git rev-parse --show-toplevel)/.parlance/hooks/pre-tool.js"' },
-        { type: 'command', command: 'echo foreign' },
-      ],
-    }];
+    settings.hooks.PreToolUse = [
+      {
+        matcher: 'Bash',
+        hooks: [
+          {
+            type: 'command',
+            command:
+              'node "$(git rev-parse --show-toplevel)/.parlance/hooks/pre-tool.js"',
+          },
+          { type: 'command', command: 'echo foreign' },
+        ],
+      },
+    ];
     writeFileSync(hooksPath, JSON.stringify(settings, null, 2));
 
     await runUninstall(['--project', root]);
 
     const next = JSON.parse(readFileSync(hooksPath, 'utf8'));
     expect(next.hooks.PreToolUse).toHaveLength(1);
-    expect(next.hooks.PreToolUse[0].hooks).toEqual([{ type: 'command', command: 'echo foreign' }]);
+    expect(next.hooks.PreToolUse[0].hooks).toEqual([
+      { type: 'command', command: 'echo foreign' },
+    ]);
   });
 
   it('--purge removes .parlance', async () => {

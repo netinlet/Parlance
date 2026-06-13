@@ -1,8 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findSolution, looksLikeCsharp, parlanceAgentInstalled, parlanceCodexWired, parlanceMcpWired, planSessionStart } from '../src/discovery.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import {
+  findSolution,
+  looksLikeCsharp,
+  parlanceAgentInstalled,
+  parlanceCodexWired,
+  parlanceMcpWired,
+  planSessionStart,
+} from '../src/discovery.js';
 
 let root: string;
 
@@ -14,20 +21,35 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
-const wireMcp = () => writeFileSync(join(root, '.mcp.json'), JSON.stringify({ mcpServers: { parlance: { command: 'parlance' } } }));
+const wireMcp = () =>
+  writeFileSync(
+    join(root, '.mcp.json'),
+    JSON.stringify({ mcpServers: { parlance: { command: 'parlance' } } }),
+  );
 const copyCodexBundle = () => {
   mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
   writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
 };
 const wireCodexHooks = () => {
   mkdirSync(join(root, '.codex'), { recursive: true });
-  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({
-    hooks: {
-      SessionStart: [{
-        hooks: [{ type: 'command', command: 'node "$(git rev-parse --show-toplevel)/.parlance/hooks/session-start.js"' }],
-      }],
-    },
-  }));
+  writeFileSync(
+    join(root, '.codex/hooks.json'),
+    JSON.stringify({
+      hooks: {
+        SessionStart: [
+          {
+            hooks: [
+              {
+                type: 'command',
+                command:
+                  'node "$(git rev-parse --show-toplevel)/.parlance/hooks/session-start.js"',
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
   writeFileSync(join(root, '.codex/config.toml'), '[features]\nhooks = true\n');
   copyCodexBundle();
 };
@@ -74,7 +96,10 @@ describe('parlanceMcpWired', () => {
   });
 
   it('false when .mcp.json lacks parlance', () => {
-    writeFileSync(join(root, '.mcp.json'), JSON.stringify({ mcpServers: { other: {} } }));
+    writeFileSync(
+      join(root, '.mcp.json'),
+      JSON.stringify({ mcpServers: { other: {} } }),
+    );
     expect(parlanceMcpWired(root)).toBe(false);
   });
 
@@ -125,7 +150,9 @@ describe('planSessionStart', () => {
     wireMcp();
     const plan = planSessionStart(root);
     expect(plan.kind).toBe('wired');
-    expect(plan.kind === 'wired' && plan.context).toContain('mcp__parlance__describe-type');
+    expect(plan.kind === 'wired' && plan.context).toContain(
+      'mcp__parlance__describe-type',
+    );
   });
 
   it('wired (Codex hook bundle) -> routing context', () => {
@@ -138,7 +165,9 @@ describe('planSessionStart', () => {
     writeFileSync(join(root, 'Widgets.slnx'), '');
     const plan = planSessionStart(root);
     expect(plan.kind).toBe('suggest-install');
-    expect(plan.kind === 'suggest-install' && plan.context).toContain('parlance agent install --solution Widgets.slnx');
+    expect(plan.kind === 'suggest-install' && plan.context).toContain(
+      'parlance agent install --solution Widgets.slnx',
+    );
   });
 
   it('neither C# nor wired -> idle', () => {

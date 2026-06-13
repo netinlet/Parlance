@@ -1,70 +1,9 @@
 #!/usr/bin/env node
 
-// ../Core/src/events.ts
-var now = () => (/* @__PURE__ */ new Date()).toISOString();
-var sessionStarted = (transcriptRef) => ({
-  kind: "session-started",
-  at: now(),
-  transcript_ref: transcriptRef
-});
-var taskReceived = (prompt) => ({
-  kind: "task-received",
-  at: now(),
-  prompt
-});
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
-var postRead = (path, bytes) => ({
-  kind: "post-read",
-  at: now(),
-  path,
-  content_bytes: bytes
-});
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
-var postWrite = (path, bytes) => ({
-  kind: "post-write",
-  at: now(),
-  path,
-  content_bytes: bytes
-});
-var preSearch = (event) => ({
-  kind: "pre-search",
-  at: now(),
-  ...event
-});
-var postSearch = (event) => ({
-  kind: "post-search",
-  at: now(),
-  ...event
-});
-var preTool = (kind, tool, input) => ({
-  kind,
-  at: now(),
-  tool_name: tool,
-  input
-});
-var postTool = (kind, tool, input, bytes) => ({
-  kind,
-  at: now(),
-  tool_name: tool,
-  input,
-  output_bytes: bytes
-});
-var responseCompleted = (usage) => ({
-  kind: "response-completed",
-  at: now(),
-  usage
-});
-
-// ../Core/src/telemetry/estimate.ts
-var RATIOS = {
-  code: 3.5,
-  prose: 4,
-  mixed: 3.75
-};
-function estimateTokensFromLength(length, kind) {
-  if (length <= 0) return 0;
-  return Math.round(length / RATIOS[kind]);
-}
+// ../Core/src/storage/paths.ts
+import { join } from "node:path";
+var parlanceDir = (root) => join(root, ".parlance");
+var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
 // ../Core/src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
@@ -118,6 +57,97 @@ function matchRoutingRule(event) {
     return matchBashCodeIntel(command);
   }
   return null;
+}
+
+// ../Core/src/discovery.ts
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join as join2 } from "node:path";
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(
+      readFileSync(join2(root, ".mcp.json"), "utf8")
+    );
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
+}
+
+// ../Core/src/events.ts
+var now = () => (/* @__PURE__ */ new Date()).toISOString();
+var sessionStarted = (transcriptRef) => ({
+  kind: "session-started",
+  at: now(),
+  transcript_ref: transcriptRef
+});
+var taskReceived = (prompt) => ({
+  kind: "task-received",
+  at: now(),
+  prompt
+});
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
+var postRead = (path, bytes) => ({
+  kind: "post-read",
+  at: now(),
+  path,
+  content_bytes: bytes
+});
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
+var postWrite = (path, bytes) => ({
+  kind: "post-write",
+  at: now(),
+  path,
+  content_bytes: bytes
+});
+var preSearch = (event) => ({
+  kind: "pre-search",
+  at: now(),
+  ...event
+});
+var postSearch = (event) => ({
+  kind: "post-search",
+  at: now(),
+  ...event
+});
+var preTool = (kind, tool, input) => ({
+  kind,
+  at: now(),
+  tool_name: tool,
+  input
+});
+var postTool = (kind, tool, input, bytes) => ({
+  kind,
+  at: now(),
+  tool_name: tool,
+  input,
+  output_bytes: bytes
+});
+var responseCompleted = (usage) => ({
+  kind: "response-completed",
+  at: now(),
+  usage
+});
+
+// ../Core/src/telemetry/estimate.ts
+var RATIOS = {
+  code: 3.5,
+  prose: 4,
+  mixed: 3.75
+};
+function estimateTokensFromLength(length, kind) {
+  if (length <= 0) return 0;
+  return Math.round(length / RATIOS[kind]);
 }
 
 // ../Core/src/policy/evaluate.ts
@@ -182,40 +212,30 @@ function toUsageRecord(event) {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, "code")
+    output_tokens: estimateTokensFromLength(
+      toolEvent.output_bytes ?? 0,
+      "code"
+    )
   };
 }
 function flipToPre(event) {
   if (event.kind === "post-read") return { ...event, kind: "pre-read" };
   if (event.kind === "post-write") return { ...event, kind: "pre-write" };
   if (event.kind === "post-search") return { ...event, kind: "pre-search" };
-  if (event.kind === "post-native-tool") return { ...event, kind: "pre-native-tool" };
+  if (event.kind === "post-native-tool")
+    return { ...event, kind: "pre-native-tool" };
   if (event.kind === "post-mcp-tool") return { ...event, kind: "pre-mcp-tool" };
   return event;
 }
 
-// ../Core/src/storage/paths.ts
-import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
-// ../Core/src/discovery.ts
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { join as join2 } from "node:path";
-function parlanceMcpWired(root) {
-  try {
-    const config = JSON.parse(readFileSync(join2(root, ".mcp.json"), "utf8"));
-    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
-  } catch {
-    return false;
-  }
-}
-function parlanceAgentInstalled(root) {
-  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
-}
-
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync as existsSync2, mkdirSync, readFileSync as readFileSync2, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync as existsSync2,
+  mkdirSync,
+  readFileSync as readFileSync2,
+  writeFileSync
+} from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
@@ -278,9 +298,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -296,10 +324,13 @@ function translate(env) {
 function fromPre(env) {
   const tool = env.tool_name ?? "";
   const input = env.tool_input ?? {};
-  if (tool === "Read" && typeof input.file_path === "string") return preRead(input.file_path);
-  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") return preWrite(input.file_path);
+  if (tool === "Read" && typeof input.file_path === "string")
+    return preRead(input.file_path);
+  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string")
+    return preWrite(input.file_path);
   if (tool === "Grep" || tool === "Glob") return searchEvent(tool, input, true);
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
 }
@@ -308,14 +339,34 @@ function fromPost(env) {
   const input = env.tool_input ?? {};
   const output = env.tool_response ?? {};
   if (tool === "Read" && typeof input.file_path === "string") {
-    return postRead(input.file_path, typeof output.content === "string" ? output.content.length : 0);
+    return postRead(
+      input.file_path,
+      typeof output.content === "string" ? output.content.length : 0
+    );
   }
   if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") {
     return postWrite(input.file_path, contentLength(input.content));
   }
-  if (tool === "Grep" || tool === "Glob") return searchEvent(tool, { ...input, result_bytes: contentLength(output.content) }, false);
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, contentLength(output.content));
-  if (tool) return postTool("post-native-tool", tool, input, contentLength(output.content));
+  if (tool === "Grep" || tool === "Glob")
+    return searchEvent(
+      tool,
+      { ...input, result_bytes: contentLength(output.content) },
+      false
+    );
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool(
+      "post-mcp-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
+  if (tool)
+    return postTool(
+      "post-native-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
   return null;
 }
 function searchEvent(tool, input, isPre) {
@@ -326,7 +377,12 @@ function searchEvent(tool, input, isPre) {
     file_type: typeof input.type === "string" ? input.type : void 0,
     result_bytes: typeof input.result_bytes === "number" ? input.result_bytes : void 0
   };
-  return isPre ? preSearch({ pattern: event.pattern, path: event.path, glob: event.glob, file_type: event.file_type }) : postSearch(event);
+  return isPre ? preSearch({
+    pattern: event.pattern,
+    path: event.path,
+    glob: event.glob,
+    file_type: event.file_type
+  }) : postSearch(event);
 }
 function contentLength(value) {
   return typeof value === "string" ? value.length : 0;
@@ -351,7 +407,11 @@ async function main() {
     const current = readSessionState(translated.context.project_root);
     if (!current) return;
     if (!parlanceAgentInstalled(translated.context.project_root)) return;
-    const evaluation = evaluateEvent(translated.event, translated.context, current);
+    const evaluation = evaluateEvent(
+      translated.event,
+      translated.context,
+      current
+    );
     renderToStderr(evaluation);
     if (evaluation.next_state) {
       writeSessionState(translated.context.project_root, evaluation.next_state);

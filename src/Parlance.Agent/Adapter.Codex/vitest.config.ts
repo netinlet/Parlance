@@ -1,12 +1,14 @@
-import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   resolve: {
     alias: [
       {
         find: /^@parlance\/agent-core$/,
-        replacement: fileURLToPath(new URL('../Core/src/api.ts', import.meta.url)),
+        replacement: fileURLToPath(
+          new URL('../Core/src/api.ts', import.meta.url),
+        ),
       },
       {
         find: /^@parlance\/agent-core\/(.*)$/,

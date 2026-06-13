@@ -32,19 +32,39 @@ describe('evaluateEvent', () => {
   });
 
   it('pre-mcp-tool on parlance emits no guidance', () => {
-    const evaluation = evaluateEvent(preTool('pre-mcp-tool', 'mcp__parlance__describe-type', {}), ctx, state);
+    const evaluation = evaluateEvent(
+      preTool('pre-mcp-tool', 'mcp__parlance__describe-type', {}),
+      ctx,
+      state,
+    );
     expect(evaluation.guidance.length).toBe(0);
   });
 
   it('post-native-tool emits a persist-tool-usage effect', () => {
-    const evaluation = evaluateEvent(postTool('post-native-tool', 'Read', { file_path: 'a.cs' }, 700), ctx, state);
-    expect(evaluation.effects.some((e) => e.kind === 'persist-tool-usage')).toBe(true);
+    const evaluation = evaluateEvent(
+      postTool('post-native-tool', 'Read', { file_path: 'a.cs' }, 700),
+      ctx,
+      state,
+    );
+    expect(
+      evaluation.effects.some((e) => e.kind === 'persist-tool-usage'),
+    ).toBe(true);
   });
 
   it('post-mcp-tool on parlance sets is_mcp_parlance=true on usage effect', () => {
-    const evaluation = evaluateEvent(postTool('post-mcp-tool', 'mcp__parlance__describe-type', {}, 120), ctx, state);
-    const effect = evaluation.effects.find((e) => e.kind === 'persist-tool-usage');
-    expect(effect && effect.kind === 'persist-tool-usage' && effect.record.is_mcp_parlance).toBe(true);
+    const evaluation = evaluateEvent(
+      postTool('post-mcp-tool', 'mcp__parlance__describe-type', {}, 120),
+      ctx,
+      state,
+    );
+    const effect = evaluation.effects.find(
+      (e) => e.kind === 'persist-tool-usage',
+    );
+    expect(
+      effect &&
+        effect.kind === 'persist-tool-usage' &&
+        effect.record.is_mcp_parlance,
+    ).toBe(true);
   });
 
   it('post-read on .cs increments native_fallbacks in next_state', () => {
@@ -54,7 +74,12 @@ describe('evaluateEvent', () => {
 
   it('post Bash grep over .cs counts as a native fallback (no longer invisible)', () => {
     const evaluation = evaluateEvent(
-      postTool('post-native-tool', 'Bash', { command: 'grep -rn Foo --include=*.cs src' }, 500),
+      postTool(
+        'post-native-tool',
+        'Bash',
+        { command: 'grep -rn Foo --include=*.cs src' },
+        500,
+      ),
       ctx,
       state,
     );
@@ -63,7 +88,9 @@ describe('evaluateEvent', () => {
 
   it('pre Bash grep over .cs emits warn guidance', () => {
     const evaluation = evaluateEvent(
-      preTool('pre-native-tool', 'Bash', { command: 'grep -rn Foo --include=*.cs src' }),
+      preTool('pre-native-tool', 'Bash', {
+        command: 'grep -rn Foo --include=*.cs src',
+      }),
       ctx,
       state,
     );
