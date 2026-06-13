@@ -114,7 +114,7 @@ public sealed class ExternalCodeActionIntegrationTests
             // No fix provider covers PARLTEST01 (external DLL has none), so the list is empty.
             // The important invariant is that calling GetCodeFixesAsync does not throw.
             Assert.NotNull(fixes);
-            Assert.DoesNotContain(fixes, f => f.DiagnosticId != "PARLTEST01");
+            Assert.Empty(fixes); // no fix provider covers PARLTEST01 in the external DLL
         }
         finally
         {
