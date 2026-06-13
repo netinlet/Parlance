@@ -26,6 +26,7 @@ rootCommand.Add(AnalyzeCommand.Create(provider));
 rootCommand.Add(AgentCommand.Create());
 rootCommand.Add(McpCommand.Create());
 rootCommand.Add(RulesCommand.Create());
+rootCommand.Add(TrustCommand.Create());
 
 var result = await rootCommand.Parse(args).InvokeAsync();
 return Environment.ExitCode != 0 ? Environment.ExitCode : result;
