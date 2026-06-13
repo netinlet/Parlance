@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateSessionContext } from './commands/routing-doc.js';
 
@@ -14,7 +14,11 @@ export function findSolution(root: string): string | null {
   } catch {
     return null;
   }
-  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
+  return (
+    entries.find((e) => /\.slnx$/i.test(e)) ??
+    entries.find((e) => /\.sln$/i.test(e)) ??
+    null
+  );
 }
 
 const csharpCache = new Map<string, boolean>();
@@ -36,15 +40,18 @@ export function looksLikeCsharp(root: string): boolean {
     return false;
   }
 
-  const csAtRoot = entries.some((e) =>
-    /\.(slnx|sln|csproj)$/i.test(e) || e === 'Directory.Build.props');
+  const csAtRoot = entries.some(
+    (e) => /\.(slnx|sln|csproj)$/i.test(e) || e === 'Directory.Build.props',
+  );
   if (csAtRoot) {
     csharpCache.set(root, true);
     return true;
   }
 
   try {
-    const result = readdirSync(join(root, 'src')).some((e) => /\.csproj$/i.test(e));
+    const result = readdirSync(join(root, 'src')).some((e) =>
+      /\.csproj$/i.test(e),
+    );
     csharpCache.set(root, result);
     return result;
   } catch {
@@ -56,7 +63,9 @@ export function looksLikeCsharp(root: string): boolean {
 /** Is the Parlance MCP server wired in this worktree's `.mcp.json`? */
 export function parlanceMcpWired(root: string): boolean {
   try {
-    const config = JSON.parse(readFileSync(join(root, '.mcp.json'), 'utf8')) as { mcpServers?: Record<string, unknown> };
+    const config = JSON.parse(
+      readFileSync(join(root, '.mcp.json'), 'utf8'),
+    ) as { mcpServers?: Record<string, unknown> };
     return Boolean(config.mcpServers && 'parlance' in config.mcpServers);
   } catch {
     return false;
@@ -69,23 +78,34 @@ export function parlanceMcpWired(root: string): boolean {
  * user separately runs `codex mcp add parlance`).
  */
 export function parlanceAgentInstalled(root: string): boolean {
-  return parlanceMcpWired(root)
-    || existsSync(join(root, '.parlance', 'hooks', 'session-start.js'));
+  return (
+    parlanceMcpWired(root) ||
+    existsSync(join(root, '.parlance', 'hooks', 'session-start.js'))
+  );
 }
 
 /** Is the Parlance Codex agent installed? Requires Codex to actually point at the per-project hook bundle. */
 export function parlanceCodexWired(root: string): boolean {
-  return existsSync(join(root, '.parlance', 'hooks', 'session-start.js'))
-    && codexHooksJsonReferencesSessionStart(root);
+  return (
+    existsSync(join(root, '.parlance', 'hooks', 'session-start.js')) &&
+    codexHooksJsonReferencesSessionStart(root)
+  );
 }
 
 function codexHooksJsonReferencesSessionStart(root: string): boolean {
   try {
-    const config = JSON.parse(readFileSync(join(root, '.codex', 'hooks.json'), 'utf8')) as { hooks?: Record<string, HookMatcher[]> };
+    const config = JSON.parse(
+      readFileSync(join(root, '.codex', 'hooks.json'), 'utf8'),
+    ) as { hooks?: Record<string, HookMatcher[]> };
     const sessionStart = config.hooks?.SessionStart ?? [];
-    return sessionStart.some((entry) =>
-      entry.hooks?.some((hook) =>
-        typeof hook.command === 'string' && hook.command.includes('.parlance/hooks/session-start.js')) ?? false);
+    return sessionStart.some(
+      (entry) =>
+        entry.hooks?.some(
+          (hook) =>
+            typeof hook.command === 'string' &&
+            hook.command.includes('.parlance/hooks/session-start.js'),
+        ) ?? false,
+    );
   } catch {
     return false;
   }
@@ -105,7 +125,10 @@ export type SessionStartPlan =
  * Pass a custom `wiredFn` to check agent-specific wiring (e.g. `parlanceCodexWired`
  * for the Codex global nudge, so a Claude-only `.mcp.json` doesn't suppress it).
  */
-export function planSessionStart(root: string, wiredFn: (r: string) => boolean = parlanceAgentInstalled): SessionStartPlan {
+export function planSessionStart(
+  root: string,
+  wiredFn: (r: string) => boolean = parlanceAgentInstalled,
+): SessionStartPlan {
   if (wiredFn(root)) {
     return { kind: 'wired', context: generateSessionContext() };
   }

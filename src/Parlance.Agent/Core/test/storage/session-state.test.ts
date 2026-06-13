@@ -1,9 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { appendToolUsageRecord, persistSessionSummary, readSessionState, toolBreakdown, writeSessionState } from '../../src/storage/session-state.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ledgerFile, sessionFile } from '../../src/storage/paths.js';
+import {
+  appendToolUsageRecord,
+  persistSessionSummary,
+  readSessionState,
+  toolBreakdown,
+  writeSessionState,
+} from '../../src/storage/session-state.js';
 
 let root: string;
 const originalHome = process.env.PARLANCE_HOME;
@@ -146,7 +152,12 @@ describe('session-state', () => {
       output_tokens: 0,
     });
 
-    expect(toolBreakdown([rec('Bash'), rec('Bash'), rec('mcp__parlance__describe-type')]))
-      .toEqual({ Bash: 2, 'mcp__parlance__describe-type': 1 });
+    expect(
+      toolBreakdown([
+        rec('Bash'),
+        rec('Bash'),
+        rec('mcp__parlance__describe-type'),
+      ]),
+    ).toEqual({ Bash: 2, 'mcp__parlance__describe-type': 1 });
   });
 });

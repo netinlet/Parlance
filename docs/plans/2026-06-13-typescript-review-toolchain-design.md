@@ -29,7 +29,9 @@ the compiler.
   installed via `npm ci`. No root `package.json`.
 - `tsconfig.json` includes only `src/**/*.ts`. Test files under `test/**` are
   **not** in the TS project; they run via Vitest's own resolution.
-- Entry points are `src/cli.ts` and `src/api.ts` (matches `scripts/bundle.mjs`).
+- Entry points differ per package (per each `scripts/bundle.mjs`): **Core** bundles
+  `src/cli.ts` + `src/api.ts`; **Adapter.Claude / Adapter.Codex** bundle `src/cli.ts`
+  plus six hook entries under `src/hooks/` (no `src/api.ts`).
 - `dist/` bundles are **committed** (verified by `agent-dist-check`), not
   gitignored. `out-ts/`, `out-dts/`, `*.tsbuildinfo`, `node_modules/` are
   gitignored.
@@ -45,7 +47,10 @@ the compiler.
 **`eslint.config.mjs`** — flat config.
 
 - `@eslint/js` recommended + `typescript-eslint` `recommendedTypeChecked`.
-- `languageOptions.parserOptions = { projectService: true, tsconfigRootDir: import.meta.dirname }`.
+- `languageOptions.parserOptions = { project: './tsconfig.eslint.json', tsconfigRootDir: import.meta.dirname }`.
+  Classic `project` (not `projectService`) is required: the project service
+  resolves each file to its *nearest* `tsconfig.json` and would ignore a sibling
+  `tsconfig.eslint.json`, leaving test files outside the typed program.
 - **Error-level** (fixed in this PR):
   - `@typescript-eslint/consistent-type-imports`
   - `@typescript-eslint/no-floating-promises`
@@ -66,29 +71,47 @@ surfaces them now without blocking; the zod follow-up promotes them to `error`.
 fails on errors only.
 
 **`tsconfig.eslint.json`** — extends `tsconfig.json`, adds `test/**` and root
-config files to `include` so type-aware linting covers tests. This keeps the
-`tsc --noEmit` typecheck scope unchanged while giving ESLint's project service a
-tsconfig that owns the test files (avoids `allowDefaultProject` churn).
+config files to `include`, and overrides `noEmit: true` so type-aware linting
+covers tests without an output mapping. This keeps the `tsc --noEmit` typecheck
+scope unchanged while giving ESLint (via `parserOptions.project`) a tsconfig that
+owns the test files. **Core must also override its inherited `rootDir: "src"`**
+(set `rootDir: "."` or drop it) — otherwise adding `test/**` to `include` trips
+TS6059 ("file is not under rootDir"). Adapter configs set no `rootDir`, so only
+Core needs the override; Adapter.Codex already includes `test/**` in its base
+`tsconfig.json`.
 
 **`biome.json`** — **formatter + import organization only; linter disabled**
 (ESLint owns linting, so no rule overlap). Configured to match existing style
-(2-space, single quotes). `format` writes; `format:check` uses `biome ci`.
-Ignores `dist/`, `out-*`, `node_modules/`.
+(2-space, single quotes). The write script uses `biome check --write` (not
+`biome format --write`): `format` applies whitespace/quote formatting only,
+while import organization is a Biome *assist* applied by `check`/`ci`. Using
+`biome format` would leave `format` unable to fix the import-order failures that
+`format:check` (`biome ci`) reports. Ignores `dist/`, `out-*`, `node_modules/`.
 
-**`knip.json`** — `entry: ["src/cli.ts", "src/api.ts"]`, project `src/**/*.ts`,
-Vitest plugin so `test/**` are recognized as entry points. Tuned so the
-`file:` `@parlance/agent-core` dependency and the `bin` entries are not reported
-as false positives. Ignores `dist`, `out-*`.
+**`knip.json`** — **package-specific entry points** (the adapters have no
+`src/api.ts`, and their hook files are independent executables that nothing
+imports):
+
+- **Core:** `entry: ["src/cli.ts", "src/api.ts"]`.
+- **Adapter.Claude / Adapter.Codex:** `entry: ["src/cli.ts", "src/hooks/*.ts"]`
+  — the six hook entry files (`session-start`, `nudge`, `pre-tool`, `post-tool`,
+  `stop`, `user-prompt-submit`) are separate esbuild entries per
+  `scripts/bundle.mjs`; without listing them, blocking Knip reports them as dead
+  code and errors on the missing `src/api.ts`.
+
+Project `src/**/*.ts`, Vitest plugin so `test/**` are recognized as entry
+points. Tuned so the `file:` `@parlance/agent-core` dependency and the `bin`
+entries are not reported as false positives. Ignores `dist`, `out-*`.
 
 **`package.json`** — add scripts and devDependencies.
 
 ```json
 {
   "lint": "eslint .",
-  "format": "biome format --write .",
+  "format": "biome check --write .",
   "format:check": "biome ci .",
   "deadcode": "knip",
-  "review": "npm run typecheck && npm run lint && npm test && npm run format:check"
+  "review": "npm run typecheck && npm run lint && npm test && npm run deadcode && npm run format:check"
 }
 ```
 
@@ -130,7 +153,7 @@ commit the updated lockfiles.
 
 After enabling the tools:
 
-1. `biome format --write` across all three packages (formatting/import order).
+1. `biome check --write` across all three packages (formatting + import order).
 2. Fix error-level ESLint findings: add `import type`, mark fields `readonly`,
    resolve floating/misused promises, add exhaustive `switch` handling, remove
    `param` reassignment. **Behavior must remain unchanged.**

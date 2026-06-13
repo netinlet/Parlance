@@ -1,64 +1,9 @@
 #!/usr/bin/env node
 
-// ../Core/src/events.ts
-var now = () => (/* @__PURE__ */ new Date()).toISOString();
-var sessionStarted = (transcriptRef) => ({
-  kind: "session-started",
-  at: now(),
-  transcript_ref: transcriptRef
-});
-var taskReceived = (prompt) => ({
-  kind: "task-received",
-  at: now(),
-  prompt
-});
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
-var postWrite = (path, bytes) => ({
-  kind: "post-write",
-  at: now(),
-  path,
-  content_bytes: bytes
-});
-var preSearch = (event) => ({
-  kind: "pre-search",
-  at: now(),
-  ...event
-});
-var postSearch = (event) => ({
-  kind: "post-search",
-  at: now(),
-  ...event
-});
-var preTool = (kind, tool, input) => ({
-  kind,
-  at: now(),
-  tool_name: tool,
-  input
-});
-var postTool = (kind, tool, input, bytes) => ({
-  kind,
-  at: now(),
-  tool_name: tool,
-  input,
-  output_bytes: bytes
-});
-var responseCompleted = (usage) => ({
-  kind: "response-completed",
-  at: now(),
-  usage
-});
-
-// ../Core/src/telemetry/estimate.ts
-var RATIOS = {
-  code: 3.5,
-  prose: 4,
-  mixed: 3.75
-};
-function estimateTokensFromLength(length, kind) {
-  if (length <= 0) return 0;
-  return Math.round(length / RATIOS[kind]);
-}
+// ../Core/src/storage/paths.ts
+import { join } from "node:path";
+var parlanceDir = (root) => join(root, ".parlance");
+var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
 // ../Core/src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
@@ -112,6 +57,74 @@ function matchRoutingRule(event) {
     return matchBashCodeIntel(command);
   }
   return null;
+}
+
+// ../Core/src/events.ts
+var now = () => (/* @__PURE__ */ new Date()).toISOString();
+var sessionStarted = (transcriptRef) => ({
+  kind: "session-started",
+  at: now(),
+  transcript_ref: transcriptRef
+});
+var taskReceived = (prompt) => ({
+  kind: "task-received",
+  at: now(),
+  prompt
+});
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
+var postWrite = (path, bytes) => ({
+  kind: "post-write",
+  at: now(),
+  path,
+  content_bytes: bytes
+});
+var preSearch = (event) => ({
+  kind: "pre-search",
+  at: now(),
+  ...event
+});
+var postSearch = (event) => ({
+  kind: "post-search",
+  at: now(),
+  ...event
+});
+var preTool = (kind, tool, input) => ({
+  kind,
+  at: now(),
+  tool_name: tool,
+  input
+});
+var postTool = (kind, tool, input, bytes) => ({
+  kind,
+  at: now(),
+  tool_name: tool,
+  input,
+  output_bytes: bytes
+});
+var responseCompleted = (usage) => ({
+  kind: "response-completed",
+  at: now(),
+  usage
+});
+
+// ../Core/src/telemetry/estimate.ts
+var RATIOS = {
+  code: 3.5,
+  prose: 4,
+  mixed: 3.75
+};
+function estimateTokensFromLength(length, kind) {
+  if (length <= 0) return 0;
+  return Math.round(length / RATIOS[kind]);
 }
 
 // ../Core/src/policy/evaluate.ts
@@ -176,25 +189,30 @@ function toUsageRecord(event) {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, "code")
+    output_tokens: estimateTokensFromLength(
+      toolEvent.output_bytes ?? 0,
+      "code"
+    )
   };
 }
 function flipToPre(event) {
   if (event.kind === "post-read") return { ...event, kind: "pre-read" };
   if (event.kind === "post-write") return { ...event, kind: "pre-write" };
   if (event.kind === "post-search") return { ...event, kind: "pre-search" };
-  if (event.kind === "post-native-tool") return { ...event, kind: "pre-native-tool" };
+  if (event.kind === "post-native-tool")
+    return { ...event, kind: "pre-native-tool" };
   if (event.kind === "post-mcp-tool") return { ...event, kind: "pre-mcp-tool" };
   return event;
 }
 
-// ../Core/src/storage/paths.ts
-import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
@@ -252,9 +270,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -278,7 +304,8 @@ function fromPre(env) {
     if (paths.length === 1) return preWrite(paths[0]);
     return preTool("pre-native-tool", tool, input);
   }
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool.startsWith("mcp__")) return preTool("pre-native-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
@@ -296,8 +323,10 @@ function fromPost(env) {
     }
     return postTool("post-native-tool", tool, input, outputBytes);
   }
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, outputBytes);
-  if (tool.startsWith("mcp__")) return postTool("post-native-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool("post-mcp-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__"))
+    return postTool("post-native-tool", tool, input, outputBytes);
   if (tool) return postTool("post-native-tool", tool, input, outputBytes);
   return null;
 }
@@ -318,7 +347,10 @@ function postBash(input, outputBytes) {
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === "search") {
-    return postSearch({ ...searchFromBashCommand(command), result_bytes: outputBytes });
+    return postSearch({
+      ...searchFromBashCommand(command),
+      result_bytes: outputBytes
+    });
   }
   return postTool("post-native-tool", "Bash", input, outputBytes);
 }
@@ -329,7 +361,11 @@ function classifyBashCommand(command) {
     return { kind: "search", confidence: "high", reason: `${first} command` };
   }
   if (/^(cat|head|tail|nl|wc)\b/.test(first) || /^sed\s+-n\b/.test(normalized)) {
-    return { kind: "read", confidence: "high", reason: `${first || "sed -n"} command` };
+    return {
+      kind: "read",
+      confidence: "high",
+      reason: `${first || "sed -n"} command`
+    };
   }
   if (/^(dotnet\s+test|npm\s+test|make\s+test)\b/.test(normalized)) {
     return { kind: "verify", confidence: "high", reason: "test command" };
@@ -338,9 +374,17 @@ function classifyBashCommand(command) {
     return { kind: "build", confidence: "high", reason: "build command" };
   }
   if (/^git\s+(status|diff|log|show)\b/.test(normalized)) {
-    return { kind: "vcs-inspect", confidence: "high", reason: "git inspection command" };
+    return {
+      kind: "vcs-inspect",
+      confidence: "high",
+      reason: "git inspection command"
+    };
   }
-  return { kind: "unknown", confidence: "low", reason: "no classifier matched" };
+  return {
+    kind: "unknown",
+    confidence: "low",
+    reason: "no classifier matched"
+  };
 }
 function commandFromInput(input) {
   return typeof input.command === "string" ? input.command : "";
@@ -360,7 +404,9 @@ function outputLength(output) {
 function pathsFromPatchCommand(command) {
   const paths = /* @__PURE__ */ new Set();
   for (const line of command.split("\n")) {
-    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(line.trim());
+    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(
+      line.trim()
+    );
     if (!match) continue;
     const path = match[1].trim();
     if (path && path !== "/dev/null") paths.add(path);
@@ -413,7 +459,8 @@ function readPathFromBashCommand(command) {
   if (!tool) return void 0;
   const candidates = args.slice(1).filter((arg) => !arg.startsWith("-") && !/^\d+,\d+p$/.test(arg));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index])) return candidates[index];
+    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index]))
+      return candidates[index];
   }
   return void 0;
 }
@@ -457,10 +504,14 @@ function bashEventFromEnvelope(env, phase, now2 = /* @__PURE__ */ new Date()) {
   };
   if (phase === "post") {
     const output = extractOutput(env.tool_response);
-    if (typeof output.exit_code === "number") record.exit_code = output.exit_code;
-    if (typeof output.output_bytes === "number") record.output_bytes = output.output_bytes;
+    if (typeof output.exit_code === "number")
+      record.exit_code = output.exit_code;
+    if (typeof output.output_bytes === "number")
+      record.output_bytes = output.output_bytes;
     if (output.preview) {
-      const previewRedaction = redact(truncate(output.preview, MAX_PREVIEW_CHARS));
+      const previewRedaction = redact(
+        truncate(output.preview, MAX_PREVIEW_CHARS)
+      );
       record.output_preview = previewRedaction.value;
       record.redacted ||= previewRedaction.redacted;
     }
@@ -557,7 +608,11 @@ function handleEvaluatedEvent(env, bashPhase) {
   if (!translated) return;
   const current = readSessionState(translated.context.project_root);
   if (!current) return;
-  const evaluation = evaluateEvent(translated.event, translated.context, current);
+  const evaluation = evaluateEvent(
+    translated.event,
+    translated.context,
+    current
+  );
   if (evaluation.next_state) {
     writeSessionState(translated.context.project_root, evaluation.next_state);
   }

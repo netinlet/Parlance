@@ -26,7 +26,7 @@ MCP_PROJECT := src/Parlance.Mcp/Parlance.Mcp.csproj
 ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.csproj
 
 .PHONY: help bootstrap restore local-feed \
-	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-test agent-build agent-ci agent-dist-check \
+	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-lint agent-format-check agent-deadcode agent-review agent-test agent-build agent-ci agent-dist-check \
 	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
 	format build build-cli build-mcp test test-unit test-integration test-results-dir coverage-report ci dotnet-clean \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
@@ -128,6 +128,22 @@ agent-typecheck: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" typecheck
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" typecheck; done
 
+agent-lint: agent-install-deps
+	$(MAKE) -C "$(AGENT_CORE_DIR)" lint
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" lint; done
+
+agent-format-check: agent-install-deps
+	$(MAKE) -C "$(AGENT_CORE_DIR)" format-check
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" format-check; done
+
+agent-deadcode: agent-install-deps
+	$(MAKE) -C "$(AGENT_CORE_DIR)" deadcode
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" deadcode; done
+
+agent-review: agent-install-deps
+	$(MAKE) -C "$(AGENT_CORE_DIR)" review
+	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" review; done
+
 agent-test: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" test
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" test; done
@@ -136,7 +152,7 @@ agent-build: agent-install-deps
 	$(MAKE) -C "$(AGENT_CORE_DIR)" build
 	@set -e; for dir in $(AGENT_ADAPTER_DIRS); do $(MAKE) -C "$$dir" build; done
 
-agent-ci: agent-typecheck agent-build agent-test
+agent-ci: agent-typecheck agent-lint agent-format-check agent-deadcode agent-build agent-test
 
 agent-dist-check: agent-build
 	git diff --exit-code -- $(AGENT_DIST_DIRS)

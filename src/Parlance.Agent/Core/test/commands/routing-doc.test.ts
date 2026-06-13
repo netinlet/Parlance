@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { generateRoutingDoc, generateSessionContext } from '../../src/commands/routing-doc.js';
+import {
+  generateRoutingDoc,
+  generateSessionContext,
+} from '../../src/commands/routing-doc.js';
 
 describe('routing doc', () => {
   it('documents the current routing examples', () => {

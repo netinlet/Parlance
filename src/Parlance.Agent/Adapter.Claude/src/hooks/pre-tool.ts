@@ -1,5 +1,8 @@
 import { evaluateEvent, parlanceAgentInstalled } from '@parlance/agent-core';
-import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
+import {
+  readSessionState,
+  writeSessionState,
+} from '@parlance/agent-core/storage/session-state.js';
 import { renderToStderr } from '../render.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
@@ -18,7 +21,11 @@ async function main(): Promise<void> {
     // Guard against a stale _session.json left behind after the project was unwired.
     if (!parlanceAgentInstalled(translated.context.project_root)) return;
 
-    const evaluation = evaluateEvent(translated.event, translated.context, current);
+    const evaluation = evaluateEvent(
+      translated.event,
+      translated.context,
+      current,
+    );
     renderToStderr(evaluation);
 
     if (evaluation.next_state) {

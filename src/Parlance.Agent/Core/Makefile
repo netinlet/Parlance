@@ -4,7 +4,7 @@ NPM ?= npm
 
 .DEFAULT_GOAL := help
 
-.PHONY: help install typecheck test build
+.PHONY: help install typecheck test build lint format-check deadcode review
 
 help:
 	@printf '%s\n' \
@@ -12,7 +12,11 @@ help:
 		'  make install' \
 		'  make typecheck' \
 		'  make test' \
-		'  make build'
+		'  make build' \
+		'  make lint' \
+		'  make format-check' \
+		'  make deadcode' \
+		'  make review'
 
 install:
 	$(NPM) ci
@@ -25,3 +29,15 @@ test:
 
 build:
 	$(NPM) run build
+
+lint:
+	$(NPM) run lint
+
+format-check:
+	$(NPM) run format:check
+
+deadcode:
+	$(NPM) run deadcode
+
+review:
+	$(NPM) run review

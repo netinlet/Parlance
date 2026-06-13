@@ -43,29 +43,35 @@ export async function runReport(argv: string[]): Promise<number> {
   }
 
   const range = resolveRange(args);
-  const filtered = rows.filter((row) =>
-    row.date >= range.start && row.date <= range.end
-    && (!args.project || basename(row.project ?? '') === args.project));
+  const filtered = rows.filter(
+    (row) =>
+      row.date >= range.start &&
+      row.date <= range.end &&
+      (!args.project || basename(row.project ?? '') === args.project),
+  );
 
-  const totals = filtered.reduce((acc, row) => ({
-    parlance: acc.parlance + row.parlance_calls,
-    fallback: acc.fallback + row.native_fallbacks,
-    input: acc.input + row.usage.input_tokens,
-    output: acc.output + row.usage.output_tokens,
-    cacheRead: acc.cacheRead + row.usage.cache_read_tokens,
-    reads: acc.reads + row.read_tokens,
-    writes: acc.writes + row.write_tokens,
-    duration: acc.duration + row.duration_s,
-  }), {
-    parlance: 0,
-    fallback: 0,
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    reads: 0,
-    writes: 0,
-    duration: 0,
-  });
+  const totals = filtered.reduce(
+    (acc, row) => ({
+      parlance: acc.parlance + row.parlance_calls,
+      fallback: acc.fallback + row.native_fallbacks,
+      input: acc.input + row.usage.input_tokens,
+      output: acc.output + row.usage.output_tokens,
+      cacheRead: acc.cacheRead + row.usage.cache_read_tokens,
+      reads: acc.reads + row.read_tokens,
+      writes: acc.writes + row.write_tokens,
+      duration: acc.duration + row.duration_s,
+    }),
+    {
+      parlance: 0,
+      fallback: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      reads: 0,
+      writes: 0,
+      duration: 0,
+    },
+  );
 
   const lines: string[] = [];
   lines.push(`=== Parlance Agent Report: ${range.start} -> ${range.end} ===`);
@@ -75,7 +81,9 @@ export async function runReport(argv: string[]): Promise<number> {
   lines.push(
     `LLM tokens - input: ${totals.input.toLocaleString()}  output: ${totals.output.toLocaleString()}  cache-read: ${totals.cacheRead.toLocaleString()}`,
   );
-  lines.push(`Estimated file content - read: ${totals.reads}  write: ${totals.writes}`);
+  lines.push(
+    `Estimated file content - read: ${totals.reads}  write: ${totals.writes}`,
+  );
   lines.push('');
 
   const tools = aggregateToolBreakdown(filtered);
@@ -94,13 +102,15 @@ export async function runReport(argv: string[]): Promise<number> {
   lines.push('-'.repeat(89));
   for (const row of filtered) {
     lines.push(
-      row.date.padEnd(12)
-      + row.session_id.slice(0, 8).padEnd(10)
-      + basename(row.project ?? '').slice(0, 17).padEnd(18)
-      + row.adapter.slice(0, 12).padEnd(13)
-      + String(row.parlance_calls).padStart(9)
-      + String(row.native_fallbacks).padStart(9)
-      + String(row.usage.output_tokens).padStart(9),
+      row.date.padEnd(12) +
+        row.session_id.slice(0, 8).padEnd(10) +
+        basename(row.project ?? '')
+          .slice(0, 17)
+          .padEnd(18) +
+        row.adapter.slice(0, 12).padEnd(13) +
+        String(row.parlance_calls).padStart(9) +
+        String(row.native_fallbacks).padStart(9) +
+        String(row.usage.output_tokens).padStart(9),
     );
   }
 
@@ -121,10 +131,14 @@ function aggregateToolBreakdown(rows: SessionSummary[]): [string, number][] {
 function parseArgs(argv: string[]): ReportArgs {
   const args: ReportArgs = { days: 7 };
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === '--project' && argv[index + 1]) args.project = argv[index + 1];
-    if (argv[index] === '--days' && argv[index + 1]) args.days = parseInt(argv[index + 1], 10);
-    if (argv[index] === '--since' && argv[index + 1]) args.since = argv[index + 1];
-    if (argv[index] === '--until' && argv[index + 1]) args.until = argv[index + 1];
+    if (argv[index] === '--project' && argv[index + 1])
+      args.project = argv[index + 1];
+    if (argv[index] === '--days' && argv[index + 1])
+      args.days = parseInt(argv[index + 1], 10);
+    if (argv[index] === '--since' && argv[index + 1])
+      args.since = argv[index + 1];
+    if (argv[index] === '--until' && argv[index + 1])
+      args.until = argv[index + 1];
   }
   return args;
 }

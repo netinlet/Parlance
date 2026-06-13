@@ -1,7 +1,14 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runInstall } from '../../src/commands/install.js';
 
 let root: string;
@@ -17,31 +24,51 @@ afterEach(() => {
 
 describe('install command', () => {
   it('creates .claude/settings.local.json, .mcp.json, .parlance/hooks/', async () => {
-    expect(await runInstall(['--project', root, '--solution', 'App.sln'])).toBe(0);
+    expect(await runInstall(['--project', root, '--solution', 'App.sln'])).toBe(
+      0,
+    );
     expect(existsSync(join(root, '.claude/settings.local.json'))).toBe(true);
     expect(existsSync(join(root, '.mcp.json'))).toBe(true);
-    expect(existsSync(join(root, '.parlance/hooks/session-start.js'))).toBe(true);
+    expect(existsSync(join(root, '.parlance/hooks/session-start.js'))).toBe(
+      true,
+    );
     expect(existsSync(join(root, '.parlance/tool-routing.md'))).toBe(true);
   });
 
   it('preserves foreign hooks and is idempotent', async () => {
     mkdirSync(join(root, '.claude'), { recursive: true });
-    writeFileSync(join(root, '.claude/settings.local.json'), JSON.stringify({
-      hooks: {
-        PreToolUse: [{
-          matcher: 'Bash',
-          hooks: [{ type: 'command', command: 'echo hi' }],
-        }],
-      },
-    }));
+    writeFileSync(
+      join(root, '.claude/settings.local.json'),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: 'Bash',
+              hooks: [{ type: 'command', command: 'echo hi' }],
+            },
+          ],
+        },
+      }),
+    );
 
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runInstall(['--project', root, '--solution', 'App.sln']);
 
-    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.local.json'), 'utf8'));
-    const pre = settings.hooks.PreToolUse as { matcher: string; hooks: { command?: string }[] }[];
+    const settings = JSON.parse(
+      readFileSync(join(root, '.claude/settings.local.json'), 'utf8'),
+    );
+    const pre = settings.hooks.PreToolUse as {
+      matcher: string;
+      hooks: { command?: string }[];
+    }[];
     expect(pre.some((matcher) => matcher.matcher === 'Bash')).toBe(true);
-    expect(pre.filter((matcher) => matcher.hooks.some((hook) => hook.command?.includes('.parlance/hooks/pre-tool.js')))).toHaveLength(1);
+    expect(
+      pre.filter((matcher) =>
+        matcher.hooks.some((hook) =>
+          hook.command?.includes('.parlance/hooks/pre-tool.js'),
+        ),
+      ),
+    ).toHaveLength(1);
   });
 
   it('does not modify an existing CLAUDE.md', async () => {
@@ -63,10 +90,16 @@ describe('install command', () => {
 });
 
 describe('install --global', () => {
-  const orig = { home: process.env.PARLANCE_HOME, claude: process.env.CLAUDE_CONFIG_DIR };
+  const orig = {
+    home: process.env.PARLANCE_HOME,
+    claude: process.env.CLAUDE_CONFIG_DIR,
+  };
 
   afterEach(() => {
-    for (const [key, value] of [['PARLANCE_HOME', orig.home], ['CLAUDE_CONFIG_DIR', orig.claude]] as const) {
+    for (const [key, value] of [
+      ['PARLANCE_HOME', orig.home],
+      ['CLAUDE_CONFIG_DIR', orig.claude],
+    ] as const) {
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
@@ -88,8 +121,14 @@ describe('install --global', () => {
     expect(existsSync(nudge)).toBe(true);
 
     const parsed = JSON.parse(readFileSync(settings, 'utf8'));
-    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string }[] }[];
-    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toBe(true);
+    const sessionStart = parsed.hooks.SessionStart as {
+      hooks: { command: string }[];
+    }[];
+    expect(
+      sessionStart.some((entry) =>
+        entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')),
+      ),
+    ).toBe(true);
     // global never wires the per-project tracking hooks
     expect(JSON.stringify(parsed)).not.toContain('pre-tool.js');
     expect(JSON.stringify(parsed)).not.toContain('stop.js');
@@ -98,16 +137,36 @@ describe('install --global', () => {
   it('is idempotent and preserves foreign SessionStart hooks', async () => {
     const { settings } = withDirs();
     mkdirSync(dirname(settings), { recursive: true });
-    writeFileSync(settings, JSON.stringify({
-      hooks: { SessionStart: [{ matcher: '', hooks: [{ type: 'command', command: 'echo foreign' }] }] },
-    }));
+    writeFileSync(
+      settings,
+      JSON.stringify({
+        hooks: {
+          SessionStart: [
+            {
+              matcher: '',
+              hooks: [{ type: 'command', command: 'echo foreign' }],
+            },
+          ],
+        },
+      }),
+    );
 
     await runInstall(['--global']);
     await runInstall(['--global']);
 
     const parsed = JSON.parse(readFileSync(settings, 'utf8'));
-    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string }[] }[];
-    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command === 'echo foreign'))).toBe(true);
-    expect(sessionStart.filter((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toHaveLength(1);
+    const sessionStart = parsed.hooks.SessionStart as {
+      hooks: { command: string }[];
+    }[];
+    expect(
+      sessionStart.some((entry) =>
+        entry.hooks.some((hook) => hook.command === 'echo foreign'),
+      ),
+    ).toBe(true);
+    expect(
+      sessionStart.filter((entry) =>
+        entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')),
+      ),
+    ).toHaveLength(1);
   });
 });

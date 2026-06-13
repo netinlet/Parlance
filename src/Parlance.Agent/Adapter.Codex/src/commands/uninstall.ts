@@ -8,20 +8,25 @@ export async function runUninstall(argv: string[]): Promise<number> {
   let project = process.cwd();
   let purge = false;
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === '--project' && argv[index + 1]) project = argv[index + 1];
+    if (argv[index] === '--project' && argv[index + 1])
+      project = argv[index + 1];
     if (argv[index] === '--purge') purge = true;
   }
 
   const root = resolve(project);
   const hooksPath = join(root, '.codex/hooks.json');
   if (existsSync(hooksPath)) {
-    const settings = JSON.parse(readFileSync(hooksPath, 'utf8')) as { hooks?: Record<string, { hooks: { command?: string }[] }[]> };
+    const settings = JSON.parse(readFileSync(hooksPath, 'utf8')) as {
+      hooks?: Record<string, { hooks: { command?: string }[] }[]>;
+    };
     if (settings.hooks) {
       for (const key of Object.keys(settings.hooks)) {
         settings.hooks[key] = settings.hooks[key]
           .map((entry) => ({
             ...entry,
-            hooks: entry.hooks.filter((hook) => !(hook.command ?? '').includes(HOOK_MARKER)),
+            hooks: entry.hooks.filter(
+              (hook) => !(hook.command ?? '').includes(HOOK_MARKER),
+            ),
           }))
           .filter((entry) => entry.hooks.length > 0);
         if (settings.hooks[key].length === 0) delete settings.hooks[key];

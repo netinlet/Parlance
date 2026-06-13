@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { estimateFromExtension, estimateTokens } from '../../src/telemetry/estimate.js';
+import {
+  estimateFromExtension,
+  estimateTokens,
+} from '../../src/telemetry/estimate.js';
 
 describe('estimate', () => {
   it('returns 0 for empty', () => {

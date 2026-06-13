@@ -28,7 +28,9 @@ export function parseTranscript(path: string): ParsedTranscript | null {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as RawRecord);
 
-  const branch = records.find((record) => typeof record.gitBranch === 'string')?.gitBranch ?? null;
+  const branch =
+    records.find((record) => typeof record.gitBranch === 'string')?.gitBranch ??
+    null;
   return { branch, records };
 }
 
@@ -40,22 +42,25 @@ export function aggregateUsageBetween(
   const startMs = start ? Date.parse(start) : Number.NEGATIVE_INFINITY;
   const endMs = end ? Date.parse(end) : Number.POSITIVE_INFINITY;
 
-  return records.reduce<UsageTotals>((totals, record) => {
-    const ts = record.timestamp ? Date.parse(record.timestamp) : Number.NaN;
-    if (Number.isNaN(ts) || ts < startMs || ts > endMs) return totals;
+  return records.reduce<UsageTotals>(
+    (totals, record) => {
+      const ts = record.timestamp ? Date.parse(record.timestamp) : Number.NaN;
+      if (Number.isNaN(ts) || ts < startMs || ts > endMs) return totals;
 
-    const usage = record.message?.usage;
-    if (!usage) return totals;
+      const usage = record.message?.usage;
+      if (!usage) return totals;
 
-    totals.input_tokens += usage.input_tokens ?? 0;
-    totals.output_tokens += usage.output_tokens ?? 0;
-    totals.cache_read_tokens += usage.cache_read_input_tokens ?? 0;
-    totals.cache_write_tokens += usage.cache_creation_input_tokens ?? 0;
-    return totals;
-  }, {
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_read_tokens: 0,
-    cache_write_tokens: 0,
-  });
+      totals.input_tokens += usage.input_tokens ?? 0;
+      totals.output_tokens += usage.output_tokens ?? 0;
+      totals.cache_read_tokens += usage.cache_read_input_tokens ?? 0;
+      totals.cache_write_tokens += usage.cache_creation_input_tokens ?? 0;
+      return totals;
+    },
+    {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0,
+    },
+  );
 }
