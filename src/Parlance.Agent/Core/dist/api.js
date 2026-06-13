@@ -536,8 +536,20 @@ function parlanceMcpWired(root) {
 function parlanceAgentInstalled(root) {
   return parlanceMcpWired(root) || existsSync4(join3(root, ".parlance", "hooks", "session-start.js"));
 }
-function planSessionStart(root) {
-  if (parlanceAgentInstalled(root)) {
+function parlanceCodexWired(root) {
+  return existsSync4(join3(root, ".parlance", "hooks", "session-start.js")) && codexHooksJsonReferencesSessionStart(root);
+}
+function codexHooksJsonReferencesSessionStart(root) {
+  try {
+    const config = JSON.parse(readFileSync4(join3(root, ".codex", "hooks.json"), "utf8"));
+    const sessionStart = config.hooks?.SessionStart ?? [];
+    return sessionStart.some((entry) => entry.hooks?.some((hook) => typeof hook.command === "string" && hook.command.includes(".parlance/hooks/session-start.js")) ?? false);
+  } catch {
+    return false;
+  }
+}
+function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
+  if (wiredFn(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {
@@ -571,6 +583,7 @@ export {
   looksLikeCsharp,
   now,
   parlanceAgentInstalled,
+  parlanceCodexWired,
   parlanceMcpWired,
   planSessionStart,
   postRead,

@@ -284,7 +284,7 @@ Expected: hook entrypoints bundle into `dist/hooks/`.
 - Write `.parlance/tool-routing.md`.
 - Write `.parlance/codex/mcp-setup.md` with `codex mcp add parlance -- parlance mcp --solution-path <solution>`.
 - Create or update `.codex/hooks.json`.
-- Create or update `.codex/config.toml` with `codex_hooks = true`.
+- Create or update `.codex/config.toml` with `hooks = true`.
 - Preserve foreign hooks.
 - Be idempotent.
 - Fail if `.codex` exists and is not a directory.
@@ -367,7 +367,7 @@ Expected: Codex adapter participates in agent and CLI build workflows.
 
 - Document `parlance agent install --for codex --solution <path>`.
 - Explain `.codex` directory requirement and file collision failure.
-- Explain experimental Codex hook dependency and `codex_hooks = true`.
+- Explain Codex hook dependency and `hooks = true`.
 - Explain that `PostToolUse` records telemetry but does not replace tool output.
 - Explain `.parlance/codex/events/bash.jsonl` and redaction.
 - Note that adapter-specific reports are future work.

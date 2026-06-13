@@ -185,8 +185,20 @@ function parlanceMcpWired(root) {
 function parlanceAgentInstalled(root) {
   return parlanceMcpWired(root) || existsSync(join(root, ".parlance", "hooks", "session-start.js"));
 }
-function planSessionStart(root) {
-  if (parlanceAgentInstalled(root)) {
+function parlanceCodexWired(root) {
+  return existsSync(join(root, ".parlance", "hooks", "session-start.js")) && codexHooksJsonReferencesSessionStart(root);
+}
+function codexHooksJsonReferencesSessionStart(root) {
+  try {
+    const config = JSON.parse(readFileSync(join(root, ".codex", "hooks.json"), "utf8"));
+    const sessionStart = config.hooks?.SessionStart ?? [];
+    return sessionStart.some((entry) => entry.hooks?.some((hook) => typeof hook.command === "string" && hook.command.includes(".parlance/hooks/session-start.js")) ?? false);
+  } catch {
+    return false;
+  }
+}
+function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
+  if (wiredFn(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {
@@ -445,7 +457,7 @@ async function main() {
     const env = await readEnvelope();
     const translated = translate(env);
     if (!translated || translated.event.kind !== "session-started") return;
-    const plan = planSessionStart(translated.context.project_root);
+    const plan = planSessionStart(translated.context.project_root, parlanceCodexWired);
     runNudge(
       plan,
       capabilities.outputs.can_inject_context,

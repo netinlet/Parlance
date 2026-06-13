@@ -199,6 +199,7 @@ function runInstallGlobal() {
   copyFileSync(nudgeSource, nudgeTarget);
   const hooksPath = join2(codexConfigDir(), "hooks.json");
   writeGlobalHooksJson(hooksPath, nudgeTarget);
+  writeConfigToml(join2(codexConfigDir(), "config.toml"));
   process.stderr.write(
     `parlance global nudge installed:
   bundle: ${nudgeTarget}
@@ -224,7 +225,12 @@ function writeGlobalHooksJson(path, nudgePath) {
     const bucket = hooks.SessionStart ?? [];
     const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
     hooks.SessionStart = [...preserved, {
-      hooks: [{ type: "command", command: `node "${nudgePath}"`, timeout: 5 }]
+      hooks: [{
+        type: "command",
+        command: `node "${nudgePath}"`,
+        timeout: 5,
+        statusMessage: "Checking Parlance setup"
+      }]
     }];
     existing.hooks = hooks;
   });
@@ -260,7 +266,7 @@ function matcher(matcherValue, script, timeout, statusMessage) {
 }
 function writeConfigToml(path) {
   const existing = existsSync2(path) ? readFileSync2(path, "utf8") : "";
-  const next = withCodexHooksFeature(existing);
+  const next = withHooksFeature(existing);
   writeFileSync(path, next);
 }
 function writeMcpSetupDoc(root, solutionAbs, mcpCommand) {
@@ -285,21 +291,24 @@ function shellQuote(value) {
   if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
-function withCodexHooksFeature(existing) {
+function withHooksFeature(existing) {
   const normalized = existing.replace(/\r\n/g, "\n");
   if (/^\s*\[features]\s*$/m.test(normalized)) {
+    if (/^\s*hooks\s*=/m.test(normalized)) {
+      return ensureTrailingNewline(normalized.replace(/^\s*hooks\s*=.*$/m, "hooks = true"));
+    }
     if (/^\s*codex_hooks\s*=/m.test(normalized)) {
-      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, "codex_hooks = true"));
+      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, "hooks = true"));
     }
     const lines = normalized.split("\n");
     const index = lines.findIndex((line) => /^\s*\[features]\s*$/.test(line));
-    lines.splice(index + 1, 0, "codex_hooks = true");
+    lines.splice(index + 1, 0, "hooks = true");
     return ensureTrailingNewline(lines.join("\n"));
   }
   const prefix = normalized.trim().length === 0 ? "" : `${ensureTrailingNewline(normalized)}
 `;
   return `${prefix}[features]
-codex_hooks = true
+hooks = true
 `;
 }
 function ensureTrailingNewline(value) {

@@ -32,7 +32,7 @@ and with what fidelity.
 - `.parlance/codex/mcp-setup.md`
 - `.parlance/codex/events/bash.jsonl` parent directory
 
-Codex hooks are experimental and require `[features] codex_hooks = true`. The
+Codex hooks require `[features] hooks = true`. The
 installer updates that feature flag while preserving unrelated config. If
 `.codex` exists as a file, installation fails and leaves it untouched.
 

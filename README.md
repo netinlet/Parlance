@@ -158,7 +158,7 @@ dotnet run --project src/Parlance.Cli -- \
   --solution /path/to/repo/App.sln
 ```
 
-The Codex adapter writes `.codex/hooks.json` and enables `[features] codex_hooks = true`
+The Codex adapter writes `.codex/hooks.json` and enables `[features] hooks = true`
 in `.codex/config.toml`. If `.codex` already exists as a file, installation fails
 without replacing it. The `--solution` path is used to write
 `.parlance/codex/mcp-setup.md`, which contains the `codex mcp add parlance -- parlance mcp --solution-path ...`

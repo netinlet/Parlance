@@ -213,8 +213,8 @@ function parlanceMcpWired(root) {
 function parlanceAgentInstalled(root) {
   return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
 }
-function planSessionStart(root) {
-  if (parlanceAgentInstalled(root)) {
+function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
+  if (wiredFn(root)) {
     return { kind: "wired", context: generateSessionContext() };
   }
   if (looksLikeCsharp(root)) {

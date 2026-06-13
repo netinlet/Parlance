@@ -2,6 +2,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateSessionContext } from './commands/routing-doc.js';
 
+interface HookMatcher {
+  hooks?: { command?: unknown }[];
+}
+
 /** First solution file (basename) at the project root — `.slnx` preferred over `.sln`. */
 export function findSolution(root: string): string | null {
   let entries: string[];
@@ -69,6 +73,24 @@ export function parlanceAgentInstalled(root: string): boolean {
     || existsSync(join(root, '.parlance', 'hooks', 'session-start.js'));
 }
 
+/** Is the Parlance Codex agent installed? Requires Codex to actually point at the per-project hook bundle. */
+export function parlanceCodexWired(root: string): boolean {
+  return existsSync(join(root, '.parlance', 'hooks', 'session-start.js'))
+    && codexHooksJsonReferencesSessionStart(root);
+}
+
+function codexHooksJsonReferencesSessionStart(root: string): boolean {
+  try {
+    const config = JSON.parse(readFileSync(join(root, '.codex', 'hooks.json'), 'utf8')) as { hooks?: Record<string, HookMatcher[]> };
+    const sessionStart = config.hooks?.SessionStart ?? [];
+    return sessionStart.some((entry) =>
+      entry.hooks?.some((hook) =>
+        typeof hook.command === 'string' && hook.command.includes('.parlance/hooks/session-start.js')) ?? false);
+  } catch {
+    return false;
+  }
+}
+
 export type SessionStartPlan =
   | { kind: 'wired'; context: string }
   | { kind: 'suggest-install'; context: string }
@@ -79,9 +101,12 @@ export type SessionStartPlan =
  * globally without per-worktree setup: track + prime where Parlance is wired,
  * remind where it's a C# project that isn't, and stay silent (writing nothing)
  * everywhere else so unrelated repos aren't littered.
+ *
+ * Pass a custom `wiredFn` to check agent-specific wiring (e.g. `parlanceCodexWired`
+ * for the Codex global nudge, so a Claude-only `.mcp.json` doesn't suppress it).
  */
-export function planSessionStart(root: string): SessionStartPlan {
-  if (parlanceAgentInstalled(root)) {
+export function planSessionStart(root: string, wiredFn: (r: string) => boolean = parlanceAgentInstalled): SessionStartPlan {
+  if (wiredFn(root)) {
     return { kind: 'wired', context: generateSessionContext() };
   }
 

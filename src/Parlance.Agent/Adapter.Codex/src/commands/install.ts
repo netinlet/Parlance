@@ -123,6 +123,7 @@ function runInstallGlobal(): number {
 
   const hooksPath = join(codexConfigDir(), 'hooks.json');
   writeGlobalHooksJson(hooksPath, nudgeTarget);
+  writeConfigToml(join(codexConfigDir(), 'config.toml'));
 
   process.stderr.write(
     `parlance global nudge installed:\n  bundle: ${nudgeTarget}\n  wired into: ${hooksPath} (SessionStart, nudge-only)\n`,
@@ -149,7 +150,12 @@ function writeGlobalHooksJson(path: string, nudgePath: string): void {
     const bucket = hooks.SessionStart ?? [];
     const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
     hooks.SessionStart = [...preserved, {
-      hooks: [{ type: 'command', command: `node "${nudgePath}"`, timeout: 5 }],
+      hooks: [{
+        type: 'command',
+        command: `node "${nudgePath}"`,
+        timeout: 5,
+        statusMessage: 'Checking Parlance setup',
+      }],
     }];
 
     existing.hooks = hooks;
@@ -192,7 +198,7 @@ function matcher(matcherValue: string | undefined, script: string, timeout: numb
 
 function writeConfigToml(path: string): void {
   const existing = existsSync(path) ? readFileSync(path, 'utf8') : '';
-  const next = withCodexHooksFeature(existing);
+  const next = withHooksFeature(existing);
   writeFileSync(path, next);
 }
 
@@ -220,22 +226,28 @@ function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
-export function withCodexHooksFeature(existing: string): string {
+export function withHooksFeature(existing: string): string {
   const normalized = existing.replace(/\r\n/g, '\n');
   if (/^\s*\[features]\s*$/m.test(normalized)) {
+    if (/^\s*hooks\s*=/m.test(normalized)) {
+      return ensureTrailingNewline(normalized.replace(/^\s*hooks\s*=.*$/m, 'hooks = true'));
+    }
+
     if (/^\s*codex_hooks\s*=/m.test(normalized)) {
-      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, 'codex_hooks = true'));
+      return ensureTrailingNewline(normalized.replace(/^\s*codex_hooks\s*=.*$/m, 'hooks = true'));
     }
 
     const lines = normalized.split('\n');
     const index = lines.findIndex((line) => /^\s*\[features]\s*$/.test(line));
-    lines.splice(index + 1, 0, 'codex_hooks = true');
+    lines.splice(index + 1, 0, 'hooks = true');
     return ensureTrailingNewline(lines.join('\n'));
   }
 
   const prefix = normalized.trim().length === 0 ? '' : `${ensureTrailingNewline(normalized)}\n`;
-  return `${prefix}[features]\ncodex_hooks = true\n`;
+  return `${prefix}[features]\nhooks = true\n`;
 }
+
+export const withCodexHooksFeature = withHooksFeature;
 
 function ensureTrailingNewline(value: string): string {
   return value.endsWith('\n') ? value : `${value}\n`;

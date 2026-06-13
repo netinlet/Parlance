@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { findSolution, looksLikeCsharp, parlanceAgentInstalled, parlanceMcpWired, planSessionStart } from '../src/discovery.js';
+import { findSolution, looksLikeCsharp, parlanceAgentInstalled, parlanceCodexWired, parlanceMcpWired, planSessionStart } from '../src/discovery.js';
 
 let root: string;
 
@@ -15,6 +15,22 @@ afterEach(() => {
 });
 
 const wireMcp = () => writeFileSync(join(root, '.mcp.json'), JSON.stringify({ mcpServers: { parlance: { command: 'parlance' } } }));
+const copyCodexBundle = () => {
+  mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
+  writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
+};
+const wireCodexHooks = () => {
+  mkdirSync(join(root, '.codex'), { recursive: true });
+  writeFileSync(join(root, '.codex/hooks.json'), JSON.stringify({
+    hooks: {
+      SessionStart: [{
+        hooks: [{ type: 'command', command: 'node "$(git rev-parse --show-toplevel)/.parlance/hooks/session-start.js"' }],
+      }],
+    },
+  }));
+  writeFileSync(join(root, '.codex/config.toml'), '[features]\nhooks = true\n');
+  copyCodexBundle();
+};
 
 describe('looksLikeCsharp', () => {
   it('true for a solution at root', () => {
@@ -67,6 +83,27 @@ describe('parlanceMcpWired', () => {
   });
 });
 
+describe('parlanceCodexWired', () => {
+  it('true when Codex hook config points at the Parlance hook bundle', () => {
+    wireCodexHooks();
+    expect(parlanceCodexWired(root)).toBe(true);
+  });
+
+  it('false when only the hook bundle is present', () => {
+    copyCodexBundle();
+    expect(parlanceCodexWired(root)).toBe(false);
+  });
+
+  it('false when only .mcp.json is present (Claude path, not Codex)', () => {
+    wireMcp();
+    expect(parlanceCodexWired(root)).toBe(false);
+  });
+
+  it('false when nothing is installed', () => {
+    expect(parlanceCodexWired(root)).toBe(false);
+  });
+});
+
 describe('parlanceAgentInstalled', () => {
   it('true when .mcp.json has a parlance server', () => {
     wireMcp();
@@ -74,8 +111,7 @@ describe('parlanceAgentInstalled', () => {
   });
 
   it('true when hook bundle is present (Codex install path)', () => {
-    mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
-    writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
+    copyCodexBundle();
     expect(parlanceAgentInstalled(root)).toBe(true);
   });
 
@@ -93,8 +129,7 @@ describe('planSessionStart', () => {
   });
 
   it('wired (Codex hook bundle) -> routing context', () => {
-    mkdirSync(join(root, '.parlance', 'hooks'), { recursive: true });
-    writeFileSync(join(root, '.parlance', 'hooks', 'session-start.js'), '');
+    copyCodexBundle();
     const plan = planSessionStart(root);
     expect(plan.kind).toBe('wired');
   });
@@ -109,5 +144,19 @@ describe('planSessionStart', () => {
   it('neither C# nor wired -> idle', () => {
     writeFileSync(join(root, 'package.json'), '{}');
     expect(planSessionStart(root).kind).toBe('idle');
+  });
+
+  it('custom wiredFn: Claude .mcp.json does not suppress suggest-install when Codex hooks absent', () => {
+    wireMcp();
+    writeFileSync(join(root, 'App.slnx'), '');
+    const plan = planSessionStart(root, parlanceCodexWired);
+    expect(plan.kind).toBe('suggest-install');
+  });
+
+  it('custom wiredFn: stale copied Codex bundle does not suppress suggest-install when hooks.json is absent', () => {
+    copyCodexBundle();
+    writeFileSync(join(root, 'App.slnx'), '');
+    const plan = planSessionStart(root, parlanceCodexWired);
+    expect(plan.kind).toBe('suggest-install');
   });
 });
