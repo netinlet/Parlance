@@ -24,6 +24,7 @@
     <Project Path="tests/Parlance.CSharp.Workspace.Tests/Parlance.CSharp.Workspace.Tests.csproj" />
     <Project Path="tests/Parlance.Mcp.Tests/Parlance.Mcp.Tests.csproj" />
     <Project Path="tests/Parlance.Package.Tests/Parlance.Package.Tests.csproj" />
+    <Project Path="tests/Parlance.TestAnalyzer/Parlance.TestAnalyzer.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/Parlance.ManifestGenerator/Parlance.ManifestGenerator.csproj" />
