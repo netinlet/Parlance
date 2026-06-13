@@ -2,7 +2,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFi
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { generateRoutingDoc } from '@parlance/agent-core';
+import { findSolution, generateRoutingDoc } from '@parlance/agent-core';
 import { globalHooksDir, hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
 
 const HOOK_MARKER = '.parlance/hooks/';
@@ -65,6 +65,17 @@ function runInstallGlobal(): number {
   process.stderr.write(
     `parlance global nudge installed:\n  bundle: ${nudgeTarget}\n  wired into: ${settingsPath} (SessionStart, nudge-only)\n`,
   );
+
+  const cwd = process.cwd();
+  const hooksInstalled = existsSync(join(parlanceDir(cwd), 'hooks', 'session-start.js'));
+  if (!hooksInstalled) {
+    const sln = findSolution(cwd) ?? '<YourSolution.sln>';
+    process.stderr.write(
+      `\nNote: per-project hooks are not installed in the current directory.\n`
+      + `      Run: parlance agent install --for claude --solution ${sln}\n`,
+    );
+  }
+
   return 0;
 }
 

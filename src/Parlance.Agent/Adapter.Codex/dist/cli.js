@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 // src/commands/install.ts
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync as existsSync2, lstatSync, mkdirSync, readFileSync as readFileSync2, readdirSync as readdirSync2, writeFileSync } from "node:fs";
 import { homedir as homedir2 } from "node:os";
 import { dirname, join as join2, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -95,6 +95,18 @@ function describe(event) {
   return event.kind;
 }
 
+// ../Core/src/discovery.ts
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+function findSolution(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return null;
+  }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
+}
+
 // src/commands/install.ts
 var HOOK_MARKER = ".parlance/hooks/";
 var GLOBAL_NUDGE_MARKER = "hooks/nudge.js";
@@ -106,13 +118,13 @@ async function runInstall(argv) {
   const args = parseArgs(argv);
   if (!args) return 2;
   const root = resolve(args.project);
-  if (!existsSync(root)) {
+  if (!existsSync2(root)) {
     process.stderr.write(`project missing: ${root}
 `);
     return 1;
   }
   const codexDir = join2(root, ".codex");
-  if (existsSync(codexDir) && !lstatSync(codexDir).isDirectory()) {
+  if (existsSync2(codexDir) && !lstatSync(codexDir).isDirectory()) {
     process.stderr.write(`cannot install codex hooks: ${codexDir} exists and is not a directory
 `);
     return 1;
@@ -145,7 +157,7 @@ function parseArgs(argv) {
 }
 function copyHookBundles(target) {
   const source = findHookBundleDir();
-  for (const entry of readdirSync(source)) {
+  for (const entry of readdirSync2(source)) {
     if (entry.endsWith(".js")) copyFileSync(join2(source, entry), join2(target, entry));
   }
 }
@@ -156,14 +168,14 @@ function findHookBundleDir() {
     join2(here, "..", "..", "dist", "hooks")
   ];
   for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
+    if (existsSync2(candidate)) return candidate;
   }
   throw new Error("hook bundle directory not found");
 }
 function readJsonOrEmpty(path) {
-  if (!existsSync(path)) return {};
+  if (!existsSync2(path)) return {};
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFileSync2(path, "utf8"));
   } catch (err) {
     throw new Error(`could not parse ${path}: ${err.message}`);
   }
@@ -178,7 +190,7 @@ function runInstallGlobal() {
   const hooksTarget = globalHooksDir();
   mkdirSync(hooksTarget, { recursive: true });
   const nudgeSource = join2(findHookBundleDir(), "nudge.js");
-  if (!existsSync(nudgeSource)) {
+  if (!existsSync2(nudgeSource)) {
     process.stderr.write(`nudge bundle missing at ${nudgeSource}
 `);
     return 1;
@@ -193,6 +205,17 @@ function runInstallGlobal() {
   wired into: ${hooksPath} (SessionStart, nudge-only)
 `
   );
+  const cwd = process.cwd();
+  const hooksInstalled = existsSync2(join2(parlanceDir(cwd), "hooks", "session-start.js"));
+  if (!hooksInstalled) {
+    const sln = findSolution(cwd) ?? "<YourSolution.sln>";
+    process.stderr.write(
+      `
+Note: per-project hooks are not installed in the current directory.
+      Run: parlance agent install --for codex --solution ${sln}
+`
+    );
+  }
   return 0;
 }
 function writeGlobalHooksJson(path, nudgePath) {
@@ -236,7 +259,7 @@ function matcher(matcherValue, script, timeout, statusMessage) {
   return entry;
 }
 function writeConfigToml(path) {
-  const existing = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const existing = existsSync2(path) ? readFileSync2(path, "utf8") : "";
   const next = withCodexHooksFeature(existing);
   writeFileSync(path, next);
 }
@@ -285,7 +308,7 @@ function ensureTrailingNewline(value) {
 }
 
 // src/commands/uninstall.ts
-import { existsSync as existsSync2, readFileSync as readFileSync2, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
 import { join as join3, resolve as resolve2 } from "node:path";
 var HOOK_MARKER2 = ".parlance/hooks/";
 async function runUninstall(argv) {
@@ -297,8 +320,8 @@ async function runUninstall(argv) {
   }
   const root = resolve2(project);
   const hooksPath = join3(root, ".codex/hooks.json");
-  if (existsSync2(hooksPath)) {
-    const settings = JSON.parse(readFileSync2(hooksPath, "utf8"));
+  if (existsSync3(hooksPath)) {
+    const settings = JSON.parse(readFileSync3(hooksPath, "utf8"));
     if (settings.hooks) {
       for (const key of Object.keys(settings.hooks)) {
         settings.hooks[key] = settings.hooks[key].map((entry) => ({
@@ -312,7 +335,7 @@ async function runUninstall(argv) {
     if (Object.keys(settings).length === 0) rmSync(hooksPath, { force: true });
     else writeFileSync2(hooksPath, JSON.stringify(settings, null, 2));
   }
-  if (purge && existsSync2(parlanceDir(root))) {
+  if (purge && existsSync3(parlanceDir(root))) {
     rmSync(parlanceDir(root), { recursive: true, force: true });
   }
   process.stderr.write("parlance agent (codex) uninstalled\n");
