@@ -12,7 +12,10 @@ public sealed record AnalyzerProviderResult(
 /// Aggregates all <see cref="IAnalyzerSource"/>s into a single merged <see cref="AnalyzerComponents"/>
 /// set. Sources are sorted by descending <see cref="IAnalyzerSource.Priority"/> so that higher-priority
 /// sources (local=100, global=50) win over lower-priority ones (bundled=20, roslyn-features=10) on
-/// type-name collision. Results are cached by <c>(targetFramework, repoPath)</c>.
+/// type-name collision. Results are cached by <c>(targetFramework, repoPath, trust-fingerprints)</c>
+/// — the trust fingerprint of each <see cref="ITrustNoticeSource"/> is folded into the key so an
+/// out-of-band <c>parlance trust</c> grant/revoke invalidates the entry on the next call, rather than
+/// returning a stale merge until restart.
 /// </summary>
 public sealed class AnalyzerProvider(IEnumerable<IAnalyzerSource> sources)
 {
@@ -22,8 +25,18 @@ public sealed class AnalyzerProvider(IEnumerable<IAnalyzerSource> sources)
 
     public AnalyzerProviderResult GetComponents(string targetFramework, string repoPath)
     {
-        var key = $"{targetFramework}|{repoPath}";
+        var key = CacheKey(targetFramework, repoPath);
         return _cache.GetOrAdd(key, _ => Merge(targetFramework, repoPath));
+    }
+
+    // Fold every trust source's fingerprint into the key so a grant/revoke (which changes the
+    // fingerprint) lands in a fresh entry instead of returning the previously-merged result. The
+    // source list is fixed, so OfType preserves a stable order across calls.
+    private string CacheKey(string targetFramework, string repoPath)
+    {
+        var trustFingerprints = string.Join(
+            '|', _sources.OfType<ITrustNoticeSource>().Select(s => s.TrustFingerprint(repoPath)));
+        return $"{targetFramework}|{repoPath}|{trustFingerprints}";
     }
 
     public ImmutableList<string> GetExternalSourceNotices(string repoPath) =>

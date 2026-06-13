@@ -9,4 +9,12 @@ namespace Parlance.Analyzers.Upstream;
 public interface ITrustNoticeSource
 {
     ImmutableList<string> GetTrustNotices(string repoPath);
+
+    /// <summary>
+    /// A cheap fingerprint of this source's trust state for <paramref name="repoPath"/>. It must
+    /// change whenever a grant/revoke (or hash change) would alter what <c>Load</c> or
+    /// <see cref="GetTrustNotices"/> returns, so aggregators can fold it into a cache key that
+    /// self-invalidates on an out-of-band <c>parlance trust</c> change without a restart.
+    /// </summary>
+    string TrustFingerprint(string repoPath);
 }

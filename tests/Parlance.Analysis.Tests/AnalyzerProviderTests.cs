@@ -34,12 +34,23 @@ public sealed class AnalyzerProviderTests
         SourceLoadResult result,
         ImmutableList<string> notices) : IAnalyzerSource, ITrustNoticeSource
     {
+        // Mutable so a test can simulate an out-of-band `parlance trust` change: flip the result
+        // and bump the fingerprint, then assert the provider re-executes Load.
+        public SourceLoadResult Result { get; set; } = result;
+        public string Fingerprint { get; set; } = "fp0";
+        public int LoadCalls { get; private set; }
+
         public string Name => name;
         public SourceTrust Trust => trust;
         public int Priority => priority;
-        public SourceLoadResult Load(string targetFramework, string repoPath) => result;
+        public SourceLoadResult Load(string targetFramework, string repoPath)
+        {
+            LoadCalls++;
+            return Result;
+        }
         public ImmutableArray<string> Probe(string repoPath) => [];
         public ImmutableList<string> GetTrustNotices(string repoPath) => notices;
+        public string TrustFingerprint(string repoPath) => Fingerprint;
     }
 
     // A minimal concrete DiagnosticAnalyzer for testing dedup
@@ -151,6 +162,43 @@ public sealed class AnalyzerProviderTests
 
         Assert.Single(result.Components.Analyzers);
         Assert.Same(alphaFromLocal, result.Components.Analyzers[0]);
+    }
+
+    [Fact]
+    public void GetComponents_CachesWhileTrustFingerprintIsStable()
+    {
+        var source = new StubTrustNoticeSource("local", SourceTrust.External, 100,
+            ResultWithAnalyzers(new AnalyzerAlpha()), []);
+        var provider = new AnalyzerProvider([source]);
+
+        provider.GetComponents("net10.0", "/repo");
+        provider.GetComponents("net10.0", "/repo");
+
+        // Same fingerprint → served from cache; Load runs exactly once.
+        Assert.Equal(1, source.LoadCalls);
+    }
+
+    [Fact]
+    public void GetComponents_ReExecutesWhenTrustFingerprintChanges()
+    {
+        // Mirrors the PR's manual test: untrusted DLL surfaces a failure, then an out-of-band
+        // `parlance trust` grant must take effect on the next call without a restart.
+        var source = new StubTrustNoticeSource("local", SourceTrust.External, 100,
+            ResultWithFailure("/path/a.dll", "Not trusted"), []);
+        var provider = new AnalyzerProvider([source]);
+
+        var beforeTrust = provider.GetComponents("net10.0", "/repo");
+        Assert.Single(beforeTrust.Failures);
+        Assert.Empty(beforeTrust.Components.Analyzers);
+
+        // Grant trust: result flips and the fingerprint changes.
+        source.Result = ResultWithAnalyzers(new AnalyzerAlpha());
+        source.Fingerprint = "fp1";
+
+        var afterTrust = provider.GetComponents("net10.0", "/repo");
+        Assert.Equal(2, source.LoadCalls);
+        Assert.Empty(afterTrust.Failures);
+        Assert.Single(afterTrust.Components.Analyzers);
     }
 
     [Fact]

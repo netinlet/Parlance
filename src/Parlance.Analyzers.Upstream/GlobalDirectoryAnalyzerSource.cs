@@ -78,6 +78,12 @@ public sealed class GlobalDirectoryAnalyzerSource : IAnalyzerSource, ITrustNotic
         return notices.ToImmutable();
     }
 
+    public string TrustFingerprint(string repoPath)
+    {
+        _ = repoPath; // global trust file is fixed; not repo-relative
+        return new AnalyzerTrustFile(_trustFilePath).Fingerprint();
+    }
+
     private SourceLoadResult LoadCore(AnalyzerTrustFile trust)
     {
         if (!Directory.Exists(_globalDir)) return SourceLoadResult.Empty;

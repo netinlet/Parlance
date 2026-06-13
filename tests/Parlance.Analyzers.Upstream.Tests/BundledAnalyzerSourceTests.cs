@@ -21,6 +21,21 @@ public sealed class BundledAnalyzerSourceTests
         Assert.Empty(result.Failures);
     }
 
+    [Theory]
+    [InlineData("net9.0")]
+    [InlineData("net7.0")]
+    [InlineData("net48")]
+    [InlineData("netstandard2.0")]
+    public void Load_UnsupportedTfm_DegradesToNet10_DoesNotThrow(string tfm)
+    {
+        // The underlying loaders throw ArgumentException on an unsupported TFM; the source must
+        // degrade to net10.0 so analyze/code-fix on, e.g., a net9.0 project still produces results.
+        var result = _source.Load(tfm, repoPath: "/unused");
+        Assert.NotEmpty(result.Components.Analyzers);
+        Assert.NotEmpty(result.Components.FixProviders);
+        Assert.Empty(result.Failures);
+    }
+
     [Fact]
     public void Probe_IsEmpty()
     {

@@ -59,6 +59,9 @@ public sealed class LocalDirectoryAnalyzerSource : IAnalyzerSource, ITrustNotice
         return notices.ToImmutable();
     }
 
+    public string TrustFingerprint(string repoPath) =>
+        new AnalyzerTrustFile(AnalyzerTrustFile.ProjectPath(repoPath)).Fingerprint();
+
     private static SourceLoadResult LoadCore(string repoPath, AnalyzerTrustFile trust)
     {
         var dir = LocalDirectory(repoPath);

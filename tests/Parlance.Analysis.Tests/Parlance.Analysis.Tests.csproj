@@ -35,8 +35,16 @@
     <ProjectReference Include="..\..\src\Parlance.Analysis\Parlance.Analysis.csproj" />
   </ItemGroup>
 
+  <!--
+    TestAnalyzer is a netstandard2.0 fixture loaded at runtime, not referenced as an assembly.
+    The ProjectReference (ReferenceOutputAssembly="false") establishes build ordering so the DLL
+    exists before the copy; the None Include resolves it from the active $(Configuration) — Debug
+    locally, Release under `make ci` — instead of a pinned Debug path that breaks a clean Release build.
+  -->
   <ItemGroup>
-    <None Include="$(MSBuildThisFileDirectory)..\Parlance.TestAnalyzer\bin\Debug\netstandard2.0\Parlance.TestAnalyzer.dll"
+    <ProjectReference Include="..\Parlance.TestAnalyzer\Parlance.TestAnalyzer.csproj"
+                      ReferenceOutputAssembly="false" />
+    <None Include="$(MSBuildThisFileDirectory)..\Parlance.TestAnalyzer\bin\$(Configuration)\netstandard2.0\Parlance.TestAnalyzer.dll"
           CopyToOutputDirectory="PreserveNewest"
           Link="test-analyzer-dlls/Parlance.TestAnalyzer.dll" />
   </ItemGroup>
