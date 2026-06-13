@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.Analysis;
+using Parlance.Analysis.Tests;
 using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 using Parlance.Mcp.Tools;
@@ -10,7 +11,7 @@ namespace Parlance.Mcp.Tests.Tools;
 public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     private readonly WorkspaceSessionHolder _holder = fixture.Holder;
-    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
+    private readonly CodeActionService _codeActions = new(fixture.Holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
 
     [Fact]
     public async Task Preview_InvalidActionId_ReturnsNotFound()
@@ -39,7 +40,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
     public void Preview_NotLoaded_ReturnsNotLoaded()
     {
         var holder = new WorkspaceSessionHolder();
-        var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
+        var codeActions = new CodeActionService(holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
 
         var result = PreviewCodeActionTool.PreviewCodeAction(
             holder, codeActions,
@@ -54,7 +55,7 @@ public sealed class PreviewCodeActionToolTests(WorkspaceFixture fixture) : IClas
     {
         var holder = new WorkspaceSessionHolder();
         holder.SetLoadFailure(new WorkspaceLoadFailure("boom", "/path.sln"));
-        var codeActions = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
+        var codeActions = new CodeActionService(holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
 
         var result = PreviewCodeActionTool.PreviewCodeAction(
             holder, codeActions,

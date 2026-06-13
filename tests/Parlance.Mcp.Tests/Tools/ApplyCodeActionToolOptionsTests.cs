@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Parlance.Analysis;
+using Parlance.Analysis.Tests;
 using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 using Parlance.Mcp.Tools;
@@ -14,7 +15,7 @@ namespace Parlance.Mcp.Tests.Tools;
 public sealed class ApplyCodeActionToolOptionsTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
     private readonly WorkspaceSessionHolder _holder = fixture.Holder;
-    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
+    private readonly CodeActionService _codeActions = new(fixture.Holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
 
     private static string SampleFile => Path.Combine(
         TestPaths.RepoRoot, "tests", "Parlance.Analysis.Tests", "Fixtures", "RefactorSample.cs");
