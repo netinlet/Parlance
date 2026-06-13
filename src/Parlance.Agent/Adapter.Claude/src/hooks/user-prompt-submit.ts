@@ -81,7 +81,7 @@ function endBench(root: string, transcriptPath: string | null): void {
     usage,
   };
 
-  const resultsPath = benchResultsFile(root);
+  const resultsPath = benchResultsFile();
   mkdirSync(dirname(resultsPath), { recursive: true });
   appendFileSync(resultsPath, `${JSON.stringify(record)}\n`);
 

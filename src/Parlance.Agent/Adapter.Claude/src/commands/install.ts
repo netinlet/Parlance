@@ -93,7 +93,7 @@ function writeSettingsJson(path: string): void {
   const hooks = (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
   const ours: Record<string, HookMatcher[]> = {
     SessionStart: [matcher('', 'session-start.js', 5)],
-    PreToolUse: [matcher('Read|Grep|Glob|Write|Edit|MultiEdit', 'pre-tool.js', 5)],
+    PreToolUse: [matcher('Read|Grep|Glob|Write|Edit|MultiEdit|Bash', 'pre-tool.js', 5)],
     PostToolUse: [matcher('', 'post-tool.js', 5)],
     UserPromptSubmit: [matcher('', 'user-prompt-submit.js', 3)],
     Stop: [matcher('', 'stop.js', 10)],

@@ -52,6 +52,33 @@ describe('evaluateEvent', () => {
     expect(evaluation.next_state?.native_fallbacks).toBe(1);
   });
 
+  it('post Bash grep over .cs counts as a native fallback (no longer invisible)', () => {
+    const evaluation = evaluateEvent(
+      postTool('post-native-tool', 'Bash', { command: 'grep -rn Foo --include=*.cs src' }, 500),
+      ctx,
+      state,
+    );
+    expect(evaluation.next_state?.native_fallbacks).toBe(1);
+  });
+
+  it('pre Bash grep over .cs emits warn guidance', () => {
+    const evaluation = evaluateEvent(
+      preTool('pre-native-tool', 'Bash', { command: 'grep -rn Foo --include=*.cs src' }),
+      ctx,
+      state,
+    );
+    expect(evaluation.guidance.some((g) => g.severity === 'warn')).toBe(true);
+  });
+
+  it('post Bash that is not code intelligence is not a fallback', () => {
+    const evaluation = evaluateEvent(
+      postTool('post-native-tool', 'Bash', { command: 'npm run build' }, 500),
+      ctx,
+      state,
+    );
+    expect(evaluation.next_state?.native_fallbacks).toBe(0);
+  });
+
   it('returns next_state: null for events that do not change state', () => {
     const evaluation = evaluateEvent(preRead('README.md'), ctx, state);
     expect(evaluation.next_state).toBeNull();

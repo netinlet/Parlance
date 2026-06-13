@@ -1,4 +1,4 @@
-import type { AgentEvent, FileEvent, SearchEvent } from '../types.js';
+import type { AgentEvent, FileEvent, SearchEvent, ToolEvent } from '../types.js';
 import { matchRoutingRule } from '../policy/routing.js';
 
 export function generateRoutingDoc(): string {
@@ -7,6 +7,7 @@ export function generateRoutingDoc(): string {
     { kind: 'pre-search', at: '', pattern: 'x', file_type: 'cs' } satisfies SearchEvent,
     { kind: 'pre-search', at: '', pattern: 'x', glob: '**/*.cs' } satisfies SearchEvent,
     { kind: 'pre-search', at: '', pattern: 'x', path: '/proj/src/sub' } satisfies SearchEvent,
+    { kind: 'pre-native-tool', at: '', tool_name: 'Bash', input: { command: 'grep -rn Foo --include=*.cs' } } satisfies ToolEvent,
   ];
 
   const lines = ['# Parlance Tool Routing', '', 'Generated from agent-core routing rules.', ''];
@@ -43,5 +44,6 @@ function describe(event: AgentEvent): string {
   if (event.kind === 'pre-search' && event.file_type === 'cs') return 'Searching with type=cs';
   if (event.kind === 'pre-search' && event.glob?.includes('.cs')) return 'Searching with C# glob';
   if (event.kind === 'pre-search') return 'Searching under /src/ (no filter)';
+  if (event.kind === 'pre-native-tool') return 'grep/find/cat over C# in bash';
   return event.kind;
 }

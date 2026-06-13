@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename } from 'node:path';
 import { ledgerFile } from '../storage/paths.js';
 import type { SessionSummary } from '../types.js';
 
 interface ReportArgs {
-  project: string;
+  project?: string;
   days: number;
   since?: string;
   until?: string;
@@ -12,7 +12,7 @@ interface ReportArgs {
 
 export async function runReport(argv: string[]): Promise<number> {
   const args = parseArgs(argv);
-  const path = ledgerFile(resolve(args.project));
+  const path = ledgerFile();
   if (!existsSync(path)) {
     process.stdout.write(`no ledger at ${path}\n`);
     return 0;
@@ -23,7 +23,9 @@ export async function runReport(argv: string[]): Promise<number> {
     .filter(Boolean)
     .map((line) => JSON.parse(line) as SessionSummary);
   const range = resolveRange(args);
-  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end);
+  const filtered = rows.filter((row) =>
+    row.date >= range.start && row.date <= range.end
+    && (!args.project || (row.project ?? '').includes(args.project)));
 
   const totals = filtered.reduce((acc, row) => ({
     parlance: acc.parlance + row.parlance_calls,
@@ -55,20 +57,30 @@ export async function runReport(argv: string[]): Promise<number> {
   );
   lines.push(`Estimated file content - read: ${totals.reads}  write: ${totals.writes}`);
   lines.push('');
+
+  const tools = aggregateToolBreakdown(filtered);
+  if (tools.length > 0) {
+    lines.push('Top tools (calls):');
+    for (const [tool, count] of tools.slice(0, 12)) {
+      const tag = tool.startsWith('mcp__parlance__') ? 'parlance' : 'native  ';
+      lines.push(`  ${String(count).padStart(6)}  ${tag}  ${tool}`);
+    }
+    lines.push('');
+  }
+
   lines.push(
-    `${'Date'.padEnd(12)}${'Session'.padEnd(10)}${'Adapter'.padEnd(14)}${'Branch'.padEnd(16)}${'Parlance'.padStart(10)}${'Fallback'.padStart(10)}${'Input'.padStart(10)}${'Output'.padStart(10)}`,
+    `${'Date'.padEnd(12)}${'Session'.padEnd(10)}${'Project'.padEnd(18)}${'Adapter'.padEnd(13)}${'Parlance'.padStart(9)}${'Fallback'.padStart(9)}${'Output'.padStart(9)}`,
   );
-  lines.push('-'.repeat(92));
+  lines.push('-'.repeat(89));
   for (const row of filtered) {
     lines.push(
       row.date.padEnd(12)
       + row.session_id.slice(0, 8).padEnd(10)
-      + row.adapter.slice(0, 13).padEnd(14)
-      + (row.branch ?? '').slice(0, 15).padEnd(16)
-      + String(row.parlance_calls).padStart(10)
-      + String(row.native_fallbacks).padStart(10)
-      + String(row.usage.input_tokens).padStart(10)
-      + String(row.usage.output_tokens).padStart(10),
+      + basename(row.project ?? '').slice(0, 17).padEnd(18)
+      + row.adapter.slice(0, 12).padEnd(13)
+      + String(row.parlance_calls).padStart(9)
+      + String(row.native_fallbacks).padStart(9)
+      + String(row.usage.output_tokens).padStart(9),
     );
   }
 
@@ -76,8 +88,18 @@ export async function runReport(argv: string[]): Promise<number> {
   return 0;
 }
 
+function aggregateToolBreakdown(rows: SessionSummary[]): [string, number][] {
+  const totals: Record<string, number> = {};
+  for (const row of rows) {
+    for (const [tool, count] of Object.entries(row.tool_breakdown ?? {})) {
+      totals[tool] = (totals[tool] ?? 0) + count;
+    }
+  }
+  return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+}
+
 function parseArgs(argv: string[]): ReportArgs {
-  const args: ReportArgs = { project: process.cwd(), days: 7 };
+  const args: ReportArgs = { days: 7 };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === '--project' && argv[index + 1]) args.project = argv[index + 1];
     if (argv[index] === '--days' && argv[index + 1]) args.days = parseInt(argv[index + 1], 10);

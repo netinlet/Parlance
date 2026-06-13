@@ -63,8 +63,28 @@ function estimateTokensFromLength(length, kind) {
 // ../Core/src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
 var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
 function isParlanceTool(toolName) {
   return toolName.startsWith("mcp__parlance__");
+}
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
 }
 function matchRoutingRule(event) {
   if (event.kind === "pre-read") {
@@ -86,6 +106,10 @@ function matchRoutingRule(event) {
       message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
       reason: `pre-search for C# intent (${event.pattern})`
     };
+  }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
   }
   return null;
 }

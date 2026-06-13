@@ -8,10 +8,12 @@ import { fileURLToPath } from 'node:url';
 const hook = fileURLToPath(new URL('../../dist/hooks/stop.js', import.meta.url));
 
 let root: string;
+let central: string;
 let transcript: string;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'ac-stop-'));
+  central = join(root, 'central');
   transcript = join(root, 'transcript.jsonl');
   writeFileSync(transcript, [
     JSON.stringify({ type: 'system', timestamp: '2026-04-22T14:29:00Z', gitBranch: 'main' }),
@@ -39,7 +41,11 @@ afterEach(() => {
 
 function run(stdin: string): number {
   try {
-    execFileSync('node', [hook], { input: stdin, stdio: ['pipe', 'pipe', 'pipe'] });
+    execFileSync('node', [hook], {
+      input: stdin,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: { ...process.env, PARLANCE_HOME: central },
+    });
     return 0;
   } catch (error) {
     return (error as { status?: number }).status ?? 1;
@@ -55,12 +61,13 @@ describe('stop hook', () => {
       transcript_path: transcript,
     }));
 
-    const lines = readFileSync(join(root, '.parlance/ledger.jsonl'), 'utf8').trim().split('\n');
+    const lines = readFileSync(join(central, 'ledger.jsonl'), 'utf8').trim().split('\n');
     expect(lines).toHaveLength(1);
     const summary = JSON.parse(lines[0]);
     expect(summary.branch).toBe('main');
     expect(summary.usage.input_tokens).toBe(1000);
     expect(summary.parlance_calls).toBe(3);
+    expect(summary.project).toBe(root);
   });
 
   it('appends a session log line', () => {
@@ -71,7 +78,7 @@ describe('stop hook', () => {
       transcript_path: transcript,
     }));
 
-    const body = readFileSync(join(root, '.parlance/session-log.md'), 'utf8');
+    const body = readFileSync(join(central, 'session-log.md'), 'utf8');
     expect(body).toContain('claude-code');
     expect(body).toContain('3 Parlance');
   });

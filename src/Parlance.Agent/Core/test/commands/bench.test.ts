@@ -6,11 +6,13 @@ import { runBench } from '../../src/commands/bench.js';
 
 let root: string;
 let out: string;
+const originalHome = process.env.PARLANCE_HOME;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'core-bench-'));
-  mkdirSync(join(root, '.parlance/bench'), { recursive: true });
-  writeFileSync(join(root, '.parlance/bench/results.jsonl'), [
+  process.env.PARLANCE_HOME = root;
+  mkdirSync(join(root, 'bench'), { recursive: true });
+  writeFileSync(join(root, 'bench/results.jsonl'), [
     JSON.stringify({
       task_id: 'find-callers',
       variant: 'grep',
@@ -40,11 +42,13 @@ beforeEach(() => {
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
   vi.restoreAllMocks();
+  if (originalHome === undefined) delete process.env.PARLANCE_HOME;
+  else process.env.PARLANCE_HOME = originalHome;
 });
 
 describe('bench report', () => {
   it('prints per-variant rows', async () => {
-    await runBench(['report', '--project', root, '--task', 'find-callers']);
+    await runBench(['report', '--task', 'find-callers']);
 
     expect(out).toContain('find-callers');
     expect(out).toContain('grep');

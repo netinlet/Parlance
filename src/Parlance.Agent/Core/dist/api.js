@@ -117,8 +117,28 @@ function estimateFromExtension(path, content) {
 // src/policy/routing.ts
 var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
 var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
 function isParlanceTool(toolName) {
   return toolName.startsWith("mcp__parlance__");
+}
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
 }
 function matchRoutingRule(event) {
   if (event.kind === "pre-read") {
@@ -140,6 +160,10 @@ function matchRoutingRule(event) {
       message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
       reason: `pre-search for C# intent (${event.pattern})`
     };
+  }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
   }
   return null;
 }
@@ -235,19 +259,21 @@ function flipToPre(event) {
 
 // src/commands/report.ts
 import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename } from "node:path";
 
 // src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
-var ledgerFile = (root) => join(parlanceDir(root), "ledger.jsonl");
-var sessionLogFile = (root) => join(parlanceDir(root), "session-log.md");
-var benchResultsFile = (root) => join(parlanceDir(root), "bench", "results.jsonl");
+var telemetryHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var ledgerFile = () => join(telemetryHome(), "ledger.jsonl");
+var sessionLogFile = () => join(telemetryHome(), "session-log.md");
+var benchResultsFile = () => join(telemetryHome(), "bench", "results.jsonl");
 
 // src/commands/report.ts
 async function runReport(argv) {
   const args = parseArgs(argv);
-  const path = ledgerFile(resolve(args.project));
+  const path = ledgerFile();
   if (!existsSync(path)) {
     process.stdout.write(`no ledger at ${path}
 `);
@@ -255,7 +281,7 @@ async function runReport(argv) {
   }
   const rows = readFileSync(path, "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
   const range = resolveRange(args);
-  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end);
+  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || (row.project ?? "").includes(args.project)));
   const totals = filtered.reduce((acc, row) => ({
     parlance: acc.parlance + row.parlance_calls,
     fallback: acc.fallback + row.native_fallbacks,
@@ -285,21 +311,39 @@ async function runReport(argv) {
   );
   lines.push(`Estimated file content - read: ${totals.reads}  write: ${totals.writes}`);
   lines.push("");
+  const tools = aggregateToolBreakdown(filtered);
+  if (tools.length > 0) {
+    lines.push("Top tools (calls):");
+    for (const [tool, count] of tools.slice(0, 12)) {
+      const tag = tool.startsWith("mcp__parlance__") ? "parlance" : "native  ";
+      lines.push(`  ${String(count).padStart(6)}  ${tag}  ${tool}`);
+    }
+    lines.push("");
+  }
   lines.push(
-    `${"Date".padEnd(12)}${"Session".padEnd(10)}${"Adapter".padEnd(14)}${"Branch".padEnd(16)}${"Parlance".padStart(10)}${"Fallback".padStart(10)}${"Input".padStart(10)}${"Output".padStart(10)}`
+    `${"Date".padEnd(12)}${"Session".padEnd(10)}${"Project".padEnd(18)}${"Adapter".padEnd(13)}${"Parlance".padStart(9)}${"Fallback".padStart(9)}${"Output".padStart(9)}`
   );
-  lines.push("-".repeat(92));
+  lines.push("-".repeat(89));
   for (const row of filtered) {
     lines.push(
-      row.date.padEnd(12) + row.session_id.slice(0, 8).padEnd(10) + row.adapter.slice(0, 13).padEnd(14) + (row.branch ?? "").slice(0, 15).padEnd(16) + String(row.parlance_calls).padStart(10) + String(row.native_fallbacks).padStart(10) + String(row.usage.input_tokens).padStart(10) + String(row.usage.output_tokens).padStart(10)
+      row.date.padEnd(12) + row.session_id.slice(0, 8).padEnd(10) + basename(row.project ?? "").slice(0, 17).padEnd(18) + row.adapter.slice(0, 12).padEnd(13) + String(row.parlance_calls).padStart(9) + String(row.native_fallbacks).padStart(9) + String(row.usage.output_tokens).padStart(9)
     );
   }
   process.stdout.write(`${lines.join("\n")}
 `);
   return 0;
 }
+function aggregateToolBreakdown(rows) {
+  const totals = {};
+  for (const row of rows) {
+    for (const [tool, count] of Object.entries(row.tool_breakdown ?? {})) {
+      totals[tool] = (totals[tool] ?? 0) + count;
+    }
+  }
+  return Object.entries(totals).sort((a, b) => b[1] - a[1]);
+}
 function parseArgs(argv) {
-  const args = { project: process.cwd(), days: 7 };
+  const args = { days: 7 };
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--project" && argv[index + 1]) args.project = argv[index + 1];
     if (argv[index] === "--days" && argv[index + 1]) args.days = parseInt(argv[index + 1], 10);
@@ -321,22 +365,24 @@ function shiftDays(iso, days) {
 
 // src/commands/status.ts
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { resolve as resolve2 } from "node:path";
+import { resolve } from "node:path";
 async function runStatus(argv) {
   let project = process.cwd();
   for (let index = 0; index < argv.length; index += 1) {
     if (argv[index] === "--project" && argv[index + 1]) project = argv[index + 1];
   }
-  const root = resolve2(project);
-  process.stdout.write(`.parlance/ dir: ${existsSync2(parlanceDir(root)) ? "present" : "missing"}
+  const root = resolve(project);
+  process.stdout.write(`project .parlance/ (install): ${existsSync2(parlanceDir(root)) ? "present" : "missing"}
 `);
-  const ledgerPath = ledgerFile(root);
+  const ledgerPath = ledgerFile();
+  process.stdout.write(`central ledger: ${ledgerPath}
+`);
   if (existsSync2(ledgerPath)) {
     const lines = readFileSync2(ledgerPath, "utf8").trim().split("\n").filter(Boolean);
-    process.stdout.write(`sessions logged: ${lines.length}
+    process.stdout.write(`sessions logged (all worktrees): ${lines.length}
 `);
   }
-  const logPath = sessionLogFile(root);
+  const logPath = sessionLogFile();
   if (existsSync2(logPath)) {
     const tail = readFileSync2(logPath, "utf8").trim().split("\n").slice(-5);
     process.stdout.write("recent:\n");
@@ -348,24 +394,21 @@ async function runStatus(argv) {
 
 // src/commands/bench.ts
 import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
-import { resolve as resolve3 } from "node:path";
 async function runBench(argv) {
   const [action, ...rest] = argv;
   if (action !== "report") {
-    process.stderr.write("usage: bench report --task <id> [--project <path>]\n");
+    process.stderr.write("usage: bench report --task <id>\n");
     return 2;
   }
-  let project = process.cwd();
   let task;
   for (let index = 0; index < rest.length; index += 1) {
-    if (rest[index] === "--project" && rest[index + 1]) project = rest[index + 1];
     if (rest[index] === "--task" && rest[index + 1]) task = rest[index + 1];
   }
   if (!task) {
     process.stderr.write("--task required\n");
     return 2;
   }
-  const path = benchResultsFile(resolve3(project));
+  const path = benchResultsFile();
   if (!existsSync3(path)) {
     process.stdout.write(`no bench data at ${path}
 `);
@@ -402,7 +445,8 @@ function generateRoutingDoc() {
     { kind: "pre-read", at: "", path: "Foo.cs" },
     { kind: "pre-search", at: "", pattern: "x", file_type: "cs" },
     { kind: "pre-search", at: "", pattern: "x", glob: "**/*.cs" },
-    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" }
+    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" },
+    { kind: "pre-native-tool", at: "", tool_name: "Bash", input: { command: "grep -rn Foo --include=*.cs" } }
   ];
   const lines = ["# Parlance Tool Routing", "", "Generated from agent-core routing rules.", ""];
   for (const event of samples) {
@@ -428,6 +472,7 @@ function describe(event) {
   if (event.kind === "pre-search" && event.file_type === "cs") return "Searching with type=cs";
   if (event.kind === "pre-search" && event.glob?.includes(".cs")) return "Searching with C# glob";
   if (event.kind === "pre-search") return "Searching under /src/ (no filter)";
+  if (event.kind === "pre-native-tool") return "grep/find/cat over C# in bash";
   return event.kind;
 }
 export {
