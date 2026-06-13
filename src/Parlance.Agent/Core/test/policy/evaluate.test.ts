@@ -25,10 +25,10 @@ const ctx: AgentContext = {
 const state = emptySessionState(ctx, null);
 
 describe('evaluateEvent', () => {
-  it('pre-read on .cs emits warn guidance + persist-feedback effect', () => {
+  it('pre-read on .cs emits warn guidance and no persisted effect (vault skill owns feedback)', () => {
     const evaluation = evaluateEvent(preRead('Foo.cs'), ctx, state);
     expect(evaluation.guidance.some((g) => g.severity === 'warn')).toBe(true);
-    expect(evaluation.effects.some((e) => e.kind === 'persist-feedback')).toBe(true);
+    expect(evaluation.effects).toHaveLength(0);
   });
 
   it('pre-mcp-tool on parlance emits no guidance', () => {

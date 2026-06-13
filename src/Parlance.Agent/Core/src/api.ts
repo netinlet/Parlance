@@ -5,4 +5,4 @@ export { classifyPath, estimateFromExtension, estimateTokens, estimateTokensFrom
 export { runReport } from './commands/report.js';
 export { runStatus } from './commands/status.js';
 export { runBench } from './commands/bench.js';
-export { generateRoutingDoc } from './commands/routing-doc.js';
+export { generateRoutingDoc, generateSessionContext } from './commands/routing-doc.js';

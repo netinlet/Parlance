@@ -134,7 +134,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 

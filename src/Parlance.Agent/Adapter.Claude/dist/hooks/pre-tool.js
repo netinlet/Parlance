@@ -96,41 +96,6 @@ function matchRoutingRule(event) {
   return null;
 }
 
-// ../Core/src/policy/fallback.ts
-function classifyFallback(event) {
-  const hit = matchRoutingRule(event);
-  if (!hit) return null;
-  return {
-    native_tool: toNativeKind(event),
-    intent: describeIntent(event),
-    suggested: hit.suggested_tool,
-    why: hit.reason
-  };
-}
-function toNativeKind(event) {
-  switch (event.kind) {
-    case "pre-read":
-    case "post-read":
-      return "read";
-    case "pre-write":
-    case "post-write":
-      return "write";
-    case "pre-search":
-    case "post-search":
-      return "search";
-    default:
-      return "other";
-  }
-}
-function describeIntent(event) {
-  if (event.kind === "pre-read") return `read ${event.path}`;
-  if (event.kind === "pre-write") return `write ${event.path}`;
-  if (event.kind === "pre-search") {
-    return `search ${event.pattern} (path=${event.path ?? ""} glob=${event.glob ?? ""} type=${event.file_type ?? ""})`;
-  }
-  return event.kind;
-}
-
 // ../Core/src/policy/evaluate.ts
 function emptySessionState(ctx, transcript_ref) {
   return {
@@ -160,21 +125,6 @@ function evaluateEvent(event, ctx, state) {
         suggested_tool: match.suggested_tool,
         reason: match.reason
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: "persist-feedback",
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id
-          }
-        });
-      }
     }
   }
   if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
@@ -239,66 +189,23 @@ function flipToPre(event) {
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-var kibbleDir = (root) => join(parlanceDir(root), "kibble");
-
-// ../Core/src/storage/kibble.ts
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
-function appendFeedbackRecord(root, record) {
-  const dayDir = join2(kibbleDir(root), record.date);
-  mkdirSync(dayDir, { recursive: true });
-  const existing = readdirSync(dayDir).filter((file) => file.endsWith(".md"));
-  for (const file of existing) {
-    const body2 = readFileSync(join2(dayDir, file), "utf8");
-    if (body2.includes(`**Native tool:** ${record.native_tool}`) && body2.includes(`**Intent:** ${record.intent}`)) {
-      return join2(dayDir, file);
-    }
-  }
-  const seq = String(existing.length + 1).padStart(3, "0");
-  const slug = slugify(`${record.native_tool}-${record.intent}`).slice(0, 40) || "entry";
-  const path = join2(dayDir, `${seq}-${slug}.md`);
-  const body = [
-    `# ${record.native_tool} fallback: ${record.intent}`,
-    "",
-    `**Date:** ${record.date}`,
-    `**Adapter:** ${record.adapter}`,
-    `**Session:** ${record.session_id}`,
-    `**Native tool:** ${record.native_tool}`,
-    `**Intent:** ${record.intent}`,
-    "",
-    "## Why Parlance did not cover it",
-    record.why,
-    "",
-    "## Suggested",
-    record.suggested || "Needs investigation",
-    "",
-    "## Session context",
-    record.session_context ?? "(none)",
-    ""
-  ].join("\n");
-  writeFileSync(path, body);
-  return path;
-}
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-}
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync2(path, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return null;
   }
 }
 function writeSessionState(root, state) {
   const path = sessionFile(root);
-  mkdirSync2(dirname(path), { recursive: true });
-  writeFileSync2(path, JSON.stringify(state, null, 2));
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(state, null, 2));
 }
 
 // src/render.ts
@@ -331,7 +238,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 
@@ -420,11 +327,6 @@ async function main() {
     const current = readSessionState(translated.context.project_root) ?? emptySessionState(translated.context, translated.transcript_path);
     const evaluation = evaluateEvent(translated.event, translated.context, current);
     renderToStderr(evaluation);
-    for (const effect of evaluation.effects) {
-      if (effect.kind === "persist-feedback") {
-        appendFeedbackRecord(translated.context.project_root, effect.feedback);
-      }
-    }
     if (evaluation.next_state) {
       writeSessionState(translated.context.project_root, evaluation.next_state);
     }

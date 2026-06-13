@@ -97,11 +97,6 @@ export interface PersistToolUsageEffect {
   record: ToolUsageRecord;
 }
 
-export interface PersistFeedbackEffect {
-  kind: 'persist-feedback';
-  feedback: FeedbackRecord;
-}
-
 export interface PersistSessionSummaryEffect {
   kind: 'persist-session-summary';
   summary: SessionSummary;
@@ -109,7 +104,6 @@ export interface PersistSessionSummaryEffect {
 
 export type EvaluationEffect =
   | PersistToolUsageEffect
-  | PersistFeedbackEffect
   | PersistSessionSummaryEffect;
 
 export interface SessionState {
@@ -147,16 +141,6 @@ export interface ToolUsageRecord {
   is_mcp_parlance: boolean;
   is_native_fallback: boolean;
   output_tokens: number;
-}
-
-export interface FeedbackRecord {
-  date: string;
-  adapter: string;
-  native_tool: string;
-  intent: string;
-  why: string;
-  suggested: string;
-  session_id: string;
 }
 
 export interface SessionSummary {

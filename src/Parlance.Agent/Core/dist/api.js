@@ -144,41 +144,6 @@ function matchRoutingRule(event) {
   return null;
 }
 
-// src/policy/fallback.ts
-function classifyFallback(event) {
-  const hit = matchRoutingRule(event);
-  if (!hit) return null;
-  return {
-    native_tool: toNativeKind(event),
-    intent: describeIntent(event),
-    suggested: hit.suggested_tool,
-    why: hit.reason
-  };
-}
-function toNativeKind(event) {
-  switch (event.kind) {
-    case "pre-read":
-    case "post-read":
-      return "read";
-    case "pre-write":
-    case "post-write":
-      return "write";
-    case "pre-search":
-    case "post-search":
-      return "search";
-    default:
-      return "other";
-  }
-}
-function describeIntent(event) {
-  if (event.kind === "pre-read") return `read ${event.path}`;
-  if (event.kind === "pre-write") return `write ${event.path}`;
-  if (event.kind === "pre-search") {
-    return `search ${event.pattern} (path=${event.path ?? ""} glob=${event.glob ?? ""} type=${event.file_type ?? ""})`;
-  }
-  return event.kind;
-}
-
 // src/policy/evaluate.ts
 function emptySessionState(ctx, transcript_ref) {
   return {
@@ -208,21 +173,6 @@ function evaluateEvent(event, ctx, state) {
         suggested_tool: match.suggested_tool,
         reason: match.reason
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: "persist-feedback",
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id
-          }
-        });
-      }
     }
   }
   if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
@@ -465,6 +415,14 @@ function generateRoutingDoc() {
   }
   return lines.join("\n");
 }
+function generateSessionContext() {
+  return [
+    "Parlance MCP code-intelligence tools are available in this workspace.",
+    "Prefer them over native Read/Grep/Glob when working with C# code.",
+    "",
+    generateRoutingDoc()
+  ].join("\n");
+}
 function describe(event) {
   if (event.kind === "pre-read") return "Reading a C# file";
   if (event.kind === "pre-search" && event.file_type === "cs") return "Searching with type=cs";
@@ -480,6 +438,7 @@ export {
   estimateTokensFromLength,
   evaluateEvent,
   generateRoutingDoc,
+  generateSessionContext,
   now,
   postRead,
   postSearch,

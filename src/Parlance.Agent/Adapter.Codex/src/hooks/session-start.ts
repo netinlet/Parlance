@@ -1,6 +1,7 @@
-import { emptySessionState } from '@parlance/agent-core';
+import { emptySessionState, generateSessionContext } from '@parlance/agent-core';
 import { writeSessionState } from '@parlance/agent-core/storage/session-state.js';
-import { renderForCodex, writeCodexOutput } from '../render.js';
+import { capabilities } from '../capabilities.js';
+import { writeCodexOutput } from '../render.js';
 import { translate } from '../translate.js';
 import { readEnvelope } from './_shared.js';
 
@@ -13,7 +14,14 @@ async function main(): Promise<void> {
       translated.context.project_root,
       emptySessionState(translated.context, translated.transcript_path),
     );
-    writeCodexOutput(renderForCodex(env.hook_event_name, { guidance: [], effects: [], next_state: null }));
+    if (capabilities.outputs.can_inject_context) {
+      writeCodexOutput({
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: generateSessionContext(),
+        },
+      });
+    }
   } catch {
     // never block the host
   }

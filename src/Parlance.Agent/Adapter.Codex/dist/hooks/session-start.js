@@ -49,6 +49,33 @@ var responseCompleted = (usage) => ({
   usage
 });
 
+// ../Core/src/policy/routing.ts
+var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
+var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+function matchRoutingRule(event) {
+  if (event.kind === "pre-read") {
+    if (!CS_FILE_PATTERN.test(event.path)) return null;
+    return {
+      suggested_tool: "mcp__parlance__describe-type",
+      message: "Use Parlance MCP tools before reading C# source directly.",
+      reason: `pre-read on C# path ${event.path}`
+    };
+  }
+  if (event.kind === "pre-search") {
+    const hasCsType = event.file_type?.toLowerCase() === "cs";
+    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
+    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
+    const softSrcPath = event.path?.includes("/src/") ?? false;
+    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
+    return {
+      suggested_tool: "mcp__parlance__search-symbols",
+      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
+      reason: `pre-search for C# intent (${event.pattern})`
+    };
+  }
+  return null;
+}
+
 // ../Core/src/policy/evaluate.ts
 function emptySessionState(ctx, transcript_ref) {
   return {
@@ -71,6 +98,41 @@ import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
 
+// ../Core/src/commands/routing-doc.ts
+function generateRoutingDoc() {
+  const samples = [
+    { kind: "pre-read", at: "", path: "Foo.cs" },
+    { kind: "pre-search", at: "", pattern: "x", file_type: "cs" },
+    { kind: "pre-search", at: "", pattern: "x", glob: "**/*.cs" },
+    { kind: "pre-search", at: "", pattern: "x", path: "/proj/src/sub" }
+  ];
+  const lines = ["# Parlance Tool Routing", "", "Generated from agent-core routing rules.", ""];
+  for (const event of samples) {
+    const hit = matchRoutingRule(event);
+    if (!hit) continue;
+    lines.push(`## ${describe(event)}`);
+    lines.push(`- **Suggested:** \`${hit.suggested_tool}\``);
+    lines.push(`- ${hit.message}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+function generateSessionContext() {
+  return [
+    "Parlance MCP code-intelligence tools are available in this workspace.",
+    "Prefer them over native Read/Grep/Glob when working with C# code.",
+    "",
+    generateRoutingDoc()
+  ].join("\n");
+}
+function describe(event) {
+  if (event.kind === "pre-read") return "Reading a C# file";
+  if (event.kind === "pre-search" && event.file_type === "cs") return "Searching with type=cs";
+  if (event.kind === "pre-search" && event.glob?.includes(".cs")) return "Searching with C# glob";
+  if (event.kind === "pre-search") return "Searching under /src/ (no filter)";
+  return event.kind;
+}
+
 // ../Core/src/storage/session-state.ts
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -78,39 +140,6 @@ function writeSessionState(root, state) {
   const path = sessionFile(root);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(state, null, 2));
-}
-
-// src/render.ts
-function renderForCodex(eventName, evaluation) {
-  const message = guidanceMessage(evaluation.guidance);
-  if (!message) return null;
-  if (eventName === "SessionStart" || eventName === "UserPromptSubmit") {
-    return {
-      hookSpecificOutput: {
-        hookEventName: eventName,
-        additionalContext: message
-      }
-    };
-  }
-  if (eventName === "PreToolUse") {
-    return { systemMessage: message };
-  }
-  if (eventName === "PostToolUse") {
-    return { systemMessage: message };
-  }
-  return null;
-}
-function writeCodexOutput(output, write = (s) => process.stdout.write(s)) {
-  if (!output) return;
-  write(`${JSON.stringify(output)}
-`);
-}
-function guidanceMessage(guidance) {
-  if (guidance.length === 0) return null;
-  return guidance.map((entry) => {
-    const suffix = entry.suggested_tool ? ` Suggested: ${entry.suggested_tool}.` : "";
-    return `parlance: ${entry.message}${suffix}`;
-  }).join("\n");
 }
 
 // src/capabilities.ts
@@ -137,6 +166,13 @@ var capabilities = {
     can_inject_context: true
   }
 };
+
+// src/render.ts
+function writeCodexOutput(output, write = (s) => process.stdout.write(s)) {
+  if (!output) return;
+  write(`${JSON.stringify(output)}
+`);
+}
 
 // src/translate.ts
 function translate(env) {
@@ -347,7 +383,14 @@ async function main() {
       translated.context.project_root,
       emptySessionState(translated.context, translated.transcript_path)
     );
-    writeCodexOutput(renderForCodex(env.hook_event_name, { guidance: [], effects: [], next_state: null }));
+    if (capabilities.outputs.can_inject_context) {
+      writeCodexOutput({
+        hookSpecificOutput: {
+          hookEventName: "SessionStart",
+          additionalContext: generateSessionContext()
+        }
+      });
+    }
   } catch {
   }
 }

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,7 +44,7 @@ function run(stdin: string): { status: number; stderr: string } {
 }
 
 describe('pre-tool hook', () => {
-  it('Read on .cs writes kibble (counter increments on post-tool, not pre-tool)', () => {
+  it('Read on .cs is advisory only — writes no feedback and counts no fallback (counting is post-tool)', () => {
     run(JSON.stringify({
       hook_event_name: 'PreToolUse',
       session_id: 's1',
@@ -55,8 +55,7 @@ describe('pre-tool hook', () => {
 
     const session = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
     expect(session.native_fallbacks).toBe(0);
-    const dirs = readdirSync(join(root, '.parlance/kibble'));
-    expect(dirs.length).toBe(1);
+    expect(existsSync(join(root, '.parlance/kibble'))).toBe(false);
   });
 
   it('Read on .md does not warn', () => {

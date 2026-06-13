@@ -96,41 +96,6 @@ function matchRoutingRule(event) {
   return null;
 }
 
-// ../Core/src/policy/fallback.ts
-function classifyFallback(event) {
-  const hit = matchRoutingRule(event);
-  if (!hit) return null;
-  return {
-    native_tool: toNativeKind(event),
-    intent: describeIntent(event),
-    suggested: hit.suggested_tool,
-    why: hit.reason
-  };
-}
-function toNativeKind(event) {
-  switch (event.kind) {
-    case "pre-read":
-    case "post-read":
-      return "read";
-    case "pre-write":
-    case "post-write":
-      return "write";
-    case "pre-search":
-    case "post-search":
-      return "search";
-    default:
-      return "other";
-  }
-}
-function describeIntent(event) {
-  if (event.kind === "pre-read") return `read ${event.path}`;
-  if (event.kind === "pre-write") return `write ${event.path}`;
-  if (event.kind === "pre-search") {
-    return `search ${event.pattern} (path=${event.path ?? ""} glob=${event.glob ?? ""} type=${event.file_type ?? ""})`;
-  }
-  return event.kind;
-}
-
 // ../Core/src/policy/evaluate.ts
 function emptySessionState(ctx, transcript_ref) {
   return {
@@ -160,21 +125,6 @@ function evaluateEvent(event, ctx, state) {
         suggested_tool: match.suggested_tool,
         reason: match.reason
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: "persist-feedback",
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id
-          }
-        });
-      }
     }
   }
   if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
@@ -279,7 +229,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 

@@ -1,4 +1,3 @@
-import { appendFeedbackRecord } from '@parlance/agent-core/storage/kibble.js';
 import { emptySessionState, evaluateEvent } from '@parlance/agent-core';
 import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { appendBashEvent, bashEventFromEnvelope } from '../bash-events.js';
@@ -26,12 +25,6 @@ export function handleEvaluatedEvent(env: CodexHookEnvelope, bashPhase?: BashEve
   const current = readSessionState(translated.context.project_root)
     ?? emptySessionState(translated.context, translated.transcript_path);
   const evaluation = evaluateEvent(translated.event, translated.context, current);
-
-  for (const effect of evaluation.effects) {
-    if (effect.kind === 'persist-feedback') {
-      appendFeedbackRecord(translated.context.project_root, effect.feedback);
-    }
-  }
 
   if (evaluation.next_state) {
     writeSessionState(translated.context.project_root, evaluation.next_state);

@@ -22,6 +22,22 @@ export function generateRoutingDoc(): string {
   return lines.join('\n');
 }
 
+/**
+ * Session-start context payload. A short, imperative tool-first preamble
+ * followed by the generated routing rules, so the model is primed to prefer
+ * Parlance MCP tools the moment a session begins — no reliance on the model
+ * choosing to read CLAUDE.md or invoke a skill. Reuses generateRoutingDoc so
+ * the rules keep a single source of truth.
+ */
+export function generateSessionContext(): string {
+  return [
+    'Parlance MCP code-intelligence tools are available in this workspace.',
+    'Prefer them over native Read/Grep/Glob when working with C# code.',
+    '',
+    generateRoutingDoc(),
+  ].join('\n');
+}
+
 function describe(event: AgentEvent): string {
   if (event.kind === 'pre-read') return 'Reading a C# file';
   if (event.kind === 'pre-search' && event.file_type === 'cs') return 'Searching with type=cs';

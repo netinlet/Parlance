@@ -1,5 +1,4 @@
 import { emptySessionState, evaluateEvent } from '@parlance/agent-core';
-import { appendFeedbackRecord } from '@parlance/agent-core/storage/kibble.js';
 import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
 import { renderToStderr } from '../render.js';
 import { translate } from '../translate.js';
@@ -17,12 +16,6 @@ async function main(): Promise<void> {
 
     const evaluation = evaluateEvent(translated.event, translated.context, current);
     renderToStderr(evaluation);
-
-    for (const effect of evaluation.effects) {
-      if (effect.kind === 'persist-feedback') {
-        appendFeedbackRecord(translated.context.project_root, effect.feedback);
-      }
-    }
 
     if (evaluation.next_state) {
       writeSessionState(translated.context.project_root, evaluation.next_state);

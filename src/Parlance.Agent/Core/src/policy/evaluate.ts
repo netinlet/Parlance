@@ -1,5 +1,4 @@
 import { estimateTokensFromLength } from '../telemetry/estimate.js';
-import { classifyFallback } from './fallback.js';
 import { isParlanceTool, matchRoutingRule } from './routing.js';
 import type { AgentContext, AgentEvent, EventEvaluation, SessionState, ToolEvent, ToolUsageRecord } from '../types.js';
 
@@ -33,21 +32,6 @@ export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: Sessi
         suggested_tool: match.suggested_tool,
         reason: match.reason,
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: 'persist-feedback',
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id,
-          },
-        });
-      }
     }
   }
 
