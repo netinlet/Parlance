@@ -87,8 +87,8 @@ public sealed class AnalyzerTrustFile(string path)
     }
 
     /// <summary>Returns all stored trust entries.</summary>
-    public ImmutableArray<TrustedDllEntry> List() =>
-        [.. Read().Select(kv => new TrustedDllEntry(kv.Key, kv.Value))];
+    public ImmutableList<TrustedDllEntry> List() =>
+        Read().Select(kv => new TrustedDllEntry(kv.Key, kv.Value)).ToImmutableList();
 
     private Dictionary<string, string> Read()
     {
