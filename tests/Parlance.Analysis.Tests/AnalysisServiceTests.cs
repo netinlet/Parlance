@@ -6,27 +6,13 @@ using Parlance.CSharp.Workspace.Tests.Integration;
 
 namespace Parlance.Analysis.Tests;
 
-public sealed class AnalysisServiceTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class AnalysisServiceTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private WorkspaceQueryService _query = null!;
-    private CSharpWorkspaceSession _session = null!;
-    private AnalysisService _service = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _query = new WorkspaceQueryService(_holder, NullLogger<WorkspaceQueryService>.Instance);
-        var curationProvider = new CurationSetProvider(NullLogger<CurationSetProvider>.Instance);
-        _service = new AnalysisService(
-            _holder, _query, curationProvider,
-            NullLogger<AnalysisService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly AnalysisService _service = new(
+        fixture.Holder, fixture.Query,
+        new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        NullLogger<AnalysisService>.Instance);
 
     [Fact]
     public async Task AnalyzeFiles_KnownFile_ReturnsDiagnostics()

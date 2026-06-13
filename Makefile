@@ -13,7 +13,8 @@ ARTIFACTS_DIR ?= $(CURDIR)/artifacts
 TOOL_ARTIFACTS_DIR ?= $(ARTIFACTS_DIR)/tool
 TARGET_PROJECT ?= /absolute/path/to/target-repo
 SOLUTION ?= YourSolution.sln
-TOOL_VERSION ?= 0.1.0
+# Derived from the packed nupkg filename so it always matches what MinVer stamped at pack time.
+TOOL_VERSION ?= $(shell ls "$(TOOL_ARTIFACTS_DIR)"/$(TOOL_PACKAGE_ID).*.nupkg 2>/dev/null | head -1 | sed 's|.*/$(TOOL_PACKAGE_ID)\.||;s/\.nupkg$$//')
 TOOL_PACKAGE_ID ?= Parlance.Cli
 TOOL_COMMAND_NAME ?= parlance
 
@@ -27,7 +28,7 @@ ANALYZER_PROJECT := src/Parlance.CSharp.Analyzers/Parlance.CSharp.Analyzers.cspr
 .PHONY: help bootstrap restore local-feed \
 	agent-install-deps agent-lock-refresh agent-lock-check agent-typecheck agent-test agent-build agent-ci agent-dist-check \
 	agent-install-command tool-install-command tool-install-local tool-reinstall-local tool-uninstall-local \
-	format build build-cli build-mcp test test-results-dir coverage-report ci dotnet-clean \
+	format build build-cli build-mcp test test-unit test-integration test-results-dir coverage-report ci dotnet-clean \
 	pack-tool release-artifacts clean-agent clean clean-all clean-generated
 
 help:
@@ -36,6 +37,8 @@ help:
 		'  make bootstrap         # restore .NET deps + npm deps for agent workspaces' \
 		'  make build             # build agent bundles and the .NET solution' \
 		'  make test              # run agent tests and dotnet tests' \
+		'  make test-unit         # fast: build + dotnet unit tests only (no workspace/process tests, no coverage)' \
+		'  make test-integration  # slow: workspace/process integration tests only' \
 		'  make ci                # local equivalent of CI' \
 		'  make pack-tool         # pack the parlance dotnet tool into artifacts/tool' \
 		'  make tool-install-local    # install the packed tool from artifacts/tool' \
@@ -160,6 +163,25 @@ test: agent-test test-results-dir
 		--no-build \
 		--collect:"XPlat Code Coverage" \
 		--results-directory "$(TEST_RESULTS_DIR)"
+
+# Fast feedback lane: builds the .NET solution and runs only unit tests.
+# Excludes tests that load an MSBuild workspace or spawn a process — those are
+# either tagged [Trait("Category","Integration")] or live in an .Integration
+# namespace. No coverage collection (skip the instrumentation overhead).
+test-unit:
+	$(DOTNET) build Parlance.slnx --configuration "$(CONFIGURATION)"
+	$(DOTNET) test Parlance.slnx \
+		--configuration "$(CONFIGURATION)" \
+		--no-build \
+		--filter "Category!=Integration&FullyQualifiedName!~.Integration."
+
+# Complement of test-unit: only the workspace/process integration tests.
+test-integration:
+	$(DOTNET) build Parlance.slnx --configuration "$(CONFIGURATION)"
+	$(DOTNET) test Parlance.slnx \
+		--configuration "$(CONFIGURATION)" \
+		--no-build \
+		--filter "Category=Integration|FullyQualifiedName~.Integration."
 
 coverage-report:
 	$(DOTNET) tool install --global dotnet-reportgenerator-globaltool

@@ -55,7 +55,7 @@ Parlance.Analysis               AnalysisService, CurationSetProvider, CodeAction
     ↑
 Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, compilation cache, file watching)
     ↑
-├── Parlance.Mcp                MCP server — 18 tools, stdio transport, Microsoft.Extensions.Hosting
+├── Parlance.Mcp                MCP server — 21 tools (19 read-only + sync/close-buffer), stdio transport, Microsoft.Extensions.Hosting
 └── Parlance.Cli                CLI — analyze/rules commands, System.CommandLine 2.0.3
 ```
 
@@ -70,7 +70,7 @@ Parlance.CSharp.Workspace       MSBuildWorkspace engine (session lifecycle, comp
 
 ### MCP tool pattern
 
-Tools are static methods on `[McpServerToolType]` classes. All tools are `ReadOnly = true`. They receive services via DI parameters. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
+Tools are static methods on `[McpServerToolType]` classes. They receive services via DI parameters. All tools are `ReadOnly = true` **except** the buffer-overlay pair (`sync-buffer` / `close-buffer`), which mutate in-memory overlay state — never disk — and therefore omit the flag. Call analytics are handled by `AnalyticsFilter` at the MCP pipeline level — tools do not time themselves:
 
 ```csharp
 [McpServerToolType]
@@ -201,6 +201,44 @@ When the repo is integrated, Parlance MCP tools are available in this repo via `
 | Read XML docs | `get-symbol-docs` | Getting documentation for a symbol |
 | Guess if something is unused | `safe-to-delete` | Checking if a symbol has zero references |
 | Read to resolve `var` | `get-type-at` | Finding what type a `var` actually is |
+| Grep for implementors | `find-implementations` | Finding concrete implementations of an interface/abstract member |
+| Read to map a type's deps | `get-type-dependencies` | Listing the types a given type depends on |
+| Hand-fix a diagnostic | `get-code-fixes` | Listing the code fixes available for a diagnostic |
+| Hand-write a refactor | `get-refactorings` | Discovering refactorings (extract, inline, generate, …) available at a span |
+| Edit blind, then re-read | `preview-code-action` | Previewing a fix/refactoring diff before applying it |
+| Hand-apply a fix/refactor | `apply-code-action` | Getting the complete applyable `WorkspaceEdit` (text edits + create/delete/rename) for an action; you then write it yourself |
+
+### Live editing & staleness (LSP-parity loop)
+
+`sync-buffer` / `close-buffer` are the only mutating tools — they overlay unsaved
+buffer text in-memory (no disk write) and revert on close. They are SPECULATIVE:
+the overlay lives only in memory, wins over disk until close, and persists
+nothing. Use them to make analysis and navigation reflect an in-flight edit
+before you commit it to disk:
+
+1. `sync-buffer { path, text }` — push the full edited buffer; returns the new
+   per-document version and the global `snapshotVersion`.
+2. `analyze` / navigation / `get-code-fixes` / `get-refactorings` / `preview-code-action`
+   now see the overlaid text.
+3. `close-buffer { path }` — drop the overlay; the document reverts to disk.
+
+**Applying a code action (the apply half of the loop).** Parlance computes edits
+but NEVER writes to disk — applying and saving is your job:
+
+1. `get-code-fixes` / `get-refactorings` — discover actions, get an `actionId`.
+2. `preview-code-action { actionId }` — look at the diff (changed-doc text edits only).
+3. `apply-code-action { actionId, expectedSnapshotVersion? }` — get the complete
+   `WorkspaceEdit`: ordered per-file `TextEdit`s (newline-normalized to the file)
+   plus create/delete/rename resource operations, stamped with the `snapshotVersion`
+   (and per-document version) it was computed against.
+4. **You apply the edit and save** with your own Edit/Write tools.
+5. The file watcher (or a fresh `sync-buffer`) re-syncs Parlance to the new state.
+
+Every tool result carries a `snapshotVersion`. To guard against acting on a
+stale snapshot, pass `expectedSnapshotVersion` to `analyze` or `apply-code-action`
+— a mismatch returns status `stale` (best-effort, never a hard error) with the
+actual version stamped. Output paths are workspace-relative. `find-references`
+snippets are opt-in via `includeSnippets` (default off — verbose on hot symbols).
 
 ### When you fall back to a native tool
 

@@ -1,8 +1,10 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
+using Parlance.Mcp.Serialization;
 
 namespace Parlance.Mcp.Tools;
 
@@ -11,39 +13,68 @@ public sealed class AnalyzeTool
 {
     [McpServerTool(Name = "analyze", ReadOnly = true)]
     [Description("Run diagnostics on C# files. Returns analyzer findings with severity, " +
-                 "fix classification, and rationale. Pass absolute file paths.")]
+                 "fix classification, and rationale. Accepts absolute or workspace-relative file paths.")]
     public static Task<AnalyzeToolResult> Analyze(
         WorkspaceSessionHolder holder,
         AnalysisService analysis,
         string[] files,
         string? curationSet = null,
         int? maxDiagnostics = null,
-        CancellationToken ct = default) =>
-        holder.State.Match(
+        [Description("If set, returns status 'stale' when the workspace has moved past this snapshot. 0 or omitted = no check.")]
+        long? expectedSnapshotVersion = null,
+        CancellationToken ct = default)
+    {
+        return holder.State.Match(
             notLoaded: () => Task.FromResult(AnalyzeToolResult.NotLoaded()),
-            loaded: session => RunAsync(analysis, session, files, curationSet, maxDiagnostics, ct),
+            loaded: session =>
+            {
+                // Capture the snapshot once: the staleness verdict and the stamp must come from the
+                // same read, or a file-watcher tick between two reads could stamp a "not stale"
+                // result with a newer version than the verdict was computed against. This tool's
+                // stamp is the one round-tripped via expectedSnapshotVersion, so the agreement matters
+                // most here.
+                var snapshotVersion = session.SnapshotVersion;
+                if (expectedSnapshotVersion is { } expected && expected != 0 && expected != snapshotVersion)
+                    return Task.FromResult(AnalyzeToolResult.Stale(snapshotVersion, expected));
+                return RunAsync(analysis, session, snapshotVersion, files, curationSet, maxDiagnostics, ct);
+            },
             loadFailed: failure => Task.FromResult(AnalyzeToolResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(AnalyzeToolResult.NotLoaded()));
+    }
 
     private static async Task<AnalyzeToolResult> RunAsync(
         AnalysisService analysis,
         CSharpWorkspaceSession session,
+        long snapshotVersion,
         string[] files,
         string? curationSet,
         int? maxDiagnostics,
         CancellationToken ct)
     {
-        // Resolve workspace-root-relative paths; reject paths that escape the workspace root.
-        // GetFullPath normalises .. segments for both relative and rooted inputs.
-        // Trailing separator on the prefix prevents sibling-prefix bypass (e.g. workspace-tmp/).
-        var workspaceRoot = Path.GetDirectoryName(session.WorkspacePath)!;
-        var workspacePrefix = workspaceRoot.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        // Resolve through the same single boundary every other file-input tool uses (rooted inputs
+        // normalised in place, relative inputs resolved against the root), then reject paths that
+        // escape the workspace root. The prefix carries a trailing separator to block sibling-prefix
+        // bypass (e.g. workspace-tmp/); comparison is case-sensitive except on Windows, matching the
+        // host filesystem so a case-variant sibling dir on Linux isn't treated as in-tree.
+        var workspacePrefix = session.Root.Absolute.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
         var resolvedFiles = ImmutableList.CreateBuilder<string>();
         foreach (var f in files)
         {
-            var resolved = Path.IsPathRooted(f) ? Path.GetFullPath(f) : Path.GetFullPath(f, workspaceRoot);
-            if (!resolved.StartsWith(workspacePrefix, StringComparison.OrdinalIgnoreCase))
-                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.");
+            string resolved;
+            try
+            {
+                resolved = session.NormalizeInputPath(f);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return AnalyzeToolResult.Failed($"Path '{f}' is not a valid file path: {ex.Message}", snapshotVersion);
+            }
+
+            if (!resolved.StartsWith(workspacePrefix, pathComparison))
+                return AnalyzeToolResult.Failed($"Path '{f}' resolves outside the workspace root.", snapshotVersion);
             resolvedFiles.Add(resolved);
         }
 
@@ -62,12 +93,13 @@ public sealed class AnalyzeTool
                     result.Summary.IdiomaticScore),
                 result.Diagnostics.Select(d => new AnalyzeDiagnostic(
                     d.RuleId, d.Severity, d.Message,
-                    d.FilePath, d.Line,
-                    d.FixClassification, d.Rationale)).ToImmutableList());
+                    d.FilePath.ToRepoPath(), d.Line,
+                    d.FixClassification, d.Rationale)).ToImmutableList(),
+                snapshotVersion);
         }
         catch (ArgumentException ex)
         {
-            return AnalyzeToolResult.Failed(ex.Message);
+            return AnalyzeToolResult.Failed(ex.Message, snapshotVersion);
         }
     }
 }
@@ -78,7 +110,13 @@ public sealed record AnalyzeToolResult
     public string? Error { get; init; }
     public string? CurationSet { get; init; }
     public AnalyzeSummary? Summary { get; init; }
+
+    // Keep the empty array on a clean analyze: "analyzed, zero diagnostics" is a real signal a
+    // client must be able to tell apart from a never-populated/absent field. WhenWritingNull still
+    // drops it on the not-loaded/error paths where it is genuinely null.
+    [KeepWhenEmpty]
     public ImmutableList<AnalyzeDiagnostic>? Diagnostics { get; init; }
+    public long SnapshotVersion { get; init; }
 
     public static AnalyzeToolResult LoadFailed(string message) => new()
     {
@@ -93,18 +131,28 @@ public sealed record AnalyzeToolResult
     };
 
     public static AnalyzeToolResult Success(
-        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics) => new()
+        string? curationSet, AnalyzeSummary summary, ImmutableList<AnalyzeDiagnostic> diagnostics,
+        long snapshotVersion) => new()
         {
             Status = "success",
             CurationSet = curationSet,
             Summary = summary,
-            Diagnostics = diagnostics
+            Diagnostics = diagnostics,
+            SnapshotVersion = snapshotVersion
         };
 
-    public static AnalyzeToolResult Failed(string message) => new()
+    public static AnalyzeToolResult Failed(string message, long snapshotVersion) => new()
     {
         Status = "error",
-        Error = message
+        Error = message,
+        SnapshotVersion = snapshotVersion
+    };
+
+    public static AnalyzeToolResult Stale(long actual, long expected) => new()
+    {
+        Status = "stale",
+        Error = StalenessMessage.ExpectedMismatch(expected, actual),
+        SnapshotVersion = actual,
     };
 }
 
@@ -113,5 +161,5 @@ public sealed record AnalyzeSummary(
 
 public sealed record AnalyzeDiagnostic(
     string RuleId, string Severity, string Message,
-    string File, int Line,
+    RepoPath? File, int Line,
     string? FixClassification, string? Rationale);

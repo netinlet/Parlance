@@ -25,16 +25,18 @@ public sealed class GetTypeDependenciesTool
         WorkspaceQueryService query, CSharpWorkspaceSession session,
         string typeName, CancellationToken ct)
     {
+        var snapshotVersion = session.SnapshotVersion;
+
         var symbols = await query.FindSymbolsAsync(typeName, SymbolFilter.Type, ct: ct);
         if (symbols.IsEmpty)
-            return GetTypeDependenciesResult.NotFound(typeName);
+            return GetTypeDependenciesResult.NotFound(typeName, snapshotVersion);
 
         if (symbols.Count > 1 && !typeName.Contains('.'))
-            return GetTypeDependenciesResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList());
+            return GetTypeDependenciesResult.Ambiguous(typeName, symbols.Select(s => s.ToCandidate()).ToImmutableList(), snapshotVersion);
 
         var resolved = symbols[0];
         if (resolved.Symbol is not INamedTypeSymbol typeSymbol)
-            return GetTypeDependenciesResult.NotFound(typeName);
+            return GetTypeDependenciesResult.NotFound(typeName, snapshotVersion);
 
         // Get all solution assembly names to filter out framework types
         var solution = session.CurrentSolution;
@@ -123,13 +125,26 @@ public sealed class GetTypeDependenciesTool
         foreach (var treeGroup in locationsByTree)
         {
             var tree = treeGroup.Key;
-            var root = await tree.GetRootAsync(ct);
             var semanticModel = await query.GetSemanticModelAsync(tree.FilePath, ct);
             if (semanticModel is null) continue;
 
+            // Resolve the root from the semantic model's own tree, not from the reference's
+            // SourceTree. FindReferences and GetSemanticModelAsync each read CurrentSolution
+            // independently and can hand back distinct tree instances for the same file; a node
+            // taken from one tree throws "Syntax node is not within syntax tree" when passed to
+            // the other's GetDeclaredSymbol. The text is identical, so a span-based FindNode on
+            // the model's tree yields the equivalent, in-tree node.
+            var root = await semanticModel.SyntaxTree.GetRootAsync(ct);
+
             foreach (var location in treeGroup)
             {
-                var node = root.FindNode(location.Location.SourceSpan);
+                // The span comes from the find-references solution; root is re-read from
+                // CurrentSolution and can be a newer version (a concurrent file-watcher edit shifted
+                // the text). A stale span then exceeds the newer tree's bounds — skip that location
+                // rather than faulting the whole call.
+                SyntaxNode node;
+                try { node = root.FindNode(location.Location.SourceSpan); }
+                catch (ArgumentOutOfRangeException) { continue; }
                 var containingTypeDecl = node.Ancestors()
                     .OfType<Microsoft.CodeAnalysis.CSharp.Syntax.TypeDeclarationSyntax>()
                     .FirstOrDefault();
@@ -151,7 +166,8 @@ public sealed class GetTypeDependenciesTool
         }
 
         return GetTypeDependenciesResult.Found(
-            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable());
+            typeSymbol.ToDisplayString(), depsBuilder.ToImmutable(), dependentsBuilder.ToImmutable(),
+            snapshotVersion);
     }
 }
 
@@ -162,19 +178,24 @@ public sealed record GetTypeDependenciesResult(
     ImmutableList<SymbolCandidate> Candidates,
     string? Message)
 {
-    public static GetTypeDependenciesResult NotFound(string typeName) => new(
-        "not_found", typeName, [], [], [], $"Type '{typeName}' not found");
+    public long SnapshotVersion { get; init; }
+
+    public static GetTypeDependenciesResult NotFound(string typeName, long snapshotVersion) => new(
+        "not_found", typeName, [], [], [], $"Type '{typeName}' not found")
+    { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult NotLoaded() => new(
         "not_loaded", null, [], [], [], "Workspace is still loading");
     public static GetTypeDependenciesResult LoadFailed(string message) => new(
         "load_failed", null, [], [], [], message);
-    public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates) => new(
+    public static GetTypeDependenciesResult Ambiguous(string typeName, ImmutableList<SymbolCandidate> candidates, long snapshotVersion) => new(
         "ambiguous", typeName, [], [], candidates,
-        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.");
+        $"Multiple types match '{typeName}'. Use a fully qualified name to disambiguate.")
+    { SnapshotVersion = snapshotVersion };
     public static GetTypeDependenciesResult Found(
         string typeName, ImmutableList<TypeDependencyEntry> dependencies,
-        ImmutableList<TypeDependencyEntry> dependents) => new(
-        "found", typeName, dependencies, dependents, [], null);
+        ImmutableList<TypeDependencyEntry> dependents, long snapshotVersion) => new(
+        "found", typeName, dependencies, dependents, [], null)
+        { SnapshotVersion = snapshotVersion };
 }
 
 public sealed record TypeDependencyEntry(string Name, string FullyQualifiedName, string Relationship);

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
 
@@ -16,7 +17,7 @@ public sealed class GetRefactoringsTool
     public static Task<GetRefactoringsResult> GetRefactorings(
         WorkspaceSessionHolder holder,
         CodeActionService codeActions,
-        [Description("Absolute file path")]
+        [Description("Absolute or workspace-relative file path")]
         string filePath,
         [Description("1-based line number")]
         int line,
@@ -46,36 +47,48 @@ public sealed class GetRefactoringsTool
         CodeActionService codeActions, CSharpWorkspaceSession session,
         string filePath, int line, int column, int? endLine, int? endColumn, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
+        // Resolve a workspace-relative input (echoed RepoPath) to absolute, and echo the same form.
+        var resolved = session.NormalizeInputPath(filePath);
         var refactorings = await codeActions.GetRefactoringsAsync(
-            filePath, line, column, endLine, endColumn, ct);
+            resolved, line, column, endLine, endColumn, ct);
 
         if (refactorings.IsEmpty)
         {
-            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(filePath).FirstOrDefault();
+            var docId = session.CurrentSolution.GetDocumentIdsWithFilePath(resolved).FirstOrDefault();
             if (docId is null)
-                return GetRefactoringsResult.NotFound(filePath);
-            return GetRefactoringsResult.NoRefactorings(filePath);
+                return GetRefactoringsResult.NotFound(resolved, session.Root, snapshotVersion);
+            return GetRefactoringsResult.NoRefactorings(resolved, session.Root, snapshotVersion);
         }
 
         return new GetRefactoringsResult(
             Status: "found",
-            FilePath: filePath,
+            FilePath: resolved.ToRepoPath(),
             Refactorings: refactorings,
-            Message: null);
+            Message: null)
+        { SnapshotVersion = snapshotVersion };
     }
 }
 
 public sealed record GetRefactoringsResult(
-    string Status, string? FilePath,
+    string Status, RepoPath? FilePath,
     ImmutableList<RefactoringEntry> Refactorings,
     string? Message)
 {
-    public static GetRefactoringsResult NotFound(string filePath) => new(
-        "not_found", filePath, [],
-        $"File '{filePath}' not found in the workspace");
-    public static GetRefactoringsResult NoRefactorings(string filePath) => new(
-        "no_refactorings", filePath, [],
-        $"No refactorings available at the specified location in {filePath}");
+    public long SnapshotVersion { get; init; }
+
+    // Messages echo the workspace-relative path (file.Relative(root)) to match the structured FilePath
+    // field — the absolute host path the RepoPath migration hides must not re-leak through prose.
+    public static GetRefactoringsResult NotFound(string filePath, RepoPath root, long snapshotVersion) => new(
+        "not_found", filePath.ToRepoPath(), [],
+        $"File '{new RepoPath(filePath).Relative(root)}' not found in the workspace")
+    { SnapshotVersion = snapshotVersion };
+    public static GetRefactoringsResult NoRefactorings(string filePath, RepoPath root, long snapshotVersion) => new(
+        "no_refactorings", filePath.ToRepoPath(), [],
+        $"No refactorings available at the specified location in {new RepoPath(filePath).Relative(root)}")
+    { SnapshotVersion = snapshotVersion };
     public static GetRefactoringsResult NotLoaded() => new(
         "not_loaded", null, [],
         "Workspace is still loading");

@@ -35,11 +35,16 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
             {
                 var watcher = new FileSystemWatcher(dir, "*.cs")
                 {
-                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size,
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.Size | NotifyFilters.FileName,
                     IncludeSubdirectories = true,
                     EnableRaisingEvents = true
                 };
+                // Editors and the agent's own Edit/Write tools save atomically
+                // (write-temp + rename). .NET pairs the rename into a single
+                // Renamed event whose new path is the tracked file, so without
+                // subscribing to Renamed those saves are silently missed.
                 watcher.Changed += OnFileChanged;
+                watcher.Renamed += OnFileChanged;
                 return watcher;
             })
             .ToArray();
@@ -54,7 +59,14 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
             return;
 
         _pendingChanges.Add(e.FullPath);
-        _debounceTimer.Change(DebounceMs, Timeout.Infinite);
+        try
+        {
+            _debounceTimer.Change(DebounceMs, Timeout.Infinite);
+        }
+        catch (ObjectDisposedException)
+        {
+            return; // racing shutdown: timer disposed in StopAndCapture between the _disposed check and here
+        }
         _logger.LogDebug("File change detected: {Path}", e.FullPath);
     }
 
@@ -126,15 +138,17 @@ internal sealed class WorkspaceFileWatcher : IDisposable, IAsyncDisposable
         foreach (var watcher in _watchers)
             watcher.EnableRaisingEvents = false;
 
-        _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
-        _debounceTimer.Dispose();
-
+        // Mark disposed before tearing down the timer so an OnFileChanged already dispatched from the
+        // pool bails out (or hits the ObjectDisposedException guard) instead of touching a disposed timer.
         Task processingTask;
         lock (_taskLock)
         {
             _disposed = true;
             processingTask = _processingTask;
         }
+
+        _debounceTimer.Change(Timeout.Infinite, Timeout.Infinite);
+        _debounceTimer.Dispose();
 
         foreach (var watcher in _watchers)
             watcher.Dispose();

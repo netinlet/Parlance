@@ -6,22 +6,11 @@ using Parlance.Mcp.Tools;
 
 namespace Parlance.Mcp.Tests.Tools;
 
-public sealed class GetCodeFixesToolTests : IAsyncLifetime
+[Trait("Category", "Integration")]
+public sealed class GetCodeFixesToolTests(WorkspaceFixture fixture) : IClassFixture<WorkspaceFixture>
 {
-    private WorkspaceSessionHolder _holder = null!;
-    private CSharpWorkspaceSession _session = null!;
-    private CodeActionService _codeActions = null!;
-
-    public async Task InitializeAsync()
-    {
-        var solutionPath = TestPaths.FindSolutionPath();
-        _session = Assert.IsType<WorkspaceLoadResult.Success>(await CSharpWorkspaceSession.TryOpenSolutionAsync(solutionPath)).Session;
-        _holder = new WorkspaceSessionHolder();
-        _holder.SetSession(_session);
-        _codeActions = new CodeActionService(_holder, NullLogger<CodeActionService>.Instance);
-    }
-
-    public async Task DisposeAsync() => await _session.DisposeAsync();
+    private readonly WorkspaceSessionHolder _holder = fixture.Holder;
+    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
 
     [Fact]
     public async Task GetCodeFixes_KnownDiagnosticLine_ReturnsFixes()
@@ -56,7 +45,10 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
                 Assert.NotEmpty(fix.Id);
                 Assert.NotEmpty(fix.Title);
                 Assert.NotEmpty(fix.DiagnosticId);
-                Assert.NotEmpty(fix.DiagnosticMessage);
+                // A fix-all entry collapses many occurrences, so it carries no single diagnostic message;
+                // only per-occurrence fixes have one.
+                if (!fix.IsFixAll)
+                    Assert.NotEmpty(fix.DiagnosticMessage);
                 Assert.True(fix.Scope is "document" or "project" or "solution",
                     $"Unexpected scope '{fix.Scope}'");
             });
@@ -74,6 +66,22 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
             CancellationToken.None);
 
         Assert.Equal("not_found", result.Status);
+    }
+
+    [Fact]
+    public async Task GetCodeFixes_UnknownFile_MessageUsesWorkspaceRelativePath()
+    {
+        // A relative input resolves under the workspace root; the not_found message must echo the
+        // workspace-relative path, not re-leak the absolute host path through prose.
+        var result = await GetCodeFixesTool.GetCodeFixes(
+            _holder, _codeActions,
+            filePath: "src/DoesNotExist.cs", line: 1, diagnosticId: null,
+            CancellationToken.None);
+
+        Assert.Equal("not_found", result.Status);
+        Assert.NotNull(result.Message);
+        Assert.DoesNotContain(TestPaths.RepoRoot, result.Message);
+        Assert.Contains("src/DoesNotExist.cs", result.Message!.Replace('\\', '/'));
     }
 
     [Fact]
@@ -150,7 +158,7 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         var previewResult = await PreviewCodeActionTool.PreviewCodeAction(
             _holder, _codeActions,
             actionId: actionId,
-            CancellationToken.None);
+            ct: CancellationToken.None);
 
         Assert.Equal("found", previewResult.Status);
         Assert.Equal(actionId, previewResult.ActionId);
@@ -158,8 +166,11 @@ public sealed class GetCodeFixesToolTests : IAsyncLifetime
         Assert.NotEmpty(previewResult.Changes);
         Assert.All(previewResult.Changes, change =>
         {
-            Assert.NotEmpty(change.FilePath);
-            Assert.NotEmpty(change.Edits);
+            Assert.NotNull(change.FilePath);
+            Assert.NotEmpty(change.FilePath.Value.Absolute);
+            // Preview now returns a unified diff (hunks with context) per file, for judging the change.
+            Assert.NotEmpty(change.Diff);
+            Assert.Contains("@@", change.Diff);
         });
     }
 }

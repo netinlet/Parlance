@@ -22,14 +22,17 @@ public sealed class DecompileTypeTool
         string typeName, CancellationToken ct) =>
         holder.State.Match(
             notLoaded: () => Task.FromResult(DecompileTypeResult.NotLoaded()),
-            loaded: _ => RunAsync(query, logger, typeName, ct),
+            loaded: session => RunAsync(query, session, logger, typeName, ct),
             loadFailed: failure => Task.FromResult(DecompileTypeResult.LoadFailed(failure.Message)),
             disposed: () => Task.FromResult(DecompileTypeResult.NotLoaded()));
 
     private static async Task<DecompileTypeResult> RunAsync(
-        WorkspaceQueryService query, ILogger<DecompileTypeTool> logger,
+        WorkspaceQueryService query, CSharpWorkspaceSession session, ILogger<DecompileTypeTool> logger,
         string typeName, CancellationToken ct)
     {
+        // Capture the version the operation begins against (see FindReferencesTool for the rationale).
+        var snapshotVersion = session.SnapshotVersion;
+
         await foreach (var (_, compilation) in query.GetCompilationsAsync(ct))
         {
             foreach (var metaRef in compilation.References.OfType<PortableExecutableReference>())
@@ -59,17 +62,18 @@ public sealed class DecompileTypeTool
 
                     return DecompileTypeResult.Found(
                         typeSymbol.ToDisplayString(), assemblySymbol.Name, metaRef.FilePath, decompiledCode,
-                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null);
+                        truncated ? $"Output truncated to {maxLines} of {lines.Length} lines" : null,
+                        snapshotVersion);
                 }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "Failed to decompile {Type} from {Assembly}", typeName, metaRef.FilePath);
-                    return DecompileTypeResult.DecompilationFailed(typeName, ex.Message);
+                    return DecompileTypeResult.DecompilationFailed(typeName, ex.Message, snapshotVersion);
                 }
             }
         }
 
-        return DecompileTypeResult.NotFound(typeName);
+        return DecompileTypeResult.NotFound(typeName, snapshotVersion);
     }
 
     private static INamedTypeSymbol? FindTypeInAssembly(IAssemblySymbol assembly, string typeName)
@@ -92,16 +96,21 @@ public sealed record DecompileTypeResult(
     string Status, string? TypeName, string? AssemblyName, string? AssemblyPath,
     string? DecompiledSource, string? Message)
 {
-    public static DecompileTypeResult NotFound(string typeName) => new(
-        "not_found", typeName, null, null, null, $"Type '{typeName}' not found in any metadata reference");
+    public long SnapshotVersion { get; init; }
+
+    public static DecompileTypeResult NotFound(string typeName, long snapshotVersion) => new(
+        "not_found", typeName, null, null, null, $"Type '{typeName}' not found in any metadata reference")
+    { SnapshotVersion = snapshotVersion };
     public static DecompileTypeResult NotLoaded() => new(
         "not_loaded", null, null, null, null, "Workspace is still loading");
     public static DecompileTypeResult LoadFailed(string message) => new(
         "load_failed", null, null, null, null, message);
-    public static DecompileTypeResult DecompilationFailed(string typeName, string error) => new(
-        "decompile_failed", typeName, null, null, null, $"Decompilation failed: {error}");
+    public static DecompileTypeResult DecompilationFailed(string typeName, string error, long snapshotVersion) => new(
+        "decompile_failed", typeName, null, null, null, $"Decompilation failed: {error}")
+    { SnapshotVersion = snapshotVersion };
     public static DecompileTypeResult Found(
         string typeName, string assemblyName, string assemblyPath,
-        string decompiledSource, string? message) => new(
-        "found", typeName, assemblyName, assemblyPath, decompiledSource, message);
+        string decompiledSource, string? message, long snapshotVersion) => new(
+        "found", typeName, assemblyName, assemblyPath, decompiledSource, message)
+        { SnapshotVersion = snapshotVersion };
 }

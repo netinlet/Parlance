@@ -24,4 +24,17 @@
     <ProjectReference Include="..\..\src\Parlance.Abstractions\Parlance.Abstractions.csproj" />
   </ItemGroup>
 
+  <!-- Option-service tests inspect internal Roslyn result types (PickMembersResult,
+       ExtractInterfaceOptionsResult); publicize Features here too so the test compiles.
+       Both this project and the referenced workspace project emit Krafs.Publicizer's internal
+       IgnoresAccessChecksToAttribute, and InternalsVisibleTo surfaces both here — a benign CS0436
+       (identical attribute, compiler picks one), suppressed rather than reshuffling runtime strategy. -->
+  <PropertyGroup>
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Krafs.Publicizer" Version="2.3.0" PrivateAssets="all" />
+    <Publicize Include="Microsoft.CodeAnalysis.Features" />
+  </ItemGroup>
+
 </Project>

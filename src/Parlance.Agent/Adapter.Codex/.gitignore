@@ -1,0 +1,4 @@
+# tsc build output. dist/ is the tracked, published bundle; these are local emit dirs
+# (tsconfig.json outDir -> out-ts, tsconfig.build.json declarationDir -> out-dts).
+out-ts/
+out-dts/
