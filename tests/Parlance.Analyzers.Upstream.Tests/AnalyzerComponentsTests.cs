@@ -1,5 +1,3 @@
-using System.Collections.Immutable;
-
 namespace Parlance.Analyzers.Upstream.Tests;
 
 public sealed class AnalyzerComponentsTests
