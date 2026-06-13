@@ -65,7 +65,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
             ["SearchSymbolsTool"] = async () => Stamp(await SearchSymbolsTool.SearchSymbols(h, q, NoSuchName, ct: ct)),
             ["TypeHierarchyTool"] = async () => Stamp(await TypeHierarchyTool.TypeHierarchy(h, q, NoSuchName, ct: ct)),
             ["WorkspaceStatusTool"] = () => Task.FromResult(
-                WorkspaceStatusTool.GetStatus(h, _config, NullLogger<WorkspaceStatusTool>.Instance).SnapshotVersion),
+                WorkspaceStatusTool.GetStatus(h, _config, AnalyzerProviderTestFactory.CreateEmpty(), NullLogger<WorkspaceStatusTool>.Instance).SnapshotVersion),
         };
 
         // The buffer-overlay tool is the one [McpServerToolType] that cannot be exercised here: its

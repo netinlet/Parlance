@@ -14,9 +14,12 @@ public sealed record WorkspaceStatusResult(
     long SnapshotVersion,
     int ProjectCount,
     ImmutableList<ProjectStatusEntry> Projects,
-    ImmutableList<DiagnosticEntry> Diagnostics)
+    ImmutableList<DiagnosticEntry> Diagnostics,
+    ImmutableList<string> Notices)
 {
-    public static WorkspaceStatusResult FromSession(CSharpWorkspaceSession session) =>
+    public static WorkspaceStatusResult FromSession(
+        CSharpWorkspaceSession session,
+        ImmutableList<string> notices) =>
         new(
             Status: session.Health.Status.ToString(),
             SolutionPath: new RepoPath(session.WorkspacePath),
@@ -34,9 +37,12 @@ public sealed record WorkspaceStatusResult(
                 .ToImmutableList(),
             Diagnostics: session.Health.Diagnostics
                 .Select(d => new DiagnosticEntry(d.Code, d.Message, d.Severity.ToString()))
-                .ToImmutableList());
+                .ToImmutableList(),
+            Notices: notices);
 
-    public static WorkspaceStatusResult FromLoadFailure(WorkspaceLoadFailure failure) =>
+    public static WorkspaceStatusResult FromLoadFailure(
+        WorkspaceLoadFailure failure,
+        ImmutableList<string> notices) =>
         new(
             Status: "Failed",
             SolutionPath: new RepoPath(failure.SolutionPath),
@@ -44,9 +50,10 @@ public sealed record WorkspaceStatusResult(
             SnapshotVersion: 0,
             ProjectCount: 0,
             Projects: [],
-            Diagnostics: [new DiagnosticEntry("LoadFailure", failure.Message, "Error")]);
+            Diagnostics: [new DiagnosticEntry("LoadFailure", failure.Message, "Error")],
+            Notices: notices);
 
-    public static WorkspaceStatusResult Loading(string solutionPath) =>
+    public static WorkspaceStatusResult Loading(string solutionPath, ImmutableList<string> notices) =>
         new(
             Status: "Loading",
             SolutionPath: new RepoPath(solutionPath),
@@ -54,7 +61,8 @@ public sealed record WorkspaceStatusResult(
             SnapshotVersion: 0,
             ProjectCount: 0,
             Projects: [],
-            Diagnostics: []);
+            Diagnostics: [],
+            Notices: notices);
 }
 
 public sealed record ProjectStatusEntry(

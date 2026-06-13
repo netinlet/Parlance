@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using ModelContextProtocol.Server;
+using Parlance.Abstractions;
+using Parlance.Analysis;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Mcp.Tools;
@@ -14,21 +16,25 @@ public sealed class WorkspaceStatusTool
     public static WorkspaceStatusResult GetStatus(
         WorkspaceSessionHolder holder,
         ParlanceMcpConfiguration configuration,
+        AnalyzerProvider analyzerProvider,
         ILogger<WorkspaceStatusTool> logger)
     {
+        var repoPath = RepoPath.Containing(configuration.SolutionPath).Absolute;
+        var notices = analyzerProvider.GetExternalSourceNotices(repoPath);
+
         WorkspaceStatusResult Loading()
         {
             logger.LogDebug("Workspace not yet loaded, returning loading status");
-            return WorkspaceStatusResult.Loading(configuration.SolutionPath);
+            return WorkspaceStatusResult.Loading(configuration.SolutionPath, notices);
         }
 
         return holder.State.Match(
             notLoaded: Loading,
-            loaded: WorkspaceStatusResult.FromSession,
+            loaded: session => WorkspaceStatusResult.FromSession(session, notices),
             loadFailed: failure =>
             {
                 logger.LogWarning("Workspace load failed: {Message}", failure.Message);
-                return WorkspaceStatusResult.FromLoadFailure(failure);
+                return WorkspaceStatusResult.FromLoadFailure(failure, notices);
             },
             disposed: Loading);
     }
