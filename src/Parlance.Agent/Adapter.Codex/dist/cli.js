@@ -343,6 +343,7 @@ function help() {
   process.stderr.write([
     "usage: parlance-agent-codex <install|uninstall> [args]",
     "  install --solution <path> [--project <dir>]",
+    "  install --global",
     "  uninstall [--project <dir>] [--purge]",
     ""
   ].join("\n"));
