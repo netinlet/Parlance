@@ -1,4 +1,3 @@
-using System.Reflection;
 using Parlance.Analyzers.Upstream;
 using Parlance.Cli.Commands;
 
