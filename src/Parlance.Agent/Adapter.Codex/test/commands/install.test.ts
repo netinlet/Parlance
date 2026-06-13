@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { runInstall, withCodexHooksFeature } from '../../src/commands/install.js';
 
 let root: string;
@@ -95,6 +95,56 @@ describe('install command', () => {
 
     expect(await runInstall(['--project', root, '--solution', 'App.sln'])).toBe(1);
     expect(existsSync(join(root, '.codex/hooks.json'))).toBe(false);
+  });
+});
+
+describe('install --global', () => {
+  const orig = { home: process.env.PARLANCE_HOME, codex: process.env.CODEX_CONFIG_DIR };
+
+  afterEach(() => {
+    for (const [key, value] of [['PARLANCE_HOME', orig.home], ['CODEX_CONFIG_DIR', orig.codex]] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+
+  function withDirs(): { hooksJson: string; nudge: string } {
+    process.env.PARLANCE_HOME = join(root, 'home');
+    process.env.CODEX_CONFIG_DIR = join(root, 'codex');
+    return {
+      hooksJson: join(root, 'codex/hooks.json'),
+      nudge: join(root, 'home/hooks/nudge.js'),
+    };
+  }
+
+  it('copies the nudge bundle and wires a nudge-only SessionStart hook', async () => {
+    const { hooksJson, nudge } = withDirs();
+
+    expect(await runInstall(['--global'])).toBe(0);
+    expect(existsSync(nudge)).toBe(true);
+
+    const parsed = JSON.parse(readFileSync(hooksJson, 'utf8'));
+    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string }[] }[];
+    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toBe(true);
+    // global never wires the per-project tracking hooks
+    expect(JSON.stringify(parsed)).not.toContain('pre-tool.js');
+    expect(JSON.stringify(parsed)).not.toContain('stop.js');
+  });
+
+  it('is idempotent and preserves foreign SessionStart hooks', async () => {
+    const { hooksJson } = withDirs();
+    mkdirSync(dirname(hooksJson), { recursive: true });
+    writeFileSync(hooksJson, JSON.stringify({
+      hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'echo foreign' }] }] },
+    }));
+
+    await runInstall(['--global']);
+    await runInstall(['--global']);
+
+    const parsed = JSON.parse(readFileSync(hooksJson, 'utf8'));
+    const sessionStart = parsed.hooks.SessionStart as { hooks: { command: string }[] }[];
+    expect(sessionStart.some((entry) => entry.hooks.some((hook) => hook.command === 'echo foreign'))).toBe(true);
+    expect(sessionStart.filter((entry) => entry.hooks.some((hook) => hook.command.includes('hooks/nudge.js')))).toHaveLength(1);
   });
 });
 
