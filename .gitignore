@@ -22,6 +22,9 @@ docs/research/*
 # Claude Code local settings (personal, not for contributors)
 .claude/settings.local.json
 
+# Codex
+.codex/*
+
 # MCP server configuration (personal paths — see .mcp.json.example)
 .mcp.json
 
