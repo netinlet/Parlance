@@ -1,7 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { runInstall } from '../../src/commands/install.js';
 import { runUninstall } from '../../src/commands/uninstall.js';
 
@@ -39,10 +45,16 @@ describe('uninstall', () => {
     await runInstall(['--project', root, '--solution', 'App.sln']);
     await runUninstall(['--project', root]);
 
-    const settings = JSON.parse(readFileSync(join(root, '.claude/settings.local.json'), 'utf8'));
+    const settings = JSON.parse(
+      readFileSync(join(root, '.claude/settings.local.json'), 'utf8'),
+    );
     for (const event of Object.keys(settings.hooks ?? {})) {
       for (const matcher of settings.hooks[event]) {
-        expect(matcher.hooks.some((hook: { command?: string }) => hook.command?.includes('.parlance/hooks/'))).toBe(false);
+        expect(
+          matcher.hooks.some((hook: { command?: string }) =>
+            hook.command?.includes('.parlance/hooks/'),
+          ),
+        ).toBe(false);
       }
     }
 

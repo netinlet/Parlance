@@ -1,9 +1,21 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { findSolution, generateRoutingDoc } from '@parlance/agent-core';
-import { globalHooksDir, hooksDir, parlanceDir, routingFile } from '@parlance/agent-core/storage/paths.js';
+import {
+  globalHooksDir,
+  hooksDir,
+  parlanceDir,
+  routingFile,
+} from '@parlance/agent-core/storage/paths.js';
 
 const HOOK_MARKER = '.parlance/hooks/';
 const GLOBAL_NUDGE_MARKER = 'hooks/nudge.js';
@@ -67,12 +79,14 @@ function runInstallGlobal(): number {
   );
 
   const cwd = process.cwd();
-  const hooksInstalled = existsSync(join(cwd, '.claude', 'settings.local.json'));
+  const hooksInstalled = existsSync(
+    join(cwd, '.claude', 'settings.local.json'),
+  );
   if (!hooksInstalled) {
     const sln = findSolution(cwd) ?? '<YourSolution.sln>';
     process.stderr.write(
-      `\nNote: per-project hooks are not installed in the current directory.\n`
-      + `      Run: parlance agent install --for claude --solution ${sln}\n`,
+      `\nNote: per-project hooks are not installed in the current directory.\n` +
+        `      Run: parlance agent install --for claude --solution ${sln}\n`,
     );
   }
 
@@ -84,11 +98,16 @@ function readJsonOrEmpty<T extends Record<string, unknown>>(path: string): T {
   try {
     return JSON.parse(readFileSync(path, 'utf8')) as T;
   } catch (err) {
-    throw new Error(`could not parse ${path}: ${(err as Error).message}`);
+    throw new Error(`could not parse ${path}: ${(err as Error).message}`, {
+      cause: err,
+    });
   }
 }
 
-function mergeJsonFile<T extends Record<string, unknown>>(path: string, update: (data: T) => void): void {
+function mergeJsonFile<T extends Record<string, unknown>>(
+  path: string,
+  update: (data: T) => void,
+): void {
   const data = readJsonOrEmpty<T>(path);
   update(data);
   mkdirSync(dirname(path), { recursive: true });
@@ -97,15 +116,24 @@ function mergeJsonFile<T extends Record<string, unknown>>(path: string, update: 
 
 function writeGlobalSettings(path: string, nudgePath: string): void {
   mergeJsonFile<Record<string, unknown>>(path, (existing) => {
-    const hooks = (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
+    const hooks =
+      (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
 
     // Replace any prior global-nudge entry (idempotent); preserve foreign SessionStart hooks.
     const bucket = hooks.SessionStart ?? [];
-    const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)));
-    hooks.SessionStart = [...preserved, {
-      matcher: '',
-      hooks: [{ type: 'command', command: `node "${nudgePath}"`, timeout: 5 }],
-    }];
+    const preserved = bucket.filter(
+      (entry) =>
+        !entry.hooks.some((hook) => hook.command.includes(GLOBAL_NUDGE_MARKER)),
+    );
+    hooks.SessionStart = [
+      ...preserved,
+      {
+        matcher: '',
+        hooks: [
+          { type: 'command', command: `node "${nudgePath}"`, timeout: 5 },
+        ],
+      },
+    ];
 
     existing.hooks = hooks;
   });
@@ -114,13 +142,18 @@ function writeGlobalSettings(path: string, nudgePath: string): void {
 function parseArgs(argv: string[]): InstallArgs | null {
   const args: Partial<InstallArgs> = { project: process.cwd() };
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === '--project' && argv[index + 1]) args.project = argv[index + 1];
-    if (argv[index] === '--solution' && argv[index + 1]) args.solution = argv[index + 1];
-    if (argv[index] === '--mcp-command' && argv[index + 1]) args.mcpCommand = argv[index + 1];
+    if (argv[index] === '--project' && argv[index + 1])
+      args.project = argv[index + 1];
+    if (argv[index] === '--solution' && argv[index + 1])
+      args.solution = argv[index + 1];
+    if (argv[index] === '--mcp-command' && argv[index + 1])
+      args.mcpCommand = argv[index + 1];
   }
 
   if (!args.solution) {
-    process.stderr.write('usage: install --solution <path> [--project <dir>]\n');
+    process.stderr.write(
+      'usage: install --solution <path> [--project <dir>]\n',
+    );
     return null;
   }
 
@@ -130,7 +163,8 @@ function parseArgs(argv: string[]): InstallArgs | null {
 function copyHookBundles(target: string): void {
   const source = findHookBundleDir();
   for (const entry of readdirSync(source)) {
-    if (entry.endsWith('.js')) copyFileSync(join(source, entry), join(target, entry));
+    if (entry.endsWith('.js'))
+      copyFileSync(join(source, entry), join(target, entry));
   }
 }
 
@@ -148,7 +182,11 @@ function findHookBundleDir(): string {
   throw new Error('hook bundle directory not found');
 }
 
-function writeMcpJson(root: string, solutionAbs: string, mcpCommand?: string): void {
+function writeMcpJson(
+  root: string,
+  solutionAbs: string,
+  mcpCommand?: string,
+): void {
   const path = join(root, '.mcp.json');
   mergeJsonFile<{ mcpServers?: Record<string, unknown> }>(path, (existing) => {
     existing.mcpServers ??= {};
@@ -162,10 +200,13 @@ function writeMcpJson(root: string, solutionAbs: string, mcpCommand?: string): v
 
 function writeSettingsJson(path: string): void {
   mergeJsonFile<Record<string, unknown>>(path, (existing) => {
-    const hooks = (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
+    const hooks =
+      (existing.hooks as Record<string, HookMatcher[]> | undefined) ?? {};
     const ours: Record<string, HookMatcher[]> = {
       SessionStart: [matcher('', 'session-start.js', 5)],
-      PreToolUse: [matcher('Read|Grep|Glob|Write|Edit|MultiEdit|Bash', 'pre-tool.js', 5)],
+      PreToolUse: [
+        matcher('Read|Grep|Glob|Write|Edit|MultiEdit|Bash', 'pre-tool.js', 5),
+      ],
       PostToolUse: [matcher('', 'post-tool.js', 5)],
       UserPromptSubmit: [matcher('', 'user-prompt-submit.js', 3)],
       Stop: [matcher('', 'stop.js', 10)],
@@ -173,7 +214,10 @@ function writeSettingsJson(path: string): void {
 
     for (const [event, nextMatchers] of Object.entries(ours)) {
       const bucket = hooks[event] ?? [];
-      const preserved = bucket.filter((entry) => !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)));
+      const preserved = bucket.filter(
+        (entry) =>
+          !entry.hooks.some((hook) => hook.command.includes(HOOK_MARKER)),
+      );
       hooks[event] = [...preserved, ...nextMatchers];
     }
 
@@ -181,13 +225,19 @@ function writeSettingsJson(path: string): void {
   });
 }
 
-function matcher(matcherValue: string, script: string, timeout: number): HookMatcher {
+function matcher(
+  matcherValue: string,
+  script: string,
+  timeout: number,
+): HookMatcher {
   return {
     matcher: matcherValue,
-    hooks: [{
-      type: 'command',
-      command: `node "$CLAUDE_PROJECT_DIR/.parlance/hooks/${script}"`,
-      timeout,
-    }],
+    hooks: [
+      {
+        type: 'command',
+        command: `node "$CLAUDE_PROJECT_DIR/.parlance/hooks/${script}"`,
+        timeout,
+      },
+    ],
   };
 }

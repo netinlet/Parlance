@@ -1,30 +1,42 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const hook = fileURLToPath(new URL('../../dist/hooks/pre-tool.js', import.meta.url));
+const hook = fileURLToPath(
+  new URL('../../dist/hooks/pre-tool.js', import.meta.url),
+);
 
 let root: string;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'ac-pre-'));
   mkdirSync(join(root, '.parlance'), { recursive: true });
-  writeFileSync(join(root, '.parlance/_session.json'), JSON.stringify({
-    session_id: 's1',
-    adapter: 'claude-code',
-    started_at: new Date().toISOString(),
-    cwd: root,
-    transcript_ref: null,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null,
-  }));
+  writeFileSync(
+    join(root, '.parlance/_session.json'),
+    JSON.stringify({
+      session_id: 's1',
+      adapter: 'claude-code',
+      started_at: new Date().toISOString(),
+      cwd: root,
+      transcript_ref: null,
+      parlance_calls: 0,
+      native_fallbacks: 0,
+      tool_calls: [],
+      read_tokens: 0,
+      write_tokens: 0,
+      active_bench: null,
+    }),
+  );
 });
 
 afterEach(() => {
@@ -33,7 +45,10 @@ afterEach(() => {
 
 function run(stdin: string): { status: number; stderr: string } {
   try {
-    const stderr = execFileSync('node', [hook], { input: stdin, stdio: ['pipe', 'pipe', 'pipe'] });
+    const stderr = execFileSync('node', [hook], {
+      input: stdin,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
     return { status: 0, stderr: String(stderr) };
   } catch (error) {
     return {
@@ -45,29 +60,37 @@ function run(stdin: string): { status: number; stderr: string } {
 
 describe('pre-tool hook', () => {
   it('Read on .cs is advisory only — writes no feedback and counts no fallback (counting is post-tool)', () => {
-    run(JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      session_id: 's1',
-      cwd: root,
-      tool_name: 'Read',
-      tool_input: { file_path: '/proj/Foo.cs' },
-    }));
+    run(
+      JSON.stringify({
+        hook_event_name: 'PreToolUse',
+        session_id: 's1',
+        cwd: root,
+        tool_name: 'Read',
+        tool_input: { file_path: '/proj/Foo.cs' },
+      }),
+    );
 
-    const session = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
+    const session = JSON.parse(
+      readFileSync(join(root, '.parlance/_session.json'), 'utf8'),
+    );
     expect(session.native_fallbacks).toBe(0);
     expect(existsSync(join(root, '.parlance/kibble'))).toBe(false);
   });
 
   it('Read on .md does not warn', () => {
-    run(JSON.stringify({
-      hook_event_name: 'PreToolUse',
-      session_id: 's1',
-      cwd: root,
-      tool_name: 'Read',
-      tool_input: { file_path: 'README.md' },
-    }));
+    run(
+      JSON.stringify({
+        hook_event_name: 'PreToolUse',
+        session_id: 's1',
+        cwd: root,
+        tool_name: 'Read',
+        tool_input: { file_path: 'README.md' },
+      }),
+    );
 
-    const session = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
+    const session = JSON.parse(
+      readFileSync(join(root, '.parlance/_session.json'), 'utf8'),
+    );
     expect(session.native_fallbacks).toBe(0);
   });
 });

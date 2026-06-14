@@ -83,26 +83,31 @@ async function runReport(argv) {
     return 0;
   }
   const range = resolveRange(args);
-  const filtered = rows.filter((row) => row.date >= range.start && row.date <= range.end && (!args.project || basename(row.project ?? "") === args.project));
-  const totals = filtered.reduce((acc, row) => ({
-    parlance: acc.parlance + row.parlance_calls,
-    fallback: acc.fallback + row.native_fallbacks,
-    input: acc.input + row.usage.input_tokens,
-    output: acc.output + row.usage.output_tokens,
-    cacheRead: acc.cacheRead + row.usage.cache_read_tokens,
-    reads: acc.reads + row.read_tokens,
-    writes: acc.writes + row.write_tokens,
-    duration: acc.duration + row.duration_s
-  }), {
-    parlance: 0,
-    fallback: 0,
-    input: 0,
-    output: 0,
-    cacheRead: 0,
-    reads: 0,
-    writes: 0,
-    duration: 0
-  });
+  const filtered = rows.filter(
+    (row) => row.date >= range.start && row.date <= range.end && (!args.project || basename(row.project ?? "") === args.project)
+  );
+  const totals = filtered.reduce(
+    (acc, row) => ({
+      parlance: acc.parlance + row.parlance_calls,
+      fallback: acc.fallback + row.native_fallbacks,
+      input: acc.input + row.usage.input_tokens,
+      output: acc.output + row.usage.output_tokens,
+      cacheRead: acc.cacheRead + row.usage.cache_read_tokens,
+      reads: acc.reads + row.read_tokens,
+      writes: acc.writes + row.write_tokens,
+      duration: acc.duration + row.duration_s
+    }),
+    {
+      parlance: 0,
+      fallback: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      reads: 0,
+      writes: 0,
+      duration: 0
+    }
+  );
   const lines = [];
   lines.push(`=== Parlance Agent Report: ${range.start} -> ${range.end} ===`);
   lines.push(
@@ -111,7 +116,9 @@ async function runReport(argv) {
   lines.push(
     `LLM tokens - input: ${totals.input.toLocaleString()}  output: ${totals.output.toLocaleString()}  cache-read: ${totals.cacheRead.toLocaleString()}`
   );
-  lines.push(`Estimated file content - read: ${totals.reads}  write: ${totals.writes}`);
+  lines.push(
+    `Estimated file content - read: ${totals.reads}  write: ${totals.writes}`
+  );
   lines.push("");
   const tools = aggregateToolBreakdown(filtered);
   if (tools.length > 0) {
@@ -147,10 +154,14 @@ function aggregateToolBreakdown(rows) {
 function parseArgs(argv) {
   const args = { days: 7 };
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === "--project" && argv[index + 1]) args.project = argv[index + 1];
-    if (argv[index] === "--days" && argv[index + 1]) args.days = parseInt(argv[index + 1], 10);
-    if (argv[index] === "--since" && argv[index + 1]) args.since = argv[index + 1];
-    if (argv[index] === "--until" && argv[index + 1]) args.until = argv[index + 1];
+    if (argv[index] === "--project" && argv[index + 1])
+      args.project = argv[index + 1];
+    if (argv[index] === "--days" && argv[index + 1])
+      args.days = parseInt(argv[index + 1], 10);
+    if (argv[index] === "--since" && argv[index + 1])
+      args.since = argv[index + 1];
+    if (argv[index] === "--until" && argv[index + 1])
+      args.until = argv[index + 1];
   }
   return args;
 }
@@ -171,11 +182,14 @@ import { resolve } from "node:path";
 async function runStatus(argv) {
   let project = process.cwd();
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === "--project" && argv[index + 1]) project = argv[index + 1];
+    if (argv[index] === "--project" && argv[index + 1])
+      project = argv[index + 1];
   }
   const root = resolve(project);
-  process.stdout.write(`project .parlance/ (install): ${existsSync3(parlanceDir(root)) ? "present" : "missing"}
-`);
+  process.stdout.write(
+    `project .parlance/ (install): ${existsSync3(parlanceDir(root)) ? "present" : "missing"}
+`
+  );
   const ledgerPath = ledgerFile();
   process.stdout.write(`central ledger: ${ledgerPath}
 `);
@@ -216,13 +230,15 @@ async function main() {
   process.exit(await command(rest));
 }
 function help() {
-  process.stderr.write([
-    "usage: parlance-agent-core <command> [args]",
-    "",
-    "  status                       install state + recent ledger summary",
-    "  report [--days N]            session analysis",
-    "  bench report --task <id>     variant comparison",
-    ""
-  ].join("\n"));
+  process.stderr.write(
+    [
+      "usage: parlance-agent-core <command> [args]",
+      "",
+      "  status                       install state + recent ledger summary",
+      "  report [--days N]            session analysis",
+      "  bench report --task <id>     variant comparison",
+      ""
+    ].join("\n")
+  );
 }
 void main();

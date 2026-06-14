@@ -1,8 +1,18 @@
 import { estimateTokensFromLength } from '../telemetry/estimate.js';
+import type {
+  AgentContext,
+  AgentEvent,
+  EventEvaluation,
+  SessionState,
+  ToolEvent,
+  ToolUsageRecord,
+} from '../types.js';
 import { isParlanceTool, matchRoutingRule } from './routing.js';
-import type { AgentContext, AgentEvent, EventEvaluation, SessionState, ToolEvent, ToolUsageRecord } from '../types.js';
 
-export function emptySessionState(ctx: AgentContext, transcript_ref: string | null): SessionState {
+export function emptySessionState(
+  ctx: AgentContext,
+  transcript_ref: string | null,
+): SessionState {
   return {
     session_id: ctx.session_id,
     adapter: ctx.adapter,
@@ -18,7 +28,11 @@ export function emptySessionState(ctx: AgentContext, transcript_ref: string | nu
   };
 }
 
-export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: SessionState): EventEvaluation {
+export function evaluateEvent(
+  event: AgentEvent,
+  ctx: AgentContext,
+  state: SessionState,
+): EventEvaluation {
   const guidance: EventEvaluation['guidance'] = [];
   const effects: EventEvaluation['effects'] = [];
   let next: SessionState | null = null;
@@ -47,9 +61,14 @@ export function evaluateEvent(event: AgentEvent, ctx: AgentContext, state: Sessi
     next = {
       ...state,
       parlance_calls: state.parlance_calls + (record.is_mcp_parlance ? 1 : 0),
-      native_fallbacks: state.native_fallbacks + (record.is_native_fallback ? 1 : 0),
-      read_tokens: state.read_tokens + (event.kind === 'post-read' ? record.output_tokens : 0),
-      write_tokens: state.write_tokens + (event.kind === 'post-write' ? record.output_tokens : 0),
+      native_fallbacks:
+        state.native_fallbacks + (record.is_native_fallback ? 1 : 0),
+      read_tokens:
+        state.read_tokens +
+        (event.kind === 'post-read' ? record.output_tokens : 0),
+      write_tokens:
+        state.write_tokens +
+        (event.kind === 'post-write' ? record.output_tokens : 0),
       tool_calls: [...state.tool_calls, record],
     };
   }
@@ -92,7 +111,10 @@ function toUsageRecord(event: AgentEvent): ToolUsageRecord {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, 'code'),
+    output_tokens: estimateTokensFromLength(
+      toolEvent.output_bytes ?? 0,
+      'code',
+    ),
   };
 }
 
@@ -100,7 +122,8 @@ function flipToPre(event: AgentEvent): AgentEvent {
   if (event.kind === 'post-read') return { ...event, kind: 'pre-read' };
   if (event.kind === 'post-write') return { ...event, kind: 'pre-write' };
   if (event.kind === 'post-search') return { ...event, kind: 'pre-search' };
-  if (event.kind === 'post-native-tool') return { ...event, kind: 'pre-native-tool' };
+  if (event.kind === 'post-native-tool')
+    return { ...event, kind: 'pre-native-tool' };
   if (event.kind === 'post-mcp-tool') return { ...event, kind: 'pre-mcp-tool' };
   return event;
 }

@@ -11,16 +11,9 @@
     "outDir": "out-ts",
     "baseUrl": ".",
     "paths": {
-      "@parlance/agent-core": [
-        "../Core/src/api.ts"
-      ],
-      "@parlance/agent-core/*": [
-        "../Core/src/*"
-      ]
+      "@parlance/agent-core": ["../Core/src/api.ts"],
+      "@parlance/agent-core/*": ["../Core/src/*"]
     }
   },
-  "include": [
-    "src/**/*.ts",
-    "test/**/*.ts"
-  ]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

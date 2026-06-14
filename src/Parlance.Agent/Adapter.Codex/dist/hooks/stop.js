@@ -4,10 +4,6 @@
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
 import { basename, dirname as dirname2 } from "node:path";
 
-// ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-
 // ../Core/src/storage/paths.ts
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -19,6 +15,14 @@ var ledgerFile = () => join(telemetryDir(), "ledger.jsonl");
 var sessionLogFile = () => join(telemetryDir(), "session-log.md");
 
 // ../Core/src/storage/session-state.ts
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
+import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
   if (!existsSync(path)) return null;
@@ -55,8 +59,16 @@ var taskReceived = (prompt) => ({
   at: now(),
   prompt
 });
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
 var postWrite = (path, bytes) => ({
   kind: "post-write",
   at: now(),
@@ -129,9 +141,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -155,7 +175,8 @@ function fromPre(env) {
     if (paths.length === 1) return preWrite(paths[0]);
     return preTool("pre-native-tool", tool, input);
   }
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool.startsWith("mcp__")) return preTool("pre-native-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
@@ -173,8 +194,10 @@ function fromPost(env) {
     }
     return postTool("post-native-tool", tool, input, outputBytes);
   }
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, outputBytes);
-  if (tool.startsWith("mcp__")) return postTool("post-native-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool("post-mcp-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__"))
+    return postTool("post-native-tool", tool, input, outputBytes);
   if (tool) return postTool("post-native-tool", tool, input, outputBytes);
   return null;
 }
@@ -195,7 +218,10 @@ function postBash(input, outputBytes) {
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === "search") {
-    return postSearch({ ...searchFromBashCommand(command), result_bytes: outputBytes });
+    return postSearch({
+      ...searchFromBashCommand(command),
+      result_bytes: outputBytes
+    });
   }
   return postTool("post-native-tool", "Bash", input, outputBytes);
 }
@@ -206,7 +232,11 @@ function classifyBashCommand(command) {
     return { kind: "search", confidence: "high", reason: `${first} command` };
   }
   if (/^(cat|head|tail|nl|wc)\b/.test(first) || /^sed\s+-n\b/.test(normalized)) {
-    return { kind: "read", confidence: "high", reason: `${first || "sed -n"} command` };
+    return {
+      kind: "read",
+      confidence: "high",
+      reason: `${first || "sed -n"} command`
+    };
   }
   if (/^(dotnet\s+test|npm\s+test|make\s+test)\b/.test(normalized)) {
     return { kind: "verify", confidence: "high", reason: "test command" };
@@ -215,9 +245,17 @@ function classifyBashCommand(command) {
     return { kind: "build", confidence: "high", reason: "build command" };
   }
   if (/^git\s+(status|diff|log|show)\b/.test(normalized)) {
-    return { kind: "vcs-inspect", confidence: "high", reason: "git inspection command" };
+    return {
+      kind: "vcs-inspect",
+      confidence: "high",
+      reason: "git inspection command"
+    };
   }
-  return { kind: "unknown", confidence: "low", reason: "no classifier matched" };
+  return {
+    kind: "unknown",
+    confidence: "low",
+    reason: "no classifier matched"
+  };
 }
 function commandFromInput(input) {
   return typeof input.command === "string" ? input.command : "";
@@ -237,7 +275,9 @@ function outputLength(output) {
 function pathsFromPatchCommand(command) {
   const paths = /* @__PURE__ */ new Set();
   for (const line of command.split("\n")) {
-    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(line.trim());
+    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(
+      line.trim()
+    );
     if (!match) continue;
     const path = match[1].trim();
     if (path && path !== "/dev/null") paths.add(path);
@@ -290,7 +330,8 @@ function readPathFromBashCommand(command) {
   if (!tool) return void 0;
   const candidates = args.slice(1).filter((arg) => !arg.startsWith("-") && !/^\d+,\d+p$/.test(arg));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index])) return candidates[index];
+    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index]))
+      return candidates[index];
   }
   return void 0;
 }

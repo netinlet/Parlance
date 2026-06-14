@@ -1,8 +1,8 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { parlanceDir } from '@parlance/agent-core/storage/paths.js';
-import { classifyBashCommand, commandFromInput } from './translate.js';
 import type { BashClassification, CodexHookEnvelope } from './translate.js';
+import { classifyBashCommand, commandFromInput } from './translate.js';
 
 const MAX_PREVIEW_CHARS = 1000;
 
@@ -35,7 +35,11 @@ export function appendBashEvent(root: string, record: CodexBashEvent): void {
   appendFileSync(path, `${JSON.stringify(record)}\n`);
 }
 
-export function bashEventFromEnvelope(env: CodexHookEnvelope, phase: BashEventPhase, now = new Date()): CodexBashEvent | null {
+export function bashEventFromEnvelope(
+  env: CodexHookEnvelope,
+  phase: BashEventPhase,
+  now = new Date(),
+): CodexBashEvent | null {
   if (env.tool_name !== 'Bash') return null;
 
   const input = env.tool_input ?? {};
@@ -56,10 +60,14 @@ export function bashEventFromEnvelope(env: CodexHookEnvelope, phase: BashEventPh
 
   if (phase === 'post') {
     const output = extractOutput(env.tool_response);
-    if (typeof output.exit_code === 'number') record.exit_code = output.exit_code;
-    if (typeof output.output_bytes === 'number') record.output_bytes = output.output_bytes;
+    if (typeof output.exit_code === 'number')
+      record.exit_code = output.exit_code;
+    if (typeof output.output_bytes === 'number')
+      record.output_bytes = output.output_bytes;
     if (output.preview) {
-      const previewRedaction = redact(truncate(output.preview, MAX_PREVIEW_CHARS));
+      const previewRedaction = redact(
+        truncate(output.preview, MAX_PREVIEW_CHARS),
+      );
       record.output_preview = previewRedaction.value;
       record.redacted ||= previewRedaction.redacted;
     }
@@ -93,7 +101,11 @@ export function redact(value: string): { value: string; redacted: boolean } {
   return { value: next, redacted };
 }
 
-function extractOutput(output: unknown): { exit_code?: number; output_bytes?: number; preview?: string } {
+function extractOutput(output: unknown): {
+  exit_code?: number;
+  output_bytes?: number;
+  preview?: string;
+} {
   if (typeof output === 'string') {
     return { output_bytes: output.length, preview: output };
   }
@@ -104,11 +116,12 @@ function extractOutput(output: unknown): { exit_code?: number; output_bytes?: nu
   const stderr = typeof record.stderr === 'string' ? record.stderr : '';
   const content = typeof record.content === 'string' ? record.content : '';
   const outputText = stdout || stderr ? `${stdout}${stderr}` : content;
-  const exit_code = typeof record.exit_code === 'number'
-    ? record.exit_code
-    : typeof record.exitCode === 'number'
-      ? record.exitCode
-      : undefined;
+  const exit_code =
+    typeof record.exit_code === 'number'
+      ? record.exit_code
+      : typeof record.exitCode === 'number'
+        ? record.exitCode
+        : undefined;
 
   return {
     exit_code,

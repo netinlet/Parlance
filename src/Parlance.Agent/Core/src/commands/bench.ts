@@ -43,15 +43,17 @@ export async function runBench(argv: string[]): Promise<number> {
   lines.push('-'.repeat(78));
   for (const record of records) {
     const durationS = Math.round(
-      (new Date(record.ended_at).getTime() - new Date(record.started_at).getTime()) / 1000,
+      (new Date(record.ended_at).getTime() -
+        new Date(record.started_at).getTime()) /
+        1000,
     );
     lines.push(
-      record.variant.padEnd(14)
-      + record.adapter.padEnd(14)
-      + record.usage.input_tokens.toLocaleString().padStart(12)
-      + record.usage.output_tokens.toLocaleString().padStart(12)
-      + record.usage.cache_read_tokens.toLocaleString().padStart(14)
-      + `${durationS}s`.padStart(12),
+      record.variant.padEnd(14) +
+        record.adapter.padEnd(14) +
+        record.usage.input_tokens.toLocaleString().padStart(12) +
+        record.usage.output_tokens.toLocaleString().padStart(12) +
+        record.usage.cache_read_tokens.toLocaleString().padStart(14) +
+        `${durationS}s`.padStart(12),
     );
   }
 

@@ -5,7 +5,5 @@
     "declarationDir": "out-dts",
     "emitDeclarationOnly": true
   },
-  "include": [
-    "src/**/*.ts"
-  ]
+  "include": ["src/**/*.ts"]
 }

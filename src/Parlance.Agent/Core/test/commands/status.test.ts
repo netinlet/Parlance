@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runStatus } from '../../src/commands/status.js';
 
 let root: string;
@@ -13,8 +13,14 @@ beforeEach(() => {
   process.env.PARLANCE_HOME = join(root, 'central');
   mkdirSync(join(root, '.parlance'), { recursive: true });
   mkdirSync(join(root, 'central/telemetry'), { recursive: true });
-  writeFileSync(join(root, 'central/telemetry/ledger.jsonl'), `${JSON.stringify({ session_id: 'abc' })}\n`);
-  writeFileSync(join(root, 'central/telemetry/session-log.md'), '- 2026-04-22 `abc` (claude-code)\n');
+  writeFileSync(
+    join(root, 'central/telemetry/ledger.jsonl'),
+    `${JSON.stringify({ session_id: 'abc' })}\n`,
+  );
+  writeFileSync(
+    join(root, 'central/telemetry/session-log.md'),
+    '- 2026-04-22 `abc` (claude-code)\n',
+  );
   out = '';
   vi.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
     out += String(chunk);

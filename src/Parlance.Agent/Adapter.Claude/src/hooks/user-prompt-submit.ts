@@ -1,7 +1,19 @@
-import { appendFileSync, existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
-import { benchResultsFile, benchStateFile } from '@parlance/agent-core/storage/paths.js';
-import { readSessionState, writeSessionState } from '@parlance/agent-core/storage/session-state.js';
+import {
+  benchResultsFile,
+  benchStateFile,
+} from '@parlance/agent-core/storage/paths.js';
+import {
+  readSessionState,
+  writeSessionState,
+} from '@parlance/agent-core/storage/session-state.js';
 import { aggregateUsageBetween, parseTranscript } from '../transcript.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
@@ -23,7 +35,10 @@ async function main(): Promise<void> {
     if (action === 'start' && parts[3] && parts[4]) {
       startBench(translated.context.project_root, parts[3], parts[4]);
     } else if (action === 'end') {
-      endBench(translated.context.project_root, translated.transcript_path ?? null);
+      endBench(
+        translated.context.project_root,
+        translated.transcript_path ?? null,
+      );
     } else {
       return;
     }
@@ -67,7 +82,11 @@ function endBench(root: string, transcriptPath: string | null): void {
   if (path) {
     const parsed = parseTranscript(path);
     if (parsed) {
-      usage = aggregateUsageBetween(parsed.records, state.active_bench.started_at, endedAt);
+      usage = aggregateUsageBetween(
+        parsed.records,
+        state.active_bench.started_at,
+        endedAt,
+      );
     }
   }
 

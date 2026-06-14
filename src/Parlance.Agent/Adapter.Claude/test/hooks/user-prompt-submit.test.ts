@@ -1,11 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-const hook = fileURLToPath(new URL('../../dist/hooks/user-prompt-submit.js', import.meta.url));
+const hook = fileURLToPath(
+  new URL('../../dist/hooks/user-prompt-submit.js', import.meta.url),
+);
 
 let root: string;
 let central: string;
@@ -17,19 +27,22 @@ beforeEach(() => {
   transcript = join(root, 'transcript.jsonl');
   writeFileSync(transcript, '');
   mkdirSync(join(root, '.parlance'), { recursive: true });
-  writeFileSync(join(root, '.parlance/_session.json'), JSON.stringify({
-    session_id: 's1',
-    adapter: 'claude-code',
-    started_at: '2026-04-22T14:30:00Z',
-    cwd: root,
-    transcript_ref: transcript,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null,
-  }));
+  writeFileSync(
+    join(root, '.parlance/_session.json'),
+    JSON.stringify({
+      session_id: 's1',
+      adapter: 'claude-code',
+      started_at: '2026-04-22T14:30:00Z',
+      cwd: root,
+      transcript_ref: transcript,
+      parlance_calls: 0,
+      native_fallbacks: 0,
+      tool_calls: [],
+      read_tokens: 0,
+      write_tokens: 0,
+      active_bench: null,
+    }),
+  );
 });
 
 afterEach(() => {
@@ -51,25 +64,30 @@ function run(prompt: string): void {
 }
 
 function appendUsageRecord(): void {
-  appendFileSync(transcript, `${JSON.stringify({
-    type: 'assistant',
-    timestamp: new Date().toISOString(),
-    message: {
-      usage: {
-        input_tokens: 1200,
-        output_tokens: 400,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens: 0,
+  appendFileSync(
+    transcript,
+    `${JSON.stringify({
+      type: 'assistant',
+      timestamp: new Date().toISOString(),
+      message: {
+        usage: {
+          input_tokens: 1200,
+          output_tokens: 400,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
       },
-    },
-  })}\n`);
+    })}\n`,
+  );
 }
 
 describe('user-prompt-submit hook', () => {
   it('/parlance bench start sets active_bench', () => {
     run('/parlance bench start taskA grep');
 
-    const state = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
+    const state = JSON.parse(
+      readFileSync(join(root, '.parlance/_session.json'), 'utf8'),
+    );
     expect(state.active_bench?.task_id).toBe('taskA');
     expect(state.active_bench?.variant).toBe('grep');
   });
@@ -79,7 +97,12 @@ describe('user-prompt-submit hook', () => {
     appendUsageRecord();
     run('/parlance bench end');
 
-    const lines = readFileSync(join(central, 'telemetry/bench/results.jsonl'), 'utf8').trim().split('\n');
+    const lines = readFileSync(
+      join(central, 'telemetry/bench/results.jsonl'),
+      'utf8',
+    )
+      .trim()
+      .split('\n');
     expect(lines).toHaveLength(1);
     const record = JSON.parse(lines[0]);
     expect(record.task_id).toBe('taskA');
@@ -87,15 +110,21 @@ describe('user-prompt-submit hook', () => {
     expect(record.adapter).toBe('claude-code');
     expect(record.usage.input_tokens).toBe(1200);
 
-    const state = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
+    const state = JSON.parse(
+      readFileSync(join(root, '.parlance/_session.json'), 'utf8'),
+    );
     expect(state.active_bench).toBeNull();
   });
 
   it('non-parlance prompt is ignored', () => {
     run('just write some code please');
 
-    const state = JSON.parse(readFileSync(join(root, '.parlance/_session.json'), 'utf8'));
+    const state = JSON.parse(
+      readFileSync(join(root, '.parlance/_session.json'), 'utf8'),
+    );
     expect(state.active_bench).toBeNull();
-    expect(existsSync(join(central, 'telemetry/bench/results.jsonl'))).toBe(false);
+    expect(existsSync(join(central, 'telemetry/bench/results.jsonl'))).toBe(
+      false,
+    );
   });
 });

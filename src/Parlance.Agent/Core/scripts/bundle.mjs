@@ -1,7 +1,7 @@
-import { build } from 'esbuild';
 import { existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const distDir = join(root, 'dist');

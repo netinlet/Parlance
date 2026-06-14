@@ -9,12 +9,37 @@ const RATIOS: Record<ContentKind, number> = {
 };
 
 const CODE_EXTENSIONS = new Set([
-  '.cs', '.csproj', '.sln', '.slnx', '.props', '.targets',
-  '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs',
-  '.py', '.go', '.rs', '.java', '.kt', '.swift',
-  '.c', '.cpp', '.h', '.hpp',
-  '.sh', '.bash', '.zsh', '.ps1',
-  '.json', '.yaml', '.yml', '.xml', '.toml',
+  '.cs',
+  '.csproj',
+  '.sln',
+  '.slnx',
+  '.props',
+  '.targets',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.go',
+  '.rs',
+  '.java',
+  '.kt',
+  '.swift',
+  '.c',
+  '.cpp',
+  '.h',
+  '.hpp',
+  '.sh',
+  '.bash',
+  '.zsh',
+  '.ps1',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.xml',
+  '.toml',
 ]);
 
 const PROSE_EXTENSIONS = new Set(['.md', '.txt', '.rst', '.adoc']);
@@ -24,7 +49,10 @@ export function estimateTokens(content: string, kind: ContentKind): number {
   return estimateTokensFromLength(content.length, kind);
 }
 
-export function estimateTokensFromLength(length: number, kind: ContentKind): number {
+export function estimateTokensFromLength(
+  length: number,
+  kind: ContentKind,
+): number {
   if (length <= 0) return 0;
   return Math.round(length / RATIOS[kind]);
 }

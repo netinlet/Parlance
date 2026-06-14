@@ -24,13 +24,15 @@ async function main(): Promise<void> {
 }
 
 function help(): void {
-  process.stderr.write([
-    'usage: parlance-agent-codex <install|uninstall> [args]',
-    '  install --solution <path> [--project <dir>]',
-    '  install --global',
-    '  uninstall [--project <dir>] [--purge]',
-    '',
-  ].join('\n'));
+  process.stderr.write(
+    [
+      'usage: parlance-agent-codex <install|uninstall> [args]',
+      '  install --solution <path> [--project <dir>]',
+      '  install --global',
+      '  uninstall [--project <dir>] [--purge]',
+      '',
+    ].join('\n'),
+  );
 }
 
 void main();

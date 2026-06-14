@@ -64,7 +64,11 @@ export interface SearchEvent extends BaseEvent {
 }
 
 export interface ToolEvent extends BaseEvent {
-  kind: 'pre-native-tool' | 'post-native-tool' | 'pre-mcp-tool' | 'post-mcp-tool';
+  kind:
+    | 'pre-native-tool'
+    | 'post-native-tool'
+    | 'pre-mcp-tool'
+    | 'post-mcp-tool';
   tool_name: string;
   input: Record<string, unknown>;
   output_bytes?: number;

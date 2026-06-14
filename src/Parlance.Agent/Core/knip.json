@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/cli.ts",
+    "src/api.ts",
+    "src/storage/paths.ts",
+    "src/storage/session-state.ts"
+  ],
+  "project": ["src/**/*.ts"]
+}
