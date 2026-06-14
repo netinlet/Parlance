@@ -34,6 +34,6 @@ Key mappings:
 
 When you fall back to a native tool, you **must**:
 1. Note in your response: which native tool, what you needed, why Parlance didn't cover it
-2. Dispatch the `dogfooding-feedback` agent in the background to log the gap
+2. Invoke the `dogfooding-feedback` skill to log the gap as a note in the Obsidian dogfooding vault folder
 
 Every fallback is a potential Parlance improvement. Treat it as signal, not noise.

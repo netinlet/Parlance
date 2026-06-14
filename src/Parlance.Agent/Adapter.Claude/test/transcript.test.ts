@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
 import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
 import { aggregateUsageBetween, parseTranscript } from '../src/transcript.js';
 
-const fixture = fileURLToPath(new URL('./fixtures/transcript-sample.jsonl', import.meta.url));
+const fixture = fileURLToPath(
+  new URL('./fixtures/transcript-sample.jsonl', import.meta.url),
+);
 
 describe('transcript', () => {
   it('parses transcript records and branch', () => {
@@ -22,7 +24,11 @@ describe('transcript', () => {
 
   it('aggregates usage within a time window', () => {
     const parsed = parseTranscript(fixture)!;
-    const usage = aggregateUsageBetween(parsed.records, '2026-04-22T14:30:15Z', '2026-04-22T14:31:00Z');
+    const usage = aggregateUsageBetween(
+      parsed.records,
+      '2026-04-22T14:30:15Z',
+      '2026-04-22T14:31:00Z',
+    );
     expect(usage.input_tokens).toBe(1200);
     expect(usage.output_tokens).toBe(400);
   });

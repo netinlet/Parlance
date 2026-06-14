@@ -24,12 +24,15 @@ async function main(): Promise<void> {
 }
 
 function help(): void {
-  process.stderr.write([
-    'usage: parlance-agent-claude <install|uninstall> [args]',
-    '  install --solution <path> [--project <dir>]',
-    '  uninstall [--project <dir>] [--purge]',
-    '',
-  ].join('\n'));
+  process.stderr.write(
+    [
+      'usage: parlance-agent-claude <install|uninstall> [args]',
+      '  install --solution <path> [--project <dir>]   per-project: hooks + MCP + telemetry',
+      '  install --global                              once: wire the nudge-only reminder into ~/.claude/settings.json',
+      '  uninstall [--project <dir>] [--purge]',
+      '',
+    ].join('\n'),
+  );
 }
 
 void main();

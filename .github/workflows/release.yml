@@ -1,0 +1,82 @@
+name: Release
+
+# Auto-tag + GitHub Release on merge to main.
+#
+# On every PR merged into main, compute the next PATCH version from the highest
+# existing v* tag, create an annotated tag on the merge commit, and publish a
+# GitHub Release with auto-generated notes. MinVer (see Directory.Build.props)
+# then derives the build version from the new tag.
+#
+# Bump policy: always patch. Minor/major are reserved for manual tags — because
+# the next version is computed from the *highest* existing tag, a hand-cut
+# v0.3.0 makes the next auto-merge produce v0.3.1.
+#
+# Future tool publishing (e.g. `make pack-tool` -> NuGet) should be added as a
+# separate job in THIS workflow gated on `needs: [tag]`. Tags/releases created
+# with GITHUB_TOKEN do not trigger other workflows (anti-recursion), so chaining
+# via a separate `on: release` / `on: push: tags` workflow would silently never
+# fire.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag + Release
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Compute next patch version
+        id: version
+        run: |
+          latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          if [ -z "$latest" ]; then
+            latest="v0.0.0"
+          fi
+          echo "Latest tag: $latest"
+          version="${latest#v}"
+          major="${version%%.*}"
+          rest="${version#*.}"
+          minor="${rest%%.*}"
+          patch="${rest##*.}"
+          patch=$((patch + 1))
+          next="v${major}.${minor}.${patch}"
+          echo "Next tag: $next"
+          echo "next=$next" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        env:
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          NEXT: ${{ steps.version.outputs.next }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEXT" "$SHA" -m "Release $NEXT (#${PR_NUMBER}: ${PR_TITLE})"
+          git push origin "$NEXT"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          NEXT: ${{ steps.version.outputs.next }}
+        run: |
+          gh release create "$NEXT" \
+            --target "$SHA" \
+            --title "$NEXT" \
+            --generate-notes

@@ -1,5 +1,197 @@
 #!/usr/bin/env node
 
+// ../Core/src/storage/paths.ts
+import { join } from "node:path";
+var parlanceDir = (root) => join(root, ".parlance");
+var sessionFile = (root) => join(parlanceDir(root), "_session.json");
+
+// ../Core/src/policy/routing.ts
+var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
+var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
+}
+function matchRoutingRule(event) {
+  if (event.kind === "pre-read") {
+    if (!CS_FILE_PATTERN.test(event.path)) return null;
+    return {
+      suggested_tool: "mcp__parlance__describe-type",
+      message: "Use Parlance MCP tools before reading C# source directly.",
+      reason: `pre-read on C# path ${event.path}`
+    };
+  }
+  if (event.kind === "pre-search") {
+    const hasCsType = event.file_type?.toLowerCase() === "cs";
+    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
+    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
+    const softSrcPath = event.path?.includes("/src/") ?? false;
+    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
+    return {
+      suggested_tool: "mcp__parlance__search-symbols",
+      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
+      reason: `pre-search for C# intent (${event.pattern})`
+    };
+  }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
+  }
+  return null;
+}
+
+// ../Core/src/commands/routing-doc.ts
+function generateRoutingDoc() {
+  const samples = [
+    { kind: "pre-read", at: "", path: "Foo.cs" },
+    {
+      kind: "pre-search",
+      at: "",
+      pattern: "x",
+      file_type: "cs"
+    },
+    {
+      kind: "pre-search",
+      at: "",
+      pattern: "x",
+      glob: "**/*.cs"
+    },
+    {
+      kind: "pre-search",
+      at: "",
+      pattern: "x",
+      path: "/proj/src/sub"
+    },
+    {
+      kind: "pre-native-tool",
+      at: "",
+      tool_name: "Bash",
+      input: { command: "grep -rn Foo --include=*.cs" }
+    }
+  ];
+  const lines = [
+    "# Parlance Tool Routing",
+    "",
+    "Generated from agent-core routing rules.",
+    ""
+  ];
+  for (const event of samples) {
+    const hit = matchRoutingRule(event);
+    if (!hit) continue;
+    lines.push(`## ${describe(event)}`);
+    lines.push(`- **Suggested:** \`${hit.suggested_tool}\``);
+    lines.push(`- ${hit.message}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+function generateSessionContext() {
+  return [
+    "Parlance MCP code-intelligence tools are available in this workspace.",
+    "Prefer them over native Read/Grep/Glob when working with C# code.",
+    "",
+    generateRoutingDoc()
+  ].join("\n");
+}
+function describe(event) {
+  if (event.kind === "pre-read") return "Reading a C# file";
+  if (event.kind === "pre-search" && event.file_type === "cs")
+    return "Searching with type=cs";
+  if (event.kind === "pre-search" && event.glob?.includes(".cs"))
+    return "Searching with C# glob";
+  if (event.kind === "pre-search") return "Searching under /src/ (no filter)";
+  if (event.kind === "pre-native-tool") return "grep/find/cat over C# in bash";
+  return event.kind;
+}
+
+// ../Core/src/discovery.ts
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join as join2 } from "node:path";
+function findSolution(root) {
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    return null;
+  }
+  return entries.find((e) => /\.slnx$/i.test(e)) ?? entries.find((e) => /\.sln$/i.test(e)) ?? null;
+}
+var csharpCache = /* @__PURE__ */ new Map();
+function looksLikeCsharp(root) {
+  const cached = csharpCache.get(root);
+  if (cached !== void 0) return cached;
+  let entries;
+  try {
+    entries = readdirSync(root);
+  } catch {
+    csharpCache.set(root, false);
+    return false;
+  }
+  const csAtRoot = entries.some(
+    (e) => /\.(slnx|sln|csproj)$/i.test(e) || e === "Directory.Build.props"
+  );
+  if (csAtRoot) {
+    csharpCache.set(root, true);
+    return true;
+  }
+  try {
+    const result = readdirSync(join2(root, "src")).some(
+      (e) => /\.csproj$/i.test(e)
+    );
+    csharpCache.set(root, result);
+    return result;
+  } catch {
+    csharpCache.set(root, false);
+    return false;
+  }
+}
+function parlanceMcpWired(root) {
+  try {
+    const config = JSON.parse(
+      readFileSync(join2(root, ".mcp.json"), "utf8")
+    );
+    return Boolean(config.mcpServers && "parlance" in config.mcpServers);
+  } catch {
+    return false;
+  }
+}
+function parlanceAgentInstalled(root) {
+  return parlanceMcpWired(root) || existsSync(join2(root, ".parlance", "hooks", "session-start.js"));
+}
+function planSessionStart(root, wiredFn = parlanceAgentInstalled) {
+  if (wiredFn(root)) {
+    return { kind: "wired", context: generateSessionContext() };
+  }
+  if (looksLikeCsharp(root)) {
+    const target = findSolution(root) ?? "<YourSolution.slnx>";
+    return {
+      kind: "suggest-install",
+      context: [
+        "This looks like a C# project, but the Parlance MCP server is not wired here \u2014",
+        "so there is no Parlance code intelligence and this session is not being tracked.",
+        `To enable it, run:  parlance agent install --solution ${target}`
+      ].join("\n")
+    };
+  }
+  return { kind: "idle" };
+}
+
 // ../Core/src/events.ts
 var now = () => (/* @__PURE__ */ new Date()).toISOString();
 var sessionStarted = (transcriptRef) => ({
@@ -12,14 +204,22 @@ var taskReceived = (prompt) => ({
   at: now(),
   prompt
 });
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
 var postRead = (path, bytes) => ({
   kind: "post-read",
   at: now(),
   path,
   content_bytes: bytes
 });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
 var postWrite = (path, bytes) => ({
   kind: "post-write",
   at: now(),
@@ -72,13 +272,14 @@ function emptySessionState(ctx, transcript_ref) {
   };
 }
 
-// ../Core/src/storage/paths.ts
-import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync as existsSync2,
+  mkdirSync,
+  readFileSync as readFileSync2,
+  writeFileSync
+} from "node:fs";
 import { dirname } from "node:path";
 function writeSessionState(root, state) {
   const path = sessionFile(root);
@@ -107,9 +308,22 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
+
+// src/render.ts
+function writeContextOutput(additionalContext, write = (s) => process.stdout.write(s)) {
+  write(
+    `${JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: "SessionStart",
+        additionalContext
+      }
+    })}
+`
+  );
+}
 
 // src/translate.ts
 function translate(env) {
@@ -123,9 +337,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -141,10 +363,13 @@ function translate(env) {
 function fromPre(env) {
   const tool = env.tool_name ?? "";
   const input = env.tool_input ?? {};
-  if (tool === "Read" && typeof input.file_path === "string") return preRead(input.file_path);
-  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") return preWrite(input.file_path);
+  if (tool === "Read" && typeof input.file_path === "string")
+    return preRead(input.file_path);
+  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string")
+    return preWrite(input.file_path);
   if (tool === "Grep" || tool === "Glob") return searchEvent(tool, input, true);
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
 }
@@ -153,14 +378,34 @@ function fromPost(env) {
   const input = env.tool_input ?? {};
   const output = env.tool_response ?? {};
   if (tool === "Read" && typeof input.file_path === "string") {
-    return postRead(input.file_path, typeof output.content === "string" ? output.content.length : 0);
+    return postRead(
+      input.file_path,
+      typeof output.content === "string" ? output.content.length : 0
+    );
   }
   if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") {
     return postWrite(input.file_path, contentLength(input.content));
   }
-  if (tool === "Grep" || tool === "Glob") return searchEvent(tool, { ...input, result_bytes: contentLength(output.content) }, false);
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, contentLength(output.content));
-  if (tool) return postTool("post-native-tool", tool, input, contentLength(output.content));
+  if (tool === "Grep" || tool === "Glob")
+    return searchEvent(
+      tool,
+      { ...input, result_bytes: contentLength(output.content) },
+      false
+    );
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool(
+      "post-mcp-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
+  if (tool)
+    return postTool(
+      "post-native-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
   return null;
 }
 function searchEvent(tool, input, isPre) {
@@ -171,7 +416,12 @@ function searchEvent(tool, input, isPre) {
     file_type: typeof input.type === "string" ? input.type : void 0,
     result_bytes: typeof input.result_bytes === "number" ? input.result_bytes : void 0
   };
-  return isPre ? preSearch({ pattern: event.pattern, path: event.path, glob: event.glob, file_type: event.file_type }) : postSearch(event);
+  return isPre ? preSearch({
+    pattern: event.pattern,
+    path: event.path,
+    glob: event.glob,
+    file_type: event.file_type
+  }) : postSearch(event);
 }
 function contentLength(value) {
   return typeof value === "string" ? value.length : 0;
@@ -193,10 +443,16 @@ async function main() {
     const env = JSON.parse(raw);
     const translated = translate(env);
     if (!translated || translated.event.kind !== "session-started") return;
-    writeSessionState(
-      translated.context.project_root,
-      emptySessionState(translated.context, translated.transcript_path)
-    );
+    const plan = planSessionStart(translated.context.project_root);
+    if (plan.kind === "wired") {
+      writeSessionState(
+        translated.context.project_root,
+        emptySessionState(translated.context, translated.transcript_path)
+      );
+    }
+    if (plan.kind !== "idle" && capabilities.outputs.can_inject_context) {
+      writeContextOutput(plan.context);
+    }
   } catch {
   }
 }

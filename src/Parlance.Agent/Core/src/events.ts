@@ -9,7 +9,9 @@ import type {
 
 export const now = (): string => new Date().toISOString();
 
-export const sessionStarted = (transcriptRef?: string): SessionStartedEvent => ({
+export const sessionStarted = (
+  transcriptRef?: string,
+): SessionStartedEvent => ({
   kind: 'session-started',
   at: now(),
   transcript_ref: transcriptRef,
@@ -21,7 +23,11 @@ export const taskReceived = (prompt: string): TaskReceivedEvent => ({
   prompt,
 });
 
-export const preRead = (path: string): FileEvent => ({ kind: 'pre-read', at: now(), path });
+export const preRead = (path: string): FileEvent => ({
+  kind: 'pre-read',
+  at: now(),
+  path,
+});
 export const postRead = (path: string, bytes: number): FileEvent => ({
   kind: 'post-read',
   at: now(),
@@ -29,7 +35,11 @@ export const postRead = (path: string, bytes: number): FileEvent => ({
   content_bytes: bytes,
 });
 
-export const preWrite = (path: string): FileEvent => ({ kind: 'pre-write', at: now(), path });
+export const preWrite = (path: string): FileEvent => ({
+  kind: 'pre-write',
+  at: now(),
+  path,
+});
 export const postWrite = (path: string, bytes: number): FileEvent => ({
   kind: 'post-write',
   at: now(),
@@ -37,13 +47,17 @@ export const postWrite = (path: string, bytes: number): FileEvent => ({
   content_bytes: bytes,
 });
 
-export const preSearch = (event: Omit<SearchEvent, 'kind' | 'at' | 'result_bytes'>): SearchEvent => ({
+export const preSearch = (
+  event: Omit<SearchEvent, 'kind' | 'at' | 'result_bytes'>,
+): SearchEvent => ({
   kind: 'pre-search',
   at: now(),
   ...event,
 });
 
-export const postSearch = (event: Omit<SearchEvent, 'kind' | 'at'>): SearchEvent => ({
+export const postSearch = (
+  event: Omit<SearchEvent, 'kind' | 'at'>,
+): SearchEvent => ({
   kind: 'post-search',
   at: now(),
   ...event,
@@ -73,7 +87,9 @@ export const postTool = (
   output_bytes: bytes,
 });
 
-export const responseCompleted = (usage?: ResponseCompletedEvent['usage']): ResponseCompletedEvent => ({
+export const responseCompleted = (
+  usage?: ResponseCompletedEvent['usage'],
+): ResponseCompletedEvent => ({
   kind: 'response-completed',
   at: now(),
   usage,

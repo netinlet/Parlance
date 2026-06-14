@@ -1,18 +1,28 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { appendToolUsageRecord, persistSessionSummary, readSessionState, writeSessionState } from '../../src/storage/session-state.js';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ledgerFile, sessionFile } from '../../src/storage/paths.js';
+import {
+  appendToolUsageRecord,
+  persistSessionSummary,
+  readSessionState,
+  toolBreakdown,
+  writeSessionState,
+} from '../../src/storage/session-state.js';
 
 let root: string;
+const originalHome = process.env.PARLANCE_HOME;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'core-session-state-'));
+  process.env.PARLANCE_HOME = join(root, 'central');
 });
 
 afterEach(() => {
   rmSync(root, { recursive: true, force: true });
+  if (originalHome === undefined) delete process.env.PARLANCE_HOME;
+  else process.env.PARLANCE_HOME = originalHome;
 });
 
 describe('session-state', () => {
@@ -95,11 +105,12 @@ describe('session-state', () => {
     expect(readSessionState(root)!.native_fallbacks).toBe(1);
   });
 
-  it('persistSessionSummary appends line to ledger.jsonl', () => {
-    persistSessionSummary(root, {
+  it('persistSessionSummary appends line to the central ledger.jsonl', () => {
+    persistSessionSummary({
       session_id: 's1',
       date: '2026-04-22',
       adapter: 'claude-code',
+      project: root,
       started_at: '2026-04-22T00:00:00Z',
       ended_at: '2026-04-22T00:10:00Z',
       duration_s: 600,
@@ -107,6 +118,7 @@ describe('session-state', () => {
       parlance_calls: 0,
       native_fallbacks: 1,
       tool_call_count: 1,
+      tool_breakdown: { Read: 1 },
       read_tokens: 200,
       write_tokens: 0,
       usage: {
@@ -117,14 +129,35 @@ describe('session-state', () => {
       },
     });
 
-    const entry = JSON.parse(readFileSync(ledgerFile(root), 'utf8').trim());
+    const entry = JSON.parse(readFileSync(ledgerFile(), 'utf8').trim());
     expect(entry.session_id).toBe('s1');
+    expect(entry.project).toBe(root);
+    expect(entry.tool_breakdown.Read).toBe(1);
     expect(entry.usage.input_tokens).toBe(1000);
-    expect(entry.read_tokens).toBe(200);
   });
 
   it('readSessionState returns null when no file', () => {
     expect(readSessionState(root)).toBeNull();
     expect(existsSync(sessionFile(root))).toBe(false);
+  });
+
+  it('toolBreakdown tallies calls per tool_name', () => {
+    const rec = (tool_name: string) => ({
+      at: '2026-04-22T00:00:00Z',
+      event_kind: 'post-native-tool' as const,
+      tool_name,
+      target: '',
+      is_mcp_parlance: tool_name.startsWith('mcp__parlance__'),
+      is_native_fallback: false,
+      output_tokens: 0,
+    });
+
+    expect(
+      toolBreakdown([
+        rec('Bash'),
+        rec('Bash'),
+        rec('mcp__parlance__describe-type'),
+      ]),
+    ).toEqual({ Bash: 2, 'mcp__parlance__describe-type': 1 });
   });
 });

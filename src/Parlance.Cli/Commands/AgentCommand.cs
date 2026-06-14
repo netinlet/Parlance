@@ -14,12 +14,17 @@ internal static class AgentCommand
 
         var adapterOption = new Option<string?>("--for") { Description = "Adapter name (claude, codex, ...)." };
 
+        var globalOption = new Option<bool>("--global") { Description = "Wire the nudge-only reminder at the user level (no --for required for claude)." };
+
         var install = new Command("install", "Install the adapter into its host.");
         install.Add(adapterOption);
+        install.Add(globalOption);
         install.Add(new Argument<string[]>("args") { Arity = ArgumentArity.ZeroOrMore });
         install.SetAction(async (parseResult, _) =>
         {
-            var adapter = parseResult.GetValue(adapterOption);
+            var isGlobal = parseResult.GetValue(globalOption);
+            var adapter = parseResult.GetValue(adapterOption) ?? (isGlobal ? "claude" : null);
+
             if (string.IsNullOrWhiteSpace(adapter))
             {
                 await Console.Error.WriteLineAsync("--for <adapter> required");
@@ -27,7 +32,11 @@ internal static class AgentCommand
                 return;
             }
 
-            Environment.ExitCode = await RunAdapterAsync(adapter, "install", GetPassthrough(parseResult));
+            var passthrough = isGlobal
+                ? ["--global", .. GetPassthrough(parseResult)]
+                : GetPassthrough(parseResult);
+
+            Environment.ExitCode = await RunAdapterAsync(adapter, "install", passthrough);
         });
 
         var uninstall = new Command("uninstall", "Uninstall the adapter.");

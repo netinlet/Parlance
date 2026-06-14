@@ -1,6 +1,7 @@
-import { emptySessionState } from '@parlance/agent-core';
+import { emptySessionState, planSessionStart } from '@parlance/agent-core';
 import { writeSessionState } from '@parlance/agent-core/storage/session-state.js';
-import { renderForCodex, writeCodexOutput } from '../render.js';
+import { capabilities } from '../capabilities.js';
+import { writeCodexOutput } from '../render.js';
 import { translate } from '../translate.js';
 import { readEnvelope } from './_shared.js';
 
@@ -9,11 +10,26 @@ async function main(): Promise<void> {
     const env = await readEnvelope();
     const translated = translate(env);
     if (!translated || translated.event.kind !== 'session-started') return;
-    writeSessionState(
-      translated.context.project_root,
-      emptySessionState(translated.context, translated.transcript_path),
-    );
-    writeCodexOutput(renderForCodex(env.hook_event_name, { guidance: [], effects: [], next_state: null }));
+
+    const plan = planSessionStart(translated.context.project_root);
+
+    // Only track where Parlance is actually wired — never litter unrelated repos.
+    if (plan.kind === 'wired') {
+      writeSessionState(
+        translated.context.project_root,
+        emptySessionState(translated.context, translated.transcript_path),
+      );
+    }
+
+    // Inject routing guidance (wired) or an install reminder (C# but unwired).
+    if (plan.kind !== 'idle' && capabilities.outputs.can_inject_context) {
+      writeCodexOutput({
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: plan.context,
+        },
+      });
+    }
   } catch {
     // never block the host
   }

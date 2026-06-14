@@ -2,20 +2,27 @@
 
 // src/hooks/stop.ts
 import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
-import { dirname as dirname2 } from "node:path";
-
-// ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname as dirname2 } from "node:path";
 
 // ../Core/src/storage/paths.ts
+import { homedir } from "node:os";
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
+var parlanceHome = () => process.env.PARLANCE_HOME?.trim() || join(homedir(), ".parlance");
+var telemetryDir = () => join(parlanceHome(), "telemetry");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-var ledgerFile = (root) => join(parlanceDir(root), "ledger.jsonl");
-var sessionLogFile = (root) => join(parlanceDir(root), "session-log.md");
+var ledgerFile = () => join(telemetryDir(), "ledger.jsonl");
+var sessionLogFile = () => join(telemetryDir(), "session-log.md");
 
 // ../Core/src/storage/session-state.ts
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
+import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
   if (!existsSync(path)) return null;
@@ -25,11 +32,19 @@ function readSessionState(root) {
     return null;
   }
 }
-function persistSessionSummary(root, summary) {
-  mkdirSync(dirname(ledgerFile(root)), { recursive: true });
-  appendFileSync(ledgerFile(root), `${JSON.stringify(summary)}
+function persistSessionSummary(summary) {
+  const path = ledgerFile();
+  mkdirSync(dirname(path), { recursive: true });
+  appendFileSync(path, `${JSON.stringify(summary)}
 `);
   return summary;
+}
+function toolBreakdown(records) {
+  const breakdown = {};
+  for (const record of records) {
+    breakdown[record.tool_name] = (breakdown[record.tool_name] ?? 0) + 1;
+  }
+  return breakdown;
 }
 
 // src/transcript.ts
@@ -43,22 +58,25 @@ function parseTranscript(path) {
 function aggregateUsageBetween(records, start, end) {
   const startMs = start ? Date.parse(start) : Number.NEGATIVE_INFINITY;
   const endMs = end ? Date.parse(end) : Number.POSITIVE_INFINITY;
-  return records.reduce((totals, record) => {
-    const ts = record.timestamp ? Date.parse(record.timestamp) : Number.NaN;
-    if (Number.isNaN(ts) || ts < startMs || ts > endMs) return totals;
-    const usage = record.message?.usage;
-    if (!usage) return totals;
-    totals.input_tokens += usage.input_tokens ?? 0;
-    totals.output_tokens += usage.output_tokens ?? 0;
-    totals.cache_read_tokens += usage.cache_read_input_tokens ?? 0;
-    totals.cache_write_tokens += usage.cache_creation_input_tokens ?? 0;
-    return totals;
-  }, {
-    input_tokens: 0,
-    output_tokens: 0,
-    cache_read_tokens: 0,
-    cache_write_tokens: 0
-  });
+  return records.reduce(
+    (totals, record) => {
+      const ts = record.timestamp ? Date.parse(record.timestamp) : Number.NaN;
+      if (Number.isNaN(ts) || ts < startMs || ts > endMs) return totals;
+      const usage = record.message?.usage;
+      if (!usage) return totals;
+      totals.input_tokens += usage.input_tokens ?? 0;
+      totals.output_tokens += usage.output_tokens ?? 0;
+      totals.cache_read_tokens += usage.cache_read_input_tokens ?? 0;
+      totals.cache_write_tokens += usage.cache_creation_input_tokens ?? 0;
+      return totals;
+    },
+    {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_read_tokens: 0,
+      cache_write_tokens: 0
+    }
+  );
 }
 
 // ../Core/src/events.ts
@@ -73,14 +91,22 @@ var taskReceived = (prompt) => ({
   at: now(),
   prompt
 });
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
 var postRead = (path, bytes) => ({
   kind: "post-read",
   at: now(),
   path,
   content_bytes: bytes
 });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
 var postWrite = (path, bytes) => ({
   kind: "post-write",
   at: now(),
@@ -137,7 +163,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 
@@ -153,9 +179,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -171,10 +205,13 @@ function translate(env) {
 function fromPre(env) {
   const tool = env.tool_name ?? "";
   const input = env.tool_input ?? {};
-  if (tool === "Read" && typeof input.file_path === "string") return preRead(input.file_path);
-  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") return preWrite(input.file_path);
+  if (tool === "Read" && typeof input.file_path === "string")
+    return preRead(input.file_path);
+  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string")
+    return preWrite(input.file_path);
   if (tool === "Grep" || tool === "Glob") return searchEvent(tool, input, true);
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
 }
@@ -183,14 +220,34 @@ function fromPost(env) {
   const input = env.tool_input ?? {};
   const output = env.tool_response ?? {};
   if (tool === "Read" && typeof input.file_path === "string") {
-    return postRead(input.file_path, typeof output.content === "string" ? output.content.length : 0);
+    return postRead(
+      input.file_path,
+      typeof output.content === "string" ? output.content.length : 0
+    );
   }
   if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") {
     return postWrite(input.file_path, contentLength(input.content));
   }
-  if (tool === "Grep" || tool === "Glob") return searchEvent(tool, { ...input, result_bytes: contentLength(output.content) }, false);
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, contentLength(output.content));
-  if (tool) return postTool("post-native-tool", tool, input, contentLength(output.content));
+  if (tool === "Grep" || tool === "Glob")
+    return searchEvent(
+      tool,
+      { ...input, result_bytes: contentLength(output.content) },
+      false
+    );
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool(
+      "post-mcp-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
+  if (tool)
+    return postTool(
+      "post-native-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
   return null;
 }
 function searchEvent(tool, input, isPre) {
@@ -201,7 +258,12 @@ function searchEvent(tool, input, isPre) {
     file_type: typeof input.type === "string" ? input.type : void 0,
     result_bytes: typeof input.result_bytes === "number" ? input.result_bytes : void 0
   };
-  return isPre ? preSearch({ pattern: event.pattern, path: event.path, glob: event.glob, file_type: event.file_type }) : postSearch(event);
+  return isPre ? preSearch({
+    pattern: event.pattern,
+    path: event.path,
+    glob: event.glob,
+    file_type: event.file_type
+  }) : postSearch(event);
 }
 function contentLength(value) {
   return typeof value === "string" ? value.length : 0;
@@ -242,10 +304,12 @@ async function main() {
     }
     const endedAt = /* @__PURE__ */ new Date();
     const startedAt = new Date(state.started_at);
-    const summary = persistSessionSummary(translated.context.project_root, {
+    const project = translated.context.project_root;
+    const summary = persistSessionSummary({
       session_id: state.session_id,
       date: endedAt.toISOString().slice(0, 10),
       adapter: state.adapter,
+      project,
       started_at: state.started_at,
       ended_at: endedAt.toISOString(),
       duration_s: Math.round((endedAt.getTime() - startedAt.getTime()) / 1e3),
@@ -253,13 +317,14 @@ async function main() {
       parlance_calls: state.parlance_calls,
       native_fallbacks: state.native_fallbacks,
       tool_call_count: state.tool_calls.length,
+      tool_breakdown: toolBreakdown(state.tool_calls),
       read_tokens: state.read_tokens,
       write_tokens: state.write_tokens,
       usage
     });
-    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) \u2014 ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
+    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` [${basename(project)}] (${summary.adapter}) \u2014 ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out
 `;
-    const logPath = sessionLogFile(translated.context.project_root);
+    const logPath = sessionLogFile();
     mkdirSync2(dirname2(logPath), { recursive: true });
     appendFileSync2(logPath, line);
   } catch {

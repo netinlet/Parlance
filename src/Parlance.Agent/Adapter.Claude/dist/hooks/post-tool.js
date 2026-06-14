@@ -1,5 +1,64 @@
 #!/usr/bin/env node
 
+// ../Core/src/storage/paths.ts
+import { join } from "node:path";
+var parlanceDir = (root) => join(root, ".parlance");
+var sessionFile = (root) => join(parlanceDir(root), "_session.json");
+
+// ../Core/src/policy/routing.ts
+var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
+var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
+function isParlanceTool(toolName) {
+  return toolName.startsWith("mcp__parlance__");
+}
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
+}
+function matchRoutingRule(event) {
+  if (event.kind === "pre-read") {
+    if (!CS_FILE_PATTERN.test(event.path)) return null;
+    return {
+      suggested_tool: "mcp__parlance__describe-type",
+      message: "Use Parlance MCP tools before reading C# source directly.",
+      reason: `pre-read on C# path ${event.path}`
+    };
+  }
+  if (event.kind === "pre-search") {
+    const hasCsType = event.file_type?.toLowerCase() === "cs";
+    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
+    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
+    const softSrcPath = event.path?.includes("/src/") ?? false;
+    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
+    return {
+      suggested_tool: "mcp__parlance__search-symbols",
+      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
+      reason: `pre-search for C# intent (${event.pattern})`
+    };
+  }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
+  }
+  return null;
+}
+
 // ../Core/src/events.ts
 var now = () => (/* @__PURE__ */ new Date()).toISOString();
 var sessionStarted = (transcriptRef) => ({
@@ -12,14 +71,22 @@ var taskReceived = (prompt) => ({
   at: now(),
   prompt
 });
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
 var postRead = (path, bytes) => ({
   kind: "post-read",
   at: now(),
   path,
   content_bytes: bytes
 });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
 var postWrite = (path, bytes) => ({
   kind: "post-write",
   at: now(),
@@ -66,87 +133,7 @@ function estimateTokensFromLength(length, kind) {
   return Math.round(length / RATIOS[kind]);
 }
 
-// ../Core/src/policy/routing.ts
-var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
-var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
-function isParlanceTool(toolName) {
-  return toolName.startsWith("mcp__parlance__");
-}
-function matchRoutingRule(event) {
-  if (event.kind === "pre-read") {
-    if (!CS_FILE_PATTERN.test(event.path)) return null;
-    return {
-      suggested_tool: "mcp__parlance__describe-type",
-      message: "Use Parlance MCP tools before reading C# source directly.",
-      reason: `pre-read on C# path ${event.path}`
-    };
-  }
-  if (event.kind === "pre-search") {
-    const hasCsType = event.file_type?.toLowerCase() === "cs";
-    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
-    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
-    const softSrcPath = event.path?.includes("/src/") ?? false;
-    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
-    return {
-      suggested_tool: "mcp__parlance__search-symbols",
-      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
-      reason: `pre-search for C# intent (${event.pattern})`
-    };
-  }
-  return null;
-}
-
-// ../Core/src/policy/fallback.ts
-function classifyFallback(event) {
-  const hit = matchRoutingRule(event);
-  if (!hit) return null;
-  return {
-    native_tool: toNativeKind(event),
-    intent: describeIntent(event),
-    suggested: hit.suggested_tool,
-    why: hit.reason
-  };
-}
-function toNativeKind(event) {
-  switch (event.kind) {
-    case "pre-read":
-    case "post-read":
-      return "read";
-    case "pre-write":
-    case "post-write":
-      return "write";
-    case "pre-search":
-    case "post-search":
-      return "search";
-    default:
-      return "other";
-  }
-}
-function describeIntent(event) {
-  if (event.kind === "pre-read") return `read ${event.path}`;
-  if (event.kind === "pre-write") return `write ${event.path}`;
-  if (event.kind === "pre-search") {
-    return `search ${event.pattern} (path=${event.path ?? ""} glob=${event.glob ?? ""} type=${event.file_type ?? ""})`;
-  }
-  return event.kind;
-}
-
 // ../Core/src/policy/evaluate.ts
-function emptySessionState(ctx, transcript_ref) {
-  return {
-    session_id: ctx.session_id,
-    adapter: ctx.adapter,
-    started_at: (/* @__PURE__ */ new Date()).toISOString(),
-    cwd: ctx.cwd,
-    transcript_ref,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null
-  };
-}
 function evaluateEvent(event, ctx, state) {
   const guidance = [];
   const effects = [];
@@ -160,21 +147,6 @@ function evaluateEvent(event, ctx, state) {
         suggested_tool: match.suggested_tool,
         reason: match.reason
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: "persist-feedback",
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id
-          }
-        });
-      }
     }
   }
   if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
@@ -223,25 +195,30 @@ function toUsageRecord(event) {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, "code")
+    output_tokens: estimateTokensFromLength(
+      toolEvent.output_bytes ?? 0,
+      "code"
+    )
   };
 }
 function flipToPre(event) {
   if (event.kind === "post-read") return { ...event, kind: "pre-read" };
   if (event.kind === "post-write") return { ...event, kind: "pre-write" };
   if (event.kind === "post-search") return { ...event, kind: "pre-search" };
-  if (event.kind === "post-native-tool") return { ...event, kind: "pre-native-tool" };
+  if (event.kind === "post-native-tool")
+    return { ...event, kind: "pre-native-tool" };
   if (event.kind === "post-mcp-tool") return { ...event, kind: "pre-mcp-tool" };
   return event;
 }
 
-// ../Core/src/storage/paths.ts
-import { join } from "node:path";
-var parlanceDir = (root) => join(root, ".parlance");
-var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
@@ -279,7 +256,7 @@ var capabilities = {
   outputs: {
     can_warn: true,
     can_block: false,
-    can_inject_context: false
+    can_inject_context: true
   }
 };
 
@@ -295,9 +272,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -313,10 +298,13 @@ function translate(env) {
 function fromPre(env) {
   const tool = env.tool_name ?? "";
   const input = env.tool_input ?? {};
-  if (tool === "Read" && typeof input.file_path === "string") return preRead(input.file_path);
-  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") return preWrite(input.file_path);
+  if (tool === "Read" && typeof input.file_path === "string")
+    return preRead(input.file_path);
+  if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string")
+    return preWrite(input.file_path);
   if (tool === "Grep" || tool === "Glob") return searchEvent(tool, input, true);
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
 }
@@ -325,14 +313,34 @@ function fromPost(env) {
   const input = env.tool_input ?? {};
   const output = env.tool_response ?? {};
   if (tool === "Read" && typeof input.file_path === "string") {
-    return postRead(input.file_path, typeof output.content === "string" ? output.content.length : 0);
+    return postRead(
+      input.file_path,
+      typeof output.content === "string" ? output.content.length : 0
+    );
   }
   if ((tool === "Write" || tool === "Edit" || tool === "MultiEdit") && typeof input.file_path === "string") {
     return postWrite(input.file_path, contentLength(input.content));
   }
-  if (tool === "Grep" || tool === "Glob") return searchEvent(tool, { ...input, result_bytes: contentLength(output.content) }, false);
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, contentLength(output.content));
-  if (tool) return postTool("post-native-tool", tool, input, contentLength(output.content));
+  if (tool === "Grep" || tool === "Glob")
+    return searchEvent(
+      tool,
+      { ...input, result_bytes: contentLength(output.content) },
+      false
+    );
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool(
+      "post-mcp-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
+  if (tool)
+    return postTool(
+      "post-native-tool",
+      tool,
+      input,
+      contentLength(output.content)
+    );
   return null;
 }
 function searchEvent(tool, input, isPre) {
@@ -343,7 +351,12 @@ function searchEvent(tool, input, isPre) {
     file_type: typeof input.type === "string" ? input.type : void 0,
     result_bytes: typeof input.result_bytes === "number" ? input.result_bytes : void 0
   };
-  return isPre ? preSearch({ pattern: event.pattern, path: event.path, glob: event.glob, file_type: event.file_type }) : postSearch(event);
+  return isPre ? preSearch({
+    pattern: event.pattern,
+    path: event.path,
+    glob: event.glob,
+    file_type: event.file_type
+  }) : postSearch(event);
 }
 function contentLength(value) {
   return typeof value === "string" ? value.length : 0;
@@ -365,8 +378,13 @@ async function main() {
     const env = JSON.parse(raw);
     const translated = translate(env);
     if (!translated) return;
-    const current = readSessionState(translated.context.project_root) ?? emptySessionState(translated.context, translated.transcript_path);
-    const evaluation = evaluateEvent(translated.event, translated.context, current);
+    const current = readSessionState(translated.context.project_root);
+    if (!current) return;
+    const evaluation = evaluateEvent(
+      translated.event,
+      translated.context,
+      current
+    );
     if (evaluation.next_state) {
       writeSessionState(translated.context.project_root, evaluation.next_state);
     }

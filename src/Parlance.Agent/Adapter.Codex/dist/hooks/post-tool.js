@@ -1,53 +1,62 @@
 #!/usr/bin/env node
 
-// ../Core/src/storage/kibble.ts
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { join as join2 } from "node:path";
-
 // ../Core/src/storage/paths.ts
 import { join } from "node:path";
 var parlanceDir = (root) => join(root, ".parlance");
 var sessionFile = (root) => join(parlanceDir(root), "_session.json");
-var kibbleDir = (root) => join(parlanceDir(root), "kibble");
 
-// ../Core/src/storage/kibble.ts
-function appendFeedbackRecord(root, record) {
-  const dayDir = join2(kibbleDir(root), record.date);
-  mkdirSync(dayDir, { recursive: true });
-  const existing = readdirSync(dayDir).filter((file) => file.endsWith(".md"));
-  for (const file of existing) {
-    const body2 = readFileSync(join2(dayDir, file), "utf8");
-    if (body2.includes(`**Native tool:** ${record.native_tool}`) && body2.includes(`**Intent:** ${record.intent}`)) {
-      return join2(dayDir, file);
-    }
-  }
-  const seq = String(existing.length + 1).padStart(3, "0");
-  const slug = slugify(`${record.native_tool}-${record.intent}`).slice(0, 40) || "entry";
-  const path = join2(dayDir, `${seq}-${slug}.md`);
-  const body = [
-    `# ${record.native_tool} fallback: ${record.intent}`,
-    "",
-    `**Date:** ${record.date}`,
-    `**Adapter:** ${record.adapter}`,
-    `**Session:** ${record.session_id}`,
-    `**Native tool:** ${record.native_tool}`,
-    `**Intent:** ${record.intent}`,
-    "",
-    "## Why Parlance did not cover it",
-    record.why,
-    "",
-    "## Suggested",
-    record.suggested || "Needs investigation",
-    "",
-    "## Session context",
-    record.session_context ?? "(none)",
-    ""
-  ].join("\n");
-  writeFileSync(path, body);
-  return path;
+// ../Core/src/policy/routing.ts
+var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
+var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
+var BASH_SEARCH_UTIL = /\b(grep|egrep|fgrep|rg|ag|ack|ripgrep)\b/;
+var BASH_READ_UTIL = /\b(cat|head|tail|less|more|bat)\b/;
+var BASH_FIND_UTIL = /\bfind\b/;
+var BASH_MENTIONS_CS = /\.(cs|csproj|sln|slnx|props|targets)\b|--include=[^\s]*\.cs|--type[ =]cs\b|-tcs\b|-g\s+["']?[^"'\s]*\.cs/i;
+function isParlanceTool(toolName) {
+  return toolName.startsWith("mcp__parlance__");
 }
-function slugify(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+function matchBashCodeIntel(command) {
+  const searches = BASH_SEARCH_UTIL.test(command) || BASH_FIND_UTIL.test(command);
+  const reads = BASH_READ_UTIL.test(command);
+  if (!(searches || reads)) return null;
+  if (!BASH_MENTIONS_CS.test(command)) return null;
+  const snippet = command.length > 60 ? `${command.slice(0, 60)}\u2026` : command;
+  return reads && !searches ? {
+    suggested_tool: "mcp__parlance__describe-type",
+    message: "Use Parlance MCP tools before cat/head-ing C# source in bash.",
+    reason: `bash read of C# (${snippet})`
+  } : {
+    suggested_tool: "mcp__parlance__search-symbols",
+    message: "Use Parlance symbol/search tools before grep/find on C# code in bash.",
+    reason: `bash search of C# (${snippet})`
+  };
+}
+function matchRoutingRule(event) {
+  if (event.kind === "pre-read") {
+    if (!CS_FILE_PATTERN.test(event.path)) return null;
+    return {
+      suggested_tool: "mcp__parlance__describe-type",
+      message: "Use Parlance MCP tools before reading C# source directly.",
+      reason: `pre-read on C# path ${event.path}`
+    };
+  }
+  if (event.kind === "pre-search") {
+    const hasCsType = event.file_type?.toLowerCase() === "cs";
+    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
+    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
+    const softSrcPath = event.path?.includes("/src/") ?? false;
+    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
+    return {
+      suggested_tool: "mcp__parlance__search-symbols",
+      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
+      reason: `pre-search for C# intent (${event.pattern})`
+    };
+  }
+  if (event.kind === "pre-native-tool" && event.tool_name === "Bash") {
+    const command = typeof event.input.command === "string" ? event.input.command : "";
+    return matchBashCodeIntel(command);
+  }
+  return null;
 }
 
 // ../Core/src/events.ts
@@ -62,8 +71,16 @@ var taskReceived = (prompt) => ({
   at: now(),
   prompt
 });
-var preRead = (path) => ({ kind: "pre-read", at: now(), path });
-var preWrite = (path) => ({ kind: "pre-write", at: now(), path });
+var preRead = (path) => ({
+  kind: "pre-read",
+  at: now(),
+  path
+});
+var preWrite = (path) => ({
+  kind: "pre-write",
+  at: now(),
+  path
+});
 var postWrite = (path, bytes) => ({
   kind: "post-write",
   at: now(),
@@ -110,87 +127,7 @@ function estimateTokensFromLength(length, kind) {
   return Math.round(length / RATIOS[kind]);
 }
 
-// ../Core/src/policy/routing.ts
-var CS_FILE_PATTERN = /\.(cs|csproj|sln|slnx|props|targets)$/i;
-var CS_GLOB_PATTERN = /(^|\/)\*\*?\/[^/]*\.(cs|csproj|sln|slnx|props|targets)$|(^|\/)[^/]*\.(cs|csproj|sln|slnx|props|targets)$/i;
-function isParlanceTool(toolName) {
-  return toolName.startsWith("mcp__parlance__");
-}
-function matchRoutingRule(event) {
-  if (event.kind === "pre-read") {
-    if (!CS_FILE_PATTERN.test(event.path)) return null;
-    return {
-      suggested_tool: "mcp__parlance__describe-type",
-      message: "Use Parlance MCP tools before reading C# source directly.",
-      reason: `pre-read on C# path ${event.path}`
-    };
-  }
-  if (event.kind === "pre-search") {
-    const hasCsType = event.file_type?.toLowerCase() === "cs";
-    const hasCsGlob = event.glob ? CS_GLOB_PATTERN.test(event.glob) : false;
-    const hasCsPattern = CS_GLOB_PATTERN.test(event.pattern);
-    const softSrcPath = event.path?.includes("/src/") ?? false;
-    if (!(hasCsType || hasCsGlob || hasCsPattern || softSrcPath)) return null;
-    return {
-      suggested_tool: "mcp__parlance__search-symbols",
-      message: "Use Parlance symbol/search tools before grep/glob on C# workspace code.",
-      reason: `pre-search for C# intent (${event.pattern})`
-    };
-  }
-  return null;
-}
-
-// ../Core/src/policy/fallback.ts
-function classifyFallback(event) {
-  const hit = matchRoutingRule(event);
-  if (!hit) return null;
-  return {
-    native_tool: toNativeKind(event),
-    intent: describeIntent(event),
-    suggested: hit.suggested_tool,
-    why: hit.reason
-  };
-}
-function toNativeKind(event) {
-  switch (event.kind) {
-    case "pre-read":
-    case "post-read":
-      return "read";
-    case "pre-write":
-    case "post-write":
-      return "write";
-    case "pre-search":
-    case "post-search":
-      return "search";
-    default:
-      return "other";
-  }
-}
-function describeIntent(event) {
-  if (event.kind === "pre-read") return `read ${event.path}`;
-  if (event.kind === "pre-write") return `write ${event.path}`;
-  if (event.kind === "pre-search") {
-    return `search ${event.pattern} (path=${event.path ?? ""} glob=${event.glob ?? ""} type=${event.file_type ?? ""})`;
-  }
-  return event.kind;
-}
-
 // ../Core/src/policy/evaluate.ts
-function emptySessionState(ctx, transcript_ref) {
-  return {
-    session_id: ctx.session_id,
-    adapter: ctx.adapter,
-    started_at: (/* @__PURE__ */ new Date()).toISOString(),
-    cwd: ctx.cwd,
-    transcript_ref,
-    parlance_calls: 0,
-    native_fallbacks: 0,
-    tool_calls: [],
-    read_tokens: 0,
-    write_tokens: 0,
-    active_bench: null
-  };
-}
 function evaluateEvent(event, ctx, state) {
   const guidance = [];
   const effects = [];
@@ -204,21 +141,6 @@ function evaluateEvent(event, ctx, state) {
         suggested_tool: match.suggested_tool,
         reason: match.reason
       });
-      const fallback = classifyFallback(event);
-      if (fallback) {
-        effects.push({
-          kind: "persist-feedback",
-          feedback: {
-            date: event.at.slice(0, 10),
-            adapter: ctx.adapter,
-            native_tool: fallback.native_tool,
-            intent: fallback.intent,
-            why: fallback.why,
-            suggested: fallback.suggested,
-            session_id: ctx.session_id
-          }
-        });
-      }
     }
   }
   if (event.kind === "post-read" || event.kind === "post-write" || event.kind === "post-search" || event.kind === "post-native-tool" || event.kind === "post-mcp-tool") {
@@ -267,39 +189,49 @@ function toUsageRecord(event) {
     target: JSON.stringify(toolEvent.input).slice(0, 80),
     is_mcp_parlance: isParlanceTool(toolEvent.tool_name),
     is_native_fallback,
-    output_tokens: estimateTokensFromLength(toolEvent.output_bytes ?? 0, "code")
+    output_tokens: estimateTokensFromLength(
+      toolEvent.output_bytes ?? 0,
+      "code"
+    )
   };
 }
 function flipToPre(event) {
   if (event.kind === "post-read") return { ...event, kind: "pre-read" };
   if (event.kind === "post-write") return { ...event, kind: "pre-write" };
   if (event.kind === "post-search") return { ...event, kind: "pre-search" };
-  if (event.kind === "post-native-tool") return { ...event, kind: "pre-native-tool" };
+  if (event.kind === "post-native-tool")
+    return { ...event, kind: "pre-native-tool" };
   if (event.kind === "post-mcp-tool") return { ...event, kind: "pre-mcp-tool" };
   return event;
 }
 
 // ../Core/src/storage/session-state.ts
-import { appendFileSync, existsSync, mkdirSync as mkdirSync2, readFileSync as readFileSync2, writeFileSync as writeFileSync2 } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync
+} from "node:fs";
 import { dirname } from "node:path";
 function readSessionState(root) {
   const path = sessionFile(root);
   if (!existsSync(path)) return null;
   try {
-    return JSON.parse(readFileSync2(path, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return null;
   }
 }
 function writeSessionState(root, state) {
   const path = sessionFile(root);
-  mkdirSync2(dirname(path), { recursive: true });
-  writeFileSync2(path, JSON.stringify(state, null, 2));
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(state, null, 2));
 }
 
 // src/bash-events.ts
-import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync3 } from "node:fs";
-import { dirname as dirname2, join as join3 } from "node:path";
+import { appendFileSync as appendFileSync2, mkdirSync as mkdirSync2 } from "node:fs";
+import { dirname as dirname2, join as join2 } from "node:path";
 
 // src/capabilities.ts
 var capabilities = {
@@ -338,9 +270,17 @@ function translate(env) {
   const transcript_path = env.transcript_path ?? null;
   switch (env.hook_event_name) {
     case "SessionStart":
-      return { event: sessionStarted(transcript_path ?? void 0), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? void 0),
+        context,
+        transcript_path
+      };
     case "UserPromptSubmit":
-      return { event: taskReceived(env.prompt ?? ""), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ""),
+        context,
+        transcript_path
+      };
     case "Stop":
       return { event: responseCompleted(), context, transcript_path };
     case "PreToolUse": {
@@ -364,7 +304,8 @@ function fromPre(env) {
     if (paths.length === 1) return preWrite(paths[0]);
     return preTool("pre-native-tool", tool, input);
   }
-  if (tool.startsWith("mcp__parlance__")) return preTool("pre-mcp-tool", tool, input);
+  if (tool.startsWith("mcp__parlance__"))
+    return preTool("pre-mcp-tool", tool, input);
   if (tool.startsWith("mcp__")) return preTool("pre-native-tool", tool, input);
   if (tool) return preTool("pre-native-tool", tool, input);
   return null;
@@ -382,8 +323,10 @@ function fromPost(env) {
     }
     return postTool("post-native-tool", tool, input, outputBytes);
   }
-  if (tool.startsWith("mcp__parlance__")) return postTool("post-mcp-tool", tool, input, outputBytes);
-  if (tool.startsWith("mcp__")) return postTool("post-native-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__parlance__"))
+    return postTool("post-mcp-tool", tool, input, outputBytes);
+  if (tool.startsWith("mcp__"))
+    return postTool("post-native-tool", tool, input, outputBytes);
   if (tool) return postTool("post-native-tool", tool, input, outputBytes);
   return null;
 }
@@ -404,7 +347,10 @@ function postBash(input, outputBytes) {
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === "search") {
-    return postSearch({ ...searchFromBashCommand(command), result_bytes: outputBytes });
+    return postSearch({
+      ...searchFromBashCommand(command),
+      result_bytes: outputBytes
+    });
   }
   return postTool("post-native-tool", "Bash", input, outputBytes);
 }
@@ -415,7 +361,11 @@ function classifyBashCommand(command) {
     return { kind: "search", confidence: "high", reason: `${first} command` };
   }
   if (/^(cat|head|tail|nl|wc)\b/.test(first) || /^sed\s+-n\b/.test(normalized)) {
-    return { kind: "read", confidence: "high", reason: `${first || "sed -n"} command` };
+    return {
+      kind: "read",
+      confidence: "high",
+      reason: `${first || "sed -n"} command`
+    };
   }
   if (/^(dotnet\s+test|npm\s+test|make\s+test)\b/.test(normalized)) {
     return { kind: "verify", confidence: "high", reason: "test command" };
@@ -424,9 +374,17 @@ function classifyBashCommand(command) {
     return { kind: "build", confidence: "high", reason: "build command" };
   }
   if (/^git\s+(status|diff|log|show)\b/.test(normalized)) {
-    return { kind: "vcs-inspect", confidence: "high", reason: "git inspection command" };
+    return {
+      kind: "vcs-inspect",
+      confidence: "high",
+      reason: "git inspection command"
+    };
   }
-  return { kind: "unknown", confidence: "low", reason: "no classifier matched" };
+  return {
+    kind: "unknown",
+    confidence: "low",
+    reason: "no classifier matched"
+  };
 }
 function commandFromInput(input) {
   return typeof input.command === "string" ? input.command : "";
@@ -446,7 +404,9 @@ function outputLength(output) {
 function pathsFromPatchCommand(command) {
   const paths = /* @__PURE__ */ new Set();
   for (const line of command.split("\n")) {
-    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(line.trim());
+    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(
+      line.trim()
+    );
     if (!match) continue;
     const path = match[1].trim();
     if (path && path !== "/dev/null") paths.add(path);
@@ -499,7 +459,8 @@ function readPathFromBashCommand(command) {
   if (!tool) return void 0;
   const candidates = args.slice(1).filter((arg) => !arg.startsWith("-") && !/^\d+,\d+p$/.test(arg));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index])) return candidates[index];
+    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index]))
+      return candidates[index];
   }
   return void 0;
 }
@@ -516,11 +477,11 @@ function shellWords(command) {
 // src/bash-events.ts
 var MAX_PREVIEW_CHARS = 1e3;
 function bashEventsFile(root) {
-  return join3(parlanceDir(root), "codex", "events", "bash.jsonl");
+  return join2(parlanceDir(root), "codex", "events", "bash.jsonl");
 }
 function appendBashEvent(root, record) {
   const path = bashEventsFile(root);
-  mkdirSync3(dirname2(path), { recursive: true });
+  mkdirSync2(dirname2(path), { recursive: true });
   appendFileSync2(path, `${JSON.stringify(record)}
 `);
 }
@@ -543,10 +504,14 @@ function bashEventFromEnvelope(env, phase, now2 = /* @__PURE__ */ new Date()) {
   };
   if (phase === "post") {
     const output = extractOutput(env.tool_response);
-    if (typeof output.exit_code === "number") record.exit_code = output.exit_code;
-    if (typeof output.output_bytes === "number") record.output_bytes = output.output_bytes;
+    if (typeof output.exit_code === "number")
+      record.exit_code = output.exit_code;
+    if (typeof output.output_bytes === "number")
+      record.output_bytes = output.output_bytes;
     if (output.preview) {
-      const previewRedaction = redact(truncate(output.preview, MAX_PREVIEW_CHARS));
+      const previewRedaction = redact(
+        truncate(output.preview, MAX_PREVIEW_CHARS)
+      );
       record.output_preview = previewRedaction.value;
       record.redacted ||= previewRedaction.redacted;
     }
@@ -641,13 +606,13 @@ async function readEnvelope() {
 function handleEvaluatedEvent(env, bashPhase) {
   const translated = translate(env);
   if (!translated) return;
-  const current = readSessionState(translated.context.project_root) ?? emptySessionState(translated.context, translated.transcript_path);
-  const evaluation = evaluateEvent(translated.event, translated.context, current);
-  for (const effect of evaluation.effects) {
-    if (effect.kind === "persist-feedback") {
-      appendFeedbackRecord(translated.context.project_root, effect.feedback);
-    }
-  }
+  const current = readSessionState(translated.context.project_root);
+  if (!current) return;
+  const evaluation = evaluateEvent(
+    translated.event,
+    translated.context,
+    current
+  );
   if (evaluation.next_state) {
     writeSessionState(translated.context.project_root, evaluation.next_state);
   }

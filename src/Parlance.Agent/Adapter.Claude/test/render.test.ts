@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import type { EventEvaluation } from '@parlance/agent-core';
+import { describe, expect, it } from 'vitest';
 import { renderToStderr } from '../src/render.js';
 
 describe('render', () => {
@@ -11,7 +11,9 @@ describe('render', () => {
       next_state: null,
     };
 
-    renderToStderr(evaluation, (s) => { lines.push(s); });
+    renderToStderr(evaluation, (s) => {
+      lines.push(s);
+    });
     expect(lines.join('')).toContain('⚡ parlance');
     expect(lines.join('')).toContain('Use X');
   });
@@ -20,22 +22,26 @@ describe('render', () => {
     const lines: string[] = [];
     const evaluation: EventEvaluation = {
       guidance: [],
-      effects: [{
-        kind: 'persist-feedback',
-        feedback: {
-          date: '2026-04-22',
-          adapter: 'claude-code',
-          native_tool: 'read',
-          intent: 'x',
-          why: 'y',
-          suggested: 'z',
-          session_id: 's',
+      effects: [
+        {
+          kind: 'persist-tool-usage',
+          record: {
+            at: '2026-04-22T00:00:00.000Z',
+            event_kind: 'post-read',
+            tool_name: 'Read',
+            target: 'Foo.cs',
+            is_mcp_parlance: false,
+            is_native_fallback: true,
+            output_tokens: 100,
+          },
         },
-      }],
+      ],
       next_state: null,
     };
 
-    renderToStderr(evaluation, (s) => { lines.push(s); });
+    renderToStderr(evaluation, (s) => {
+      lines.push(s);
+    });
     expect(lines).toHaveLength(0);
   });
 });

@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type {
+  AdapterCapabilities,
+  AgentEvent,
+  EventEvaluation,
+} from '../src/types.js';
 import * as typesModule from '../src/types.js';
-import type { AdapterCapabilities, AgentEvent, EventEvaluation } from '../src/types.js';
 
 describe('types', () => {
   it('types module exists', () => {

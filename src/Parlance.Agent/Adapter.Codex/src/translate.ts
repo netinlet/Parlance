@@ -1,3 +1,4 @@
+import type { AgentContext, AgentEvent } from '@parlance/agent-core';
 import {
   postSearch,
   postTool,
@@ -10,7 +11,6 @@ import {
   sessionStarted,
   taskReceived,
 } from '@parlance/agent-core';
-import type { AgentContext, AgentEvent } from '@parlance/agent-core';
 import { capabilities } from './capabilities.js';
 
 export type CodexHookEventName =
@@ -44,7 +44,13 @@ export interface Translated {
   transcript_path: string | null;
 }
 
-export type BashClassificationKind = 'search' | 'read' | 'verify' | 'build' | 'vcs-inspect' | 'unknown';
+type BashClassificationKind =
+  | 'search'
+  | 'read'
+  | 'verify'
+  | 'build'
+  | 'vcs-inspect'
+  | 'unknown';
 
 export interface BashClassification {
   kind: BashClassificationKind;
@@ -64,9 +70,17 @@ export function translate(env: CodexHookEnvelope): Translated | null {
 
   switch (env.hook_event_name) {
     case 'SessionStart':
-      return { event: sessionStarted(transcript_path ?? undefined), context, transcript_path };
+      return {
+        event: sessionStarted(transcript_path ?? undefined),
+        context,
+        transcript_path,
+      };
     case 'UserPromptSubmit':
-      return { event: taskReceived(env.prompt ?? ''), context, transcript_path };
+      return {
+        event: taskReceived(env.prompt ?? ''),
+        context,
+        transcript_path,
+      };
     case 'Stop':
       return { event: responseCompleted(), context, transcript_path };
     case 'PreToolUse': {
@@ -92,7 +106,8 @@ function fromPre(env: CodexHookEnvelope): AgentEvent | null {
     if (paths.length === 1) return preWrite(paths[0]);
     return preTool('pre-native-tool', tool, input);
   }
-  if (tool.startsWith('mcp__parlance__')) return preTool('pre-mcp-tool', tool, input);
+  if (tool.startsWith('mcp__parlance__'))
+    return preTool('pre-mcp-tool', tool, input);
   if (tool.startsWith('mcp__')) return preTool('pre-native-tool', tool, input);
   if (tool) return preTool('pre-native-tool', tool, input);
   return null;
@@ -112,8 +127,10 @@ function fromPost(env: CodexHookEnvelope): AgentEvent | null {
     }
     return postTool('post-native-tool', tool, input, outputBytes);
   }
-  if (tool.startsWith('mcp__parlance__')) return postTool('post-mcp-tool', tool, input, outputBytes);
-  if (tool.startsWith('mcp__')) return postTool('post-native-tool', tool, input, outputBytes);
+  if (tool.startsWith('mcp__parlance__'))
+    return postTool('post-mcp-tool', tool, input, outputBytes);
+  if (tool.startsWith('mcp__'))
+    return postTool('post-native-tool', tool, input, outputBytes);
   if (tool) return postTool('post-native-tool', tool, input, outputBytes);
   return null;
 }
@@ -132,11 +149,17 @@ function preBash(input: Record<string, unknown>): AgentEvent {
   return preTool('pre-native-tool', 'Bash', input);
 }
 
-function postBash(input: Record<string, unknown>, outputBytes: number): AgentEvent {
+function postBash(
+  input: Record<string, unknown>,
+  outputBytes: number,
+): AgentEvent {
   const command = commandFromInput(input);
   const classification = classifyBashCommand(command);
   if (classification.kind === 'search') {
-    return postSearch({ ...searchFromBashCommand(command), result_bytes: outputBytes });
+    return postSearch({
+      ...searchFromBashCommand(command),
+      result_bytes: outputBytes,
+    });
   }
   return postTool('post-native-tool', 'Bash', input, outputBytes);
 }
@@ -148,8 +171,15 @@ export function classifyBashCommand(command: string): BashClassification {
   if (/^(rg|grep|find|fd)\b/.test(first)) {
     return { kind: 'search', confidence: 'high', reason: `${first} command` };
   }
-  if (/^(cat|head|tail|nl|wc)\b/.test(first) || /^sed\s+-n\b/.test(normalized)) {
-    return { kind: 'read', confidence: 'high', reason: `${first || 'sed -n'} command` };
+  if (
+    /^(cat|head|tail|nl|wc)\b/.test(first) ||
+    /^sed\s+-n\b/.test(normalized)
+  ) {
+    return {
+      kind: 'read',
+      confidence: 'high',
+      reason: `${first || 'sed -n'} command`,
+    };
   }
   if (/^(dotnet\s+test|npm\s+test|make\s+test)\b/.test(normalized)) {
     return { kind: 'verify', confidence: 'high', reason: 'test command' };
@@ -158,9 +188,17 @@ export function classifyBashCommand(command: string): BashClassification {
     return { kind: 'build', confidence: 'high', reason: 'build command' };
   }
   if (/^git\s+(status|diff|log|show)\b/.test(normalized)) {
-    return { kind: 'vcs-inspect', confidence: 'high', reason: 'git inspection command' };
+    return {
+      kind: 'vcs-inspect',
+      confidence: 'high',
+      reason: 'git inspection command',
+    };
   }
-  return { kind: 'unknown', confidence: 'low', reason: 'no classifier matched' };
+  return {
+    kind: 'unknown',
+    confidence: 'low',
+    reason: 'no classifier matched',
+  };
 }
 
 export function commandFromInput(input: Record<string, unknown>): string {
@@ -173,9 +211,14 @@ function outputLength(output: unknown): number {
     const record = output as Record<string, unknown>;
     if (typeof record.content === 'string') return record.content.length;
     if (typeof record.output === 'string') return record.output.length;
-    if (typeof record.stdout === 'string' || typeof record.stderr === 'string') {
-      return (typeof record.stdout === 'string' ? record.stdout.length : 0)
-        + (typeof record.stderr === 'string' ? record.stderr.length : 0);
+    if (
+      typeof record.stdout === 'string' ||
+      typeof record.stderr === 'string'
+    ) {
+      return (
+        (typeof record.stdout === 'string' ? record.stdout.length : 0) +
+        (typeof record.stderr === 'string' ? record.stderr.length : 0)
+      );
     }
   }
   return 0;
@@ -184,7 +227,10 @@ function outputLength(output: unknown): number {
 function pathsFromPatchCommand(command: string): string[] {
   const paths = new Set<string>();
   for (const line of command.split('\n')) {
-    const match = /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(line.trim());
+    const match =
+      /^(?:\*\*\* (?:Update|Delete|Add) File:|--- a\/|\+\+\+ b\/)\s*(.+)$/.exec(
+        line.trim(),
+      );
     if (!match) continue;
     const path = match[1].trim();
     if (path && path !== '/dev/null') paths.add(path);
@@ -202,7 +248,12 @@ function estimatePatchWrittenBytes(command: string): number {
   return bytes;
 }
 
-function searchFromBashCommand(command: string): { pattern: string; path?: string; glob?: string; file_type?: string } {
+function searchFromBashCommand(command: string): {
+  pattern: string;
+  path?: string;
+  glob?: string;
+  file_type?: string;
+} {
   const args = shellWords(command);
   const tool = args[0];
   if ((tool === 'rg' || tool === 'grep') && args.length > 1) {
@@ -241,9 +292,12 @@ function readPathFromBashCommand(command: string): string | undefined {
   const tool = args[0];
   if (!tool) return undefined;
 
-  const candidates = args.slice(1).filter((arg) => !arg.startsWith('-') && !/^\d+,\d+p$/.test(arg));
+  const candidates = args
+    .slice(1)
+    .filter((arg) => !arg.startsWith('-') && !/^\d+,\d+p$/.test(arg));
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index])) return candidates[index];
+    if (/\.(cs|csproj|sln|slnx|props|targets)$/i.test(candidates[index]))
+      return candidates[index];
   }
   return undefined;
 }

@@ -64,7 +64,11 @@ export interface SearchEvent extends BaseEvent {
 }
 
 export interface ToolEvent extends BaseEvent {
-  kind: 'pre-native-tool' | 'post-native-tool' | 'pre-mcp-tool' | 'post-mcp-tool';
+  kind:
+    | 'pre-native-tool'
+    | 'post-native-tool'
+    | 'pre-mcp-tool'
+    | 'post-mcp-tool';
   tool_name: string;
   input: Record<string, unknown>;
   output_bytes?: number;
@@ -97,11 +101,6 @@ export interface PersistToolUsageEffect {
   record: ToolUsageRecord;
 }
 
-export interface PersistFeedbackEffect {
-  kind: 'persist-feedback';
-  feedback: FeedbackRecord;
-}
-
 export interface PersistSessionSummaryEffect {
   kind: 'persist-session-summary';
   summary: SessionSummary;
@@ -109,7 +108,6 @@ export interface PersistSessionSummaryEffect {
 
 export type EvaluationEffect =
   | PersistToolUsageEffect
-  | PersistFeedbackEffect
   | PersistSessionSummaryEffect;
 
 export interface SessionState {
@@ -149,20 +147,12 @@ export interface ToolUsageRecord {
   output_tokens: number;
 }
 
-export interface FeedbackRecord {
-  date: string;
-  adapter: string;
-  native_tool: string;
-  intent: string;
-  why: string;
-  suggested: string;
-  session_id: string;
-}
-
 export interface SessionSummary {
   session_id: string;
   date: string;
   adapter: string;
+  /** Worktree/project root the session ran in — tags central-ledger rows so they stay sliceable per-repo. */
+  project: string;
   started_at: string;
   ended_at: string;
   duration_s: number;
@@ -170,6 +160,8 @@ export interface SessionSummary {
   parlance_calls: number;
   native_fallbacks: number;
   tool_call_count: number;
+  /** Per-tool call counts (tool_name -> count), e.g. { "mcp__parlance__describe-type": 12, "Bash": 40 }. */
+  tool_breakdown: Record<string, number>;
   read_tokens: number;
   write_tokens: number;
   usage: UsageTotals;

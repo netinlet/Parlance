@@ -1,7 +1,11 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { persistSessionSummary, readSessionState } from '@parlance/agent-core/storage/session-state.js';
+import { basename, dirname } from 'node:path';
 import { sessionLogFile } from '@parlance/agent-core/storage/paths.js';
+import {
+  persistSessionSummary,
+  readSessionState,
+  toolBreakdown,
+} from '@parlance/agent-core/storage/session-state.js';
 import { aggregateUsageBetween, parseTranscript } from '../transcript.js';
 import { translate } from '../translate.js';
 import { readStdin } from './_shared.js';
@@ -35,10 +39,12 @@ async function main(): Promise<void> {
 
     const endedAt = new Date();
     const startedAt = new Date(state.started_at);
-    const summary = persistSessionSummary(translated.context.project_root, {
+    const project = translated.context.project_root;
+    const summary = persistSessionSummary({
       session_id: state.session_id,
       date: endedAt.toISOString().slice(0, 10),
       adapter: state.adapter,
+      project,
       started_at: state.started_at,
       ended_at: endedAt.toISOString(),
       duration_s: Math.round((endedAt.getTime() - startedAt.getTime()) / 1000),
@@ -46,13 +52,14 @@ async function main(): Promise<void> {
       parlance_calls: state.parlance_calls,
       native_fallbacks: state.native_fallbacks,
       tool_call_count: state.tool_calls.length,
+      tool_breakdown: toolBreakdown(state.tool_calls),
       read_tokens: state.read_tokens,
       write_tokens: state.write_tokens,
       usage,
     });
 
-    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` (${summary.adapter}) — ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out\n`;
-    const logPath = sessionLogFile(translated.context.project_root);
+    const line = `- ${summary.date} \`${summary.session_id.slice(0, 8)}\` [${basename(project)}] (${summary.adapter}) — ${summary.parlance_calls} Parlance, ${summary.native_fallbacks} fallback, ${summary.tool_call_count} tools, ${summary.duration_s}s, ${summary.usage.input_tokens} in / ${summary.usage.output_tokens} out\n`;
+    const logPath = sessionLogFile();
     mkdirSync(dirname(logPath), { recursive: true });
     appendFileSync(logPath, line);
   } catch {

@@ -24,7 +24,11 @@ describe('translate', () => {
     });
 
     expect(translated?.event.kind).toBe('pre-search');
-    expect(translated && 'file_type' in translated.event && translated.event.file_type).toBe('cs');
+    expect(
+      translated &&
+        'file_type' in translated.event &&
+        translated.event.file_type,
+    ).toBe('cs');
   });
 
   it('PreToolUse mcp__parlance__X -> pre-mcp-tool', () => {
@@ -62,7 +66,11 @@ describe('translate', () => {
     });
 
     expect(translated?.event.kind).toBe('post-read');
-    expect(translated && 'content_bytes' in translated.event && translated.event.content_bytes).toBe(5);
+    expect(
+      translated &&
+        'content_bytes' in translated.event &&
+        translated.event.content_bytes,
+    ).toBe(5);
   });
 
   it('Stop -> response-completed', () => {
@@ -86,6 +94,8 @@ describe('translate', () => {
     });
 
     expect(translated?.event.kind).toBe('task-received');
-    expect(translated && 'prompt' in translated.event && translated.event.prompt).toBe('hi');
+    expect(
+      translated && 'prompt' in translated.event && translated.event.prompt,
+    ).toBe('hi');
   });
 });
