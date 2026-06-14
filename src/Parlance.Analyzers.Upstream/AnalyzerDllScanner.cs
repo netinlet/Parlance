@@ -54,6 +54,27 @@ internal static class AnalyzerDllScanner
         return builder.ToImmutable();
     }
 
+    internal readonly record struct ScanResult(
+        ImmutableArray<Assembly> Assemblies,
+        ImmutableArray<DllLoadFailure> Failures);
+
+    // Like ScanAssembliesFromPaths, but records the file name + reason for each DLL that fails
+    // to load instead of swallowing it. Used by external sources so failures surface as data.
+    internal static ScanResult ScanAssembliesFromPathsReport(IEnumerable<string> paths)
+    {
+        var assemblies = ImmutableArray.CreateBuilder<Assembly>();
+        var failures = ImmutableArray.CreateBuilder<DllLoadFailure>();
+        foreach (var dllPath in ExpandToDllPaths(paths))
+        {
+            var (assembly, error) = LoadAssemblyWithError(dllPath);
+            if (assembly is not null)
+                assemblies.Add(assembly);
+            else if (error is not null)
+                failures.Add(new DllLoadFailure(dllPath, error));
+        }
+        return new ScanResult(assemblies.ToImmutable(), failures.ToImmutable());
+    }
+
     private static IEnumerable<string> ExpandToDllPaths(IEnumerable<string> paths)
     {
         foreach (var path in paths)
@@ -79,7 +100,9 @@ internal static class AnalyzerDllScanner
         }
     }
 
-    private static Assembly? LoadAssembly(string dllPath)
+    private static Assembly? LoadAssembly(string dllPath) => LoadAssemblyWithError(dllPath).Assembly;
+
+    private static (Assembly? Assembly, string? Error) LoadAssemblyWithError(string dllPath)
     {
         var directory = Path.GetDirectoryName(dllPath)!;
         try
@@ -96,12 +119,12 @@ internal static class AnalyzerDllScanner
                 try { return AssemblyLoadContext.Default.LoadFromAssemblyName(assemblyName); }
                 catch { return null; }
             };
-            return loadContext.LoadFromAssemblyPath(dllPath);
+            return (loadContext.LoadFromAssemblyPath(dllPath), null);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Failed to load assembly from '{dllPath}': {ex.Message}");
-            return null;
+            return (null, ex.Message);
         }
     }
 

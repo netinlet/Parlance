@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
@@ -14,8 +15,13 @@ public sealed class AnalysisService(
     WorkspaceSessionHolder holder,
     WorkspaceQueryService query,
     CurationSetProvider curationProvider,
+    AnalyzerProvider analyzerProvider,
     ILogger<AnalysisService> logger)
 {
+    // Singleton service; MCP dispatches tool calls concurrently, so the once-per-path guard must
+    // be a concurrent set (a plain HashSet can corrupt during a concurrent Add/resize).
+    private readonly ConcurrentDictionary<string, byte> _loggedFailurePaths = new(StringComparer.OrdinalIgnoreCase);
+
     public async Task<FileAnalysisResult> AnalyzeFilesAsync(
         ImmutableList<string> filePaths,
         AnalyzeOptions? options = null,
@@ -76,18 +82,11 @@ public sealed class AnalysisService(
             var projectInfo = session.Projects.FirstOrDefault(p => p.Name == project.Name);
             var targetFramework = projectInfo?.ActiveTargetFramework ?? "net10.0";
 
-            ImmutableArray<DiagnosticAnalyzer> analyzers;
-            try
-            {
-                analyzers = AnalyzerLoader.LoadAll(targetFramework);
-            }
-            catch (ArgumentException)
-            {
-                // Unsupported framework, fall back to net10.0
-                logger.LogWarning("Unsupported framework {Tfm} for project {Name}, falling back to net10.0",
-                    targetFramework, project.Name);
-                analyzers = AnalyzerLoader.LoadAll("net10.0");
-            }
+            var repoPath = session.Root.Absolute;
+            var providerResult = analyzerProvider.GetComponents(targetFramework, repoPath);
+            LogLoadReportOnce(providerResult.Failures, project.Name);
+
+            var analyzers = providerResult.Components.Analyzers;
 
             if (analyzers.IsEmpty)
             {
@@ -127,7 +126,7 @@ public sealed class AnalysisService(
             }
         }
 
-        var collected = allCurated.ToImmutable();
+        var collected = CollapseIdenticalDiagnostics(allCurated.ToImmutable());
 
         // Apply --suppress filter before scoring so totals/score are consistent
         if (options.Suppress is { IsEmpty: false } suppress)
@@ -166,4 +165,31 @@ public sealed class AnalysisService(
         DiagnosticSeverity.Info => Abstractions.DiagnosticSeverity.Suggestion,
         _ => Abstractions.DiagnosticSeverity.Silent
     };
+
+    /// <summary>
+    /// Collapses byte-identical diagnostics — same rule id, severity, message, file path, and source
+    /// span. <see cref="AnalyzerProvider"/> already dedups analyzers by type FullName, so the same
+    /// analyzer type never runs twice; this is the residual guard against a single analyzer (or Roslyn
+    /// across multiple syntax trees) emitting the exact same diagnostic more than once.
+    /// </summary>
+    private static ImmutableList<CuratedDiagnostic> CollapseIdenticalDiagnostics(
+        ImmutableList<CuratedDiagnostic> diagnostics) =>
+        diagnostics
+            .GroupBy(d => (d.RuleId, d.Severity, d.Message, d.FilePath, d.Line, d.Column, d.EndLine, d.EndColumn))
+            .Select(g => g.First())
+            .ToImmutableList();
+
+    /// <summary>
+    /// Logs each <see cref="DllLoadFailure"/> at Warning level, at most once per DLL path per session.
+    /// </summary>
+    private void LogLoadReportOnce(ImmutableList<DllLoadFailure> failures, string projectName)
+    {
+        foreach (var failure in failures)
+        {
+            if (_loggedFailurePaths.TryAdd(failure.DllPath, 0))
+                logger.LogWarning(
+                    "Analyzer DLL load failure for project {ProjectName}: {DllPath} — {Reason}",
+                    projectName, failure.DllPath, failure.Reason);
+        }
+    }
 }

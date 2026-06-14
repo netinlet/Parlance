@@ -9,7 +9,7 @@ public sealed class CodeActionServiceCacheTests
     public void EvictStaleEntries_removes_entries_from_superseded_snapshots()
     {
         using var holder = new WorkspaceSessionHolder();
-        var service = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
+        var service = new CodeActionService(holder, AnalyzerProviderTestFactory.CreateEmpty(), NullLogger<CodeActionService>.Instance);
 
         service.AddToCacheForTest("fix-1", snapshotVersion: 1);
         service.AddToCacheForTest("fix-2", snapshotVersion: 1);
@@ -26,7 +26,7 @@ public sealed class CodeActionServiceCacheTests
     public void EvictStaleEntries_keeps_current_snapshot_entries()
     {
         using var holder = new WorkspaceSessionHolder();
-        var service = new CodeActionService(holder, NullLogger<CodeActionService>.Instance);
+        var service = new CodeActionService(holder, AnalyzerProviderTestFactory.CreateEmpty(), NullLogger<CodeActionService>.Instance);
 
         service.AddToCacheForTest("fix-1", snapshotVersion: 5);
         service.AddToCacheForTest("fix-2", snapshotVersion: 5);

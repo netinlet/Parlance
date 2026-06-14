@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using Parlance.Abstractions;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
+using Parlance.Analyzers.Upstream;
 using Parlance.CSharp.Workspace;
 using Parlance.Mcp.Serialization;
 using Parlance.Mcp.Tools;
@@ -37,6 +38,11 @@ public static class ParlanceMcpHost
         builder.Services.AddHostedService<WorkspaceSessionLifecycle>();
         builder.Services.AddSingleton<WorkspaceQueryService>();
         builder.Services.AddSingleton<CurationSetProvider>();
+        builder.Services.AddSingleton(_ => new AnalyzerProvider([
+            new BundledAnalyzerSource(),
+            new RoslynFeaturesAnalyzerSource(),
+            new LocalDirectoryAnalyzerSource(),
+            new GlobalDirectoryAnalyzerSource()]));
         builder.Services.AddSingleton<AnalysisService>();
         builder.Services.AddSingleton<CodeActionService>();
         builder.Services.AddSingleton<ToolAnalytics>();

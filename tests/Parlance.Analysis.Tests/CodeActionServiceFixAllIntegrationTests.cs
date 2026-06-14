@@ -12,7 +12,7 @@ namespace Parlance.Analysis.Tests;
 public sealed class CodeActionServiceFixAllIntegrationTests(WorkspaceFixture fixture)
     : IClassFixture<WorkspaceFixture>
 {
-    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
+    private readonly CodeActionService _codeActions = new(fixture.Holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
 
     private static string TargetFile => Path.Combine(
         TestPaths.RepoRoot, "tests", "Parlance.Analysis.Tests", "Fixtures", "VarHeavySample.cs");

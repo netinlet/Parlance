@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol.Server;
 using Parlance.Analysis;
 using Parlance.Analysis.Curation;
+using Parlance.Analysis.Tests;
 using Parlance.CSharp.Workspace;
 using Parlance.CSharp.Workspace.Tests.Integration;
 using Parlance.Mcp.Tools;
@@ -24,8 +25,9 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
     private readonly AnalysisService _analysis = new(
         fixture.Holder, fixture.Query,
         new CurationSetProvider(NullLogger<CurationSetProvider>.Instance),
+        AnalyzerProviderTestFactory.CreateWithBundled(),
         NullLogger<AnalysisService>.Instance);
-    private readonly CodeActionService _codeActions = new(fixture.Holder, NullLogger<CodeActionService>.Instance);
+    private readonly CodeActionService _codeActions = new(fixture.Holder, AnalyzerProviderTestFactory.CreateWithBundled(), NullLogger<CodeActionService>.Instance);
     private readonly ParlanceMcpConfiguration _config = new("/fake/path.sln", "/tmp");
 
     // A name nothing in the loaded solution resolves to, so every symbol/type tool lands on its
@@ -63,7 +65,7 @@ public sealed class EveryToolStampsLiveSnapshotTests(WorkspaceFixture fixture) :
             ["SearchSymbolsTool"] = async () => Stamp(await SearchSymbolsTool.SearchSymbols(h, q, NoSuchName, ct: ct)),
             ["TypeHierarchyTool"] = async () => Stamp(await TypeHierarchyTool.TypeHierarchy(h, q, NoSuchName, ct: ct)),
             ["WorkspaceStatusTool"] = () => Task.FromResult(
-                WorkspaceStatusTool.GetStatus(h, _config, NullLogger<WorkspaceStatusTool>.Instance).SnapshotVersion),
+                WorkspaceStatusTool.GetStatus(h, _config, AnalyzerProviderTestFactory.CreateEmpty(), NullLogger<WorkspaceStatusTool>.Instance).SnapshotVersion),
         };
 
         // The buffer-overlay tool is the one [McpServerToolType] that cannot be exercised here: its

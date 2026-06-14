@@ -9,23 +9,20 @@ using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.Logging;
-using Parlance.Analyzers.Upstream;
 using Parlance.CSharp.Workspace;
 
 namespace Parlance.Analysis;
 
 public sealed class CodeActionService(
-    WorkspaceSessionHolder holder, ILogger<CodeActionService> logger)
+    WorkspaceSessionHolder holder, AnalyzerProvider analyzerProvider, ILogger<CodeActionService> logger)
 {
     private readonly ConcurrentDictionary<string, CachedCodeAction> _actionCache = new();
-    private readonly ConcurrentDictionary<string, ImmutableArray<CodeFixProvider>> _fixProvidersByTfm = new();
-    private readonly ConcurrentDictionary<string, ImmutableArray<CodeRefactoringProvider>> _refactoringProvidersByTfm = new();
     private int _nextFixId;
     private int _nextRefactorId;
 
     private CSharpWorkspaceSession Session => holder.LoadedSession;
 
-    private sealed record ResolvedDocument(Document Document, string TargetFramework);
+    private sealed record ResolvedDocument(Document Document, string TargetFramework, string RepoPath);
 
     private ResolvedDocument? ResolveDocument(string filePath)
     {
@@ -41,28 +38,14 @@ public sealed class CodeActionService(
             .FirstOrDefault(p => p.Name == document.Project.Name)
             ?.ActiveTargetFramework ?? "net10.0";
 
-        return new ResolvedDocument(document, tfm);
+        return new ResolvedDocument(document, tfm, Session.Root.Absolute);
     }
 
-    private ImmutableArray<CodeFixProvider> GetFixProviders(string targetFramework) =>
-        _fixProvidersByTfm.GetOrAdd(targetFramework, tfm =>
-        {
-            var providers = new List<CodeFixProvider>();
-            providers.AddRange(FixProviderLoader.LoadAll(tfm));
-            providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
-            providers.AddRange(DiscoverFromAssembly<CodeFixProvider>("Microsoft.CodeAnalysis.Features"));
-            return [.. providers];
-        });
+    private ImmutableArray<CodeFixProvider> GetFixProviders(string targetFramework, string repoPath) =>
+        analyzerProvider.GetComponents(targetFramework, repoPath).Components.FixProviders;
 
-    private ImmutableArray<CodeRefactoringProvider> GetRefactoringProviders(string targetFramework) =>
-        _refactoringProvidersByTfm.GetOrAdd(targetFramework, tfm =>
-        {
-            var providers = new List<CodeRefactoringProvider>();
-            providers.AddRange(RefactoringProviderLoader.LoadAll(tfm));
-            providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.CSharp.Features"));
-            providers.AddRange(DiscoverFromAssembly<CodeRefactoringProvider>("Microsoft.CodeAnalysis.Features"));
-            return [.. providers];
-        });
+    private ImmutableArray<CodeRefactoringProvider> GetRefactoringProviders(string targetFramework, string repoPath) =>
+        analyzerProvider.GetComponents(targetFramework, repoPath).Components.RefactoringProviders;
 
     public async Task<ImmutableList<CodeFixEntry>> GetCodeFixesAsync(
         string filePath, int line, string? diagnosticId = null, CancellationToken ct = default)
@@ -90,7 +73,7 @@ public sealed class CodeActionService(
         var treeCompilerDiags = compilation.GetDiagnostics(ct)
             .Where(d => d.Location.IsInSource && d.Location.SourceTree == tree);
 
-        var analyzers = AnalyzerLoader.LoadAll(resolvedDoc.TargetFramework);
+        var analyzers = analyzerProvider.GetComponents(resolvedDoc.TargetFramework, resolvedDoc.RepoPath).Components.Analyzers;
         var treeAnalyzerDiags = (await compilation
                 .WithProjectAnalyzers(analyzers, resolvedDoc.Document.Project).GetAnalyzerDiagnosticsAsync(ct))
             .Where(d => d.Location.IsInSource && d.Location.SourceTree == tree);
@@ -121,7 +104,7 @@ public sealed class CodeActionService(
 
         foreach (var diagnostic in lineDiags)
         {
-            foreach (var provider in GetFixProviders(resolvedDoc.TargetFramework))
+            foreach (var provider in GetFixProviders(resolvedDoc.TargetFramework, resolvedDoc.RepoPath))
             {
                 if (!provider.FixableDiagnosticIds.Contains(diagnostic.Id))
                     continue;
@@ -191,6 +174,7 @@ public sealed class CodeActionService(
     {
         var document = resolvedDoc.Document;
         var tfm = resolvedDoc.TargetFramework;
+        var repoPath = resolvedDoc.RepoPath;
         var title = $"Fix all {occurrences} '{candidate.Rule}' in document";
 
         return CodeAction.Create(title, async cancel =>
@@ -200,7 +184,7 @@ public sealed class CodeActionService(
             var tree = await document.GetSyntaxTreeAsync(cancel);
             if (compilation is null || tree is null) return solution;
 
-            var analyzers = AnalyzerLoader.LoadAll(tfm);
+            var analyzers = analyzerProvider.GetComponents(tfm, repoPath).Components.Analyzers;
             var diagnostics = (await compilation
                     .WithProjectAnalyzers(analyzers, document.Project).GetAnalyzerDiagnosticsAsync(cancel))
                 .Concat(compilation.GetDiagnostics(cancel))
@@ -322,7 +306,7 @@ public sealed class CodeActionService(
         var refactorings = new List<RefactoringEntry>();
         var snapshotVersion = Session.SnapshotVersion;
 
-        foreach (var provider in GetRefactoringProviders(resolvedDoc.TargetFramework))
+        foreach (var provider in GetRefactoringProviders(resolvedDoc.TargetFramework, resolvedDoc.RepoPath))
         {
             var codeActions = new List<CodeAction>();
             var context = new CodeRefactoringContext(resolvedDoc.Document, span,
@@ -552,56 +536,6 @@ public sealed class CodeActionService(
         return "document";
     }
 
-    private List<T> DiscoverFromAssembly<T>(string assemblyName) where T : class
-    {
-        var results = new List<T>();
-        Assembly assembly;
-        try
-        {
-            assembly = Assembly.Load(assemblyName);
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug(ex, "Could not load assembly {Name} for provider discovery", assemblyName);
-            return results;
-        }
-
-        Type[] types;
-        try
-        {
-            types = assembly.GetTypes();
-        }
-        catch (ReflectionTypeLoadException ex)
-        {
-            types = ex.Types.Where(t => t is not null).ToArray()!;
-        }
-        catch
-        {
-            return results;
-        }
-
-        foreach (var type in types)
-        {
-            if (type.IsAbstract || !typeof(T).IsAssignableFrom(type))
-                continue;
-
-            try
-            {
-                if (Activator.CreateInstance(type) is T instance)
-                    results.Add(instance);
-            }
-            catch
-            {
-                // Skip types that can't be instantiated
-            }
-        }
-
-        if (results.Count == 0)
-            logger.LogWarning("Discovered 0 {Type} from {Assembly} — provider loading may have silently failed", typeof(T).Name, assemblyName);
-        else
-            logger.LogDebug("Discovered {Count} {Type} from {Assembly}", results.Count, typeof(T).Name, assemblyName);
-        return results;
-    }
 }
 
 public sealed record CachedCodeAction(CodeAction Action, long SnapshotVersion);
