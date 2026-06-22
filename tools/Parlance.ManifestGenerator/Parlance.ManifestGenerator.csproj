@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.Analyzers" Version="5.3.0" />
     <ProjectReference Include="..\..\src\Parlance.Analyzers.Upstream\Parlance.Analyzers.Upstream.csproj" />
     <ProjectReference Include="..\..\src\Parlance.CSharp.Analyzers\Parlance.CSharp.Analyzers.csproj" />
   </ItemGroup>
